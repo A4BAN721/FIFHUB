@@ -93,10 +93,10 @@ export function NationsGrid() {
       {/* Title */}
       <div className="text-center mb-8">
         <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
-          {t("allNations")}
+          {t("allNationsTitle")}
         </h2>
         <p className="text-muted-foreground">
-          {filteredNations.length} {t("allNations").toLowerCase()}
+          {filteredNations.length} {t("allNationsSubtitle")}
         </p>
       </div>
 

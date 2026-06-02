@@ -28,8 +28,9 @@ export interface Nation {
 export const translations: Record<string, Record<string, string>> = {
   en: {
     title: "FIFA World Cup 2026",
-    subtitle: "United 2026",
-    allNations: "All Nations",
+    subtitle: "USA, Mexico & Canada",
+    allNationsTitle: "Groups and Nations",
+    allNationsSubtitle: "",
     players: "Players",
     position: "Position",
     club: "Club",
@@ -56,7 +57,8 @@ export const translations: Record<string, Record<string, string>> = {
   es: {
     title: "Copa Mundial FIFA 2026",
     subtitle: "Unidos 2026",
-    allNations: "Todas las Naciones",
+    allNationsTitle: "Todas las Naciones",
+    allNationsSubtitle: "todas las naciones",
     players: "Jugadores",
     position: "Posición",
     club: "Club",
@@ -83,7 +85,8 @@ export const translations: Record<string, Record<string, string>> = {
   fr: {
     title: "Coupe du Monde FIFA 2026",
     subtitle: "Unis 2026",
-    allNations: "Toutes les Nations",
+    allNationsTitle: "Toutes les Nations",
+    allNationsSubtitle: "toutes les nations",
     players: "Joueurs",
     position: "Position",
     club: "Club",
@@ -110,7 +113,8 @@ export const translations: Record<string, Record<string, string>> = {
   de: {
     title: "FIFA Weltmeisterschaft 2026",
     subtitle: "Vereint 2026",
-    allNations: "Alle Nationen",
+    allNationsTitle: "Alle Nationen",
+    allNationsSubtitle: "alle Nationen",
     players: "Spieler",
     position: "Position",
     club: "Verein",
@@ -137,7 +141,8 @@ export const translations: Record<string, Record<string, string>> = {
   pt: {
     title: "Copa do Mundo FIFA 2026",
     subtitle: "Unidos 2026",
-    allNations: "Todas as Nações",
+    allNationsTitle: "Todas as Nações",
+    allNationsSubtitle: "todas as nações",
     players: "Jogadores",
     position: "Posição",
     club: "Clube",
@@ -164,7 +169,8 @@ export const translations: Record<string, Record<string, string>> = {
   ar: {
     title: "كأس العالم فيفا 2026",
     subtitle: "متحدون 2026",
-    allNations: "جميع الدول",
+    allNationsTitle: "جميع الدول",
+    allNationsSubtitle: "جميع الدول",
     players: "اللاعبون",
     position: "المركز",
     club: "النادي",
@@ -191,7 +197,8 @@ export const translations: Record<string, Record<string, string>> = {
   zh: {
     title: "2026年国际足联世界杯",
     subtitle: "联合2026",
-    allNations: "所有国家",
+    allNationsTitle: "所有国家",
+    allNationsSubtitle: "所有国家",
     players: "球员",
     position: "位置",
     club: "俱乐部",
@@ -218,7 +225,8 @@ export const translations: Record<string, Record<string, string>> = {
   ja: {
     title: "FIFAワールドカップ2026",
     subtitle: "ユナイテッド2026",
-    allNations: "全ての国",
+    allNationsTitle: "全ての国",
+    allNationsSubtitle: "全ての国",
     players: "選手",
     position: "ポジション",
     club: "クラブ",
