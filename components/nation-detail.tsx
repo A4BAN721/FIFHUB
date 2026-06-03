@@ -228,18 +228,13 @@ function PlayerCard({ player, nationColors, index, t }: PlayerCardProps) {
         <div className="p-4">
           <div className="flex gap-4">
             <div
-              className="w-20 h-20 rounded-lg flex-shrink-0 border-2 bg-muted/70 flex items-center justify-center text-sm font-semibold uppercase text-foreground"
+              className="w-20 h-20 rounded-lg flex-shrink-0 border-2 bg-muted/70 flex items-center justify-center text-2xl font-bold text-foreground"
               style={{
                 borderColor: `${nationColors.primary}30`,
                 backgroundColor: `${nationColors.secondary}15`,
               }}
             >
-              {player.fullName
-                .split(" ")
-                .slice(0, 2)
-                .map((part) => part[0] || "")
-                .join("")
-                .toUpperCase()}
+              {player.jerseyNumber}
             </div>
 
             {/* Player Info */}

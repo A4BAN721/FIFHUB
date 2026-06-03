@@ -1,3 +1,5 @@
+import jerseyNumbersByName from './jersey-numbers.json';
+
 export interface Player {
   id: string;
   fullName: string;
@@ -7,6 +9,7 @@ export interface Player {
   weight: string;
   strongFoot: string;
   marketValue: string;
+  jerseyNumber: number;
 }
 
 type PlayerData = {
@@ -14,6 +17,7 @@ type PlayerData = {
   club: string;
   value: string;
   position?: string;
+  number?: number;
 };
 
 export interface Nation {
@@ -290,7 +294,7 @@ function generatePlayers(nationId: string, nationName: string): Player[] {
       { name: "Valentin Carboni", club: "Unknown", value: "€0M", position: "Forward" },
     ],
     brazil: [
-      { name: "Alisson", club: "Unknown", value: "€0M", position: "Goalkeeper" },
+      { name: "Alisson", club: "Liverpool", value: "€0M", position: "Goalkeeper" },
       { name: "Ederson", club: "Manchester City", value: "€35M", position: "Goalkeeper" },
       { name: "Weverton", club: "Unknown", value: "€0M", position: "Goalkeeper" },
       { name: "Danilo", club: "Nottingham Forest", value: "€25M", position: "Defender" },
@@ -325,24 +329,24 @@ function generatePlayers(nationId: string, nationName: string): Player[] {
       { name: "Dayot Upamecano", club: "Bayern Munich", value: "€45M", position: "Defender" },
       { name: "Jules Koundé", club: "Barcelona", value: "€60M", position: "Defender" },
       { name: "Benjamin Pavard", club: "Inter Milan", value: "€25M", position: "Defender" },
-      { name: "Theo Hernandez", club: "Unknown", value: "€0M", position: "Defender" },
+      { name: "Theo Hernandez", club: "Al Hilal", value: "€0M", position: "Defender" },
       { name: "Ferland Mendy", club: "Real Madrid", value: "€30M", position: "Defender" },
-      { name: "Jonathan Clauss", club: "Unknown", value: "€0M", position: "Defender" },
+      { name: "Jonathan Clauss", club: "Marseille", value: "€0M", position: "Defender" },
       { name: "Aurélien Tchouaméni", club: "Real Madrid", value: "€85M", position: "Midfielder" },
       { name: "Eduardo Camavinga", club: "Real Madrid", value: "€80M", position: "Midfielder" },
       { name: "Warren Zaïre-Emery", club: "PSG", value: "€60M", position: "Midfielder" },
       { name: "N'Golo Kanté", club: "Al-Ittihad", value: "€15M", position: "Midfielder" },
       { name: "Adrien Rabiot", club: "Marseille", value: "€25M", position: "Midfielder" },
       { name: "Youssouf Fofana", club: "AC Milan", value: "€30M", position: "Midfielder" },
-      { name: "Kylian Mbappé", club: "Real Madrid", value: "€180M", position: "Forward" },
+      { name: "Kylian Mbappé", club: "Real Madrid", value: "€180M", position: "Forward", number: 10 },
       { name: "Antoine Griezmann", club: "Atlético Madrid", value: "€30M", position: "Forward" },
       { name: "Ousmane Dembélé", club: "PSG", value: "€60M", position: "Forward" },
       { name: "Marcus Thuram", club: "Inter Milan", value: "€65M", position: "Forward" },
       { name: "Bradley Barcola", club: "PSG", value: "€70M", position: "Forward" },
-      { name: "Kingsley Coman", club: "Unknown", value: "€0M", position: "Forward" },
+      { name: "Kingsley Coman", club: "Al Nassr", value: "€0M", position: "Forward" },
       { name: "Randal Kolo Muani", club: "PSG", value: "€45M", position: "Forward" },
       { name: "Olivier Giroud", club: "LAFC", value: "€3M", position: "Forward" },
-      { name: "Rayan Cherki", club: "Unknown", value: "€0M", position: "Forward" },
+      { name: "Rayan Cherki", club: "Manchester City", value: "€0M", position: "Forward" },
     ],
     england: [
       { name: "Jordan Pickford", club: "Everton", value: "€28M", position: "Goalkeeper" },
@@ -351,7 +355,7 @@ function generatePlayers(nationId: string, nationName: string): Player[] {
       { name: "John Stones", club: "Manchester City", value: "€35M", position: "Defender" },
       { name: "Marc Guéhi", club: "Crystal Palace", value: "€50M", position: "Defender" },
       { name: "Ezri Konsa", club: "Aston Villa", value: "€35M", position: "Defender" },
-      { name: "Joe Gomez", club: "Unknown", value: "€0M", position: "Defender" },
+      { name: "Joe Gomez", club: "Liverpool", value: "€0M", position: "Defender" },
       { name: "Kyle Walker", club: "Manchester City", value: "€15M", position: "Defender" },
       { name: "Kieran Trippier", club: "Newcastle", value: "€15M", position: "Defender" },
       { name: "Trent Alexander-Arnold", club: "Liverpool", value: "€70M", position: "Defender" },
@@ -1605,6 +1609,7 @@ function generatePlayers(nationId: string, nationName: string): Player[] {
       weight: weights[index % weights.length],
       strongFoot: feet[index % feet.length],
       marketValue: p.value,
+      jerseyNumber: p.number ?? jerseyNumbersByName[p.name] ?? index + 1,
     };
   });
 }
