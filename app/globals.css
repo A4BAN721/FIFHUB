@@ -174,3 +174,39 @@
 .animate-diagonal-float {
   animation: diagonal-float 18s ease-in-out infinite;
 }
+
+/* Host pattern using repeated small images for star, eagle, maple leaf */
+.host-pattern {
+  --pattern-size: 48px;
+  pointer-events: none;
+  background-image: url('/hosts/star.svg'), url('/hosts/eagle.svg'), url('/hosts/maple.svg');
+  background-repeat: repeat, repeat, repeat;
+  background-size: var(--pattern-size) var(--pattern-size), calc(var(--pattern-size) * 0.9) calc(var(--pattern-size) * 0.9), calc(var(--pattern-size) * 0.95) calc(var(--pattern-size) * 0.95);
+  background-position: 0% 0%, 24% 18%, 48% 36%;
+  mix-blend-mode: overlay;
+  opacity: 0.12;
+  transform: translate3d(0,0,0);
+  will-change: transform, opacity;
+  filter: saturate(0.95) contrast(0.95);
+  animation: diagonal-float 26s linear infinite;
+}
+
+/* Slightly different intensity for dark mode */
+.dark .host-pattern {
+  opacity: 0.10;
+  filter: saturate(0.7) contrast(0.9) brightness(0.95);
+}
+
+/* Lighter intensity for light mode */
+:not(.dark) .host-pattern {
+  opacity: 0.14;
+  filter: saturate(0.9) contrast(0.95) brightness(1.02);
+}
+
+/* Ensure header and interactive elements stay above pattern */
+.host-pattern ~ .relative,
+.host-pattern ~ .z-10 {
+  position: relative;
+  z-index: 10;
+}
+
