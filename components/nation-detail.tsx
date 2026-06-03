@@ -227,16 +227,19 @@ function PlayerCard({ player, nationColors, index, t }: PlayerCardProps) {
         />
         <div className="p-4">
           <div className="flex gap-4">
-            {/* Player Image */}
             <div
-              className="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 border-2"
-              style={{ borderColor: `${nationColors.primary}30` }}
+              className="w-20 h-20 rounded-lg flex-shrink-0 border-2 bg-muted/70 flex items-center justify-center text-sm font-semibold uppercase text-foreground"
+              style={{
+                borderColor: `${nationColors.primary}30`,
+                backgroundColor: `${nationColors.secondary}15`,
+              }}
             >
-              <img
-                src={player.imageUrl}
-                alt={player.fullName}
-                className="w-full h-full object-cover"
-              />
+              {player.fullName
+                .split(" ")
+                .slice(0, 2)
+                .map((part) => part[0] || "")
+                .join("")
+                .toUpperCase()}
             </div>
 
             {/* Player Info */}
