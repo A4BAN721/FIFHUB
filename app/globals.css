@@ -176,3 +176,74 @@
   animation: diagonal-float 18s ease-in-out infinite;
 }
 
+/* Smooth flowing gradient background */
+@keyframes background-flow {
+  0%, 100% {
+    background-position: 0% 0%, 100% 18%, 50% 100%, 82% 74%;
+    opacity: 0.94;
+  }
+  20% {
+    background-position: 12% 6%, 92% 24%, 42% 88%, 90% 70%;
+    opacity: 0.96;
+  }
+  40% {
+    background-position: 18% 12%, 84% 16%, 58% 82%, 76% 80%;
+    opacity: 0.98;
+  }
+  60% {
+    background-position: 8% 10%, 96% 20%, 52% 90%, 86% 72%;
+    opacity: 0.95;
+  }
+  80% {
+    background-position: 6% 14%, 98% 12%, 46% 98%, 80% 76%;
+    opacity: 0.97;
+  }
+}
+
+@keyframes background-glow {
+  0%, 100% {
+    opacity: 0.16;
+  }
+  50% {
+    opacity: 0.28;
+  }
+}
+
+.background-flow {
+  background: radial-gradient(circle at 14% 16%, var(--bg-blend-1) 0%, transparent 28%),
+    radial-gradient(circle at 84% 18%, var(--bg-blend-2) 0%, transparent 26%),
+    radial-gradient(circle at 35% 82%, var(--bg-blend-3) 0%, transparent 32%),
+    radial-gradient(circle at 60% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 18%);
+  background-size: 220% 220%, 220% 220%, 240% 240%, 180% 180%;
+  opacity: 0.98;
+  mix-blend-mode: normal;
+  animation: background-flow 32s ease-in-out infinite;
+}
+
+.background-glow {
+  background: radial-gradient(circle at 40% 28%, rgba(255, 255, 255, 0.22), transparent 20%),
+    radial-gradient(circle at 68% 72%, rgba(255, 255, 255, 0.16), transparent 18%);
+  filter: blur(88px);
+  opacity: 0.22;
+  animation: background-glow 16s ease-in-out infinite;
+}
+
+:root {
+  --bg-blend-1: rgba(59, 130, 246, 0.34);
+  --bg-blend-2: rgba(16, 185, 129, 0.34);
+  --bg-blend-3: rgba(239, 68, 68, 0.32);
+}
+
+.dark {
+  --bg-blend-1: rgba(59, 130, 246, 0.26);
+  --bg-blend-2: rgba(16, 185, 129, 0.22);
+  --bg-blend-3: rgba(239, 68, 68, 0.2);
+}
+
+:not(.dark) {
+  --bg-blend-1: rgba(59, 130, 246, 0.36);
+  --bg-blend-2: rgba(16, 185, 129, 0.4);
+  --bg-blend-3: rgba(239, 68, 68, 0.36);
+}
+
+
