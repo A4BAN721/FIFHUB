@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, ReactNode } from "react";
 import { translations } from "@/lib/world-cup-data";
 
-type Language = "en" | "es" | "fr" | "de" | "pt" | "ar" | "zh" | "ja";
+type Language = "en" | "bn";
 
 interface LanguageContextType {
   language: Language;
@@ -37,11 +37,5 @@ export function useLanguage() {
 
 export const languageNames: Record<Language, string> = {
   en: "English",
-  es: "Español",
-  fr: "Français",
-  de: "Deutsch",
-  pt: "Português",
-  ar: "العربية",
-  zh: "中文",
-  ja: "日本語",
+  bn: "বাংলা",
 };
