@@ -37,8 +37,8 @@ export interface Nation {
 
 export const translations: Record<string, Record<string, string>> = {
   en: {
-    title: "FIFA World Cup 2026",
-    subtitle: "USA, Mexico & Canada",
+    title: "FIFHUB",
+    subtitle: "FIFA World Cup 2026",
     allNationsTitle: "Groups and Nations",
     allNationsSubtitle: "12 Groups, 48 Nations",
     players: "Players",
