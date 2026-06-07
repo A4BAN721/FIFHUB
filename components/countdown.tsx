@@ -13,12 +13,12 @@ export function Countdown() {
   });
 
   useEffect(() => {
-    // Target date: June 11, 2026, 08:00 PM BST (5 hours earlier than original)
+    // Target date: June 11, 2026, 09:00 PM BST (4 hours earlier than original)
     // BST is UTC+6, so we need to convert to UTC
-    // June 11, 2026, 08:00 PM BST = June 11, 2026, 02:00 PM UTC
+    // June 11, 2026, 09:00 PM BST = June 11, 2026, 03:00 PM UTC
     // Original was June 12, 2026, 01:00 AM UTC
-    // 5 hours earlier: June 11, 2026, 08:00 PM UTC
-    const targetDate = new Date("2026-06-11T20:00:00Z").getTime();
+    // 4 hours earlier: June 11, 2026, 09:00 PM UTC
+    const targetDate = new Date("2026-06-11T21:00:00Z").getTime();
 
     const calculateTimeLeft = () => {
       const now = new Date().getTime();
