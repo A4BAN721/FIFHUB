@@ -39,7 +39,7 @@ export interface Nation {
 
 export const translations: Record<string, Record<string, string>> = {
   en: {
-    title: "FIFHUB 26",
+    title: "FIFHUB",
     subtitle: "World Cup 2026",
     allNationsSubtitle: "12 Groups, 48 Nations",
     players: "Players",
@@ -146,7 +146,7 @@ export const translations: Record<string, Record<string, string>> = {
     algeria: "Algeria",
   },
   bn: {
-    title: "ফিফহাব ২৬",
+    title: "ফিফহাব",
     subtitle: "বিশ্বকাপ ২০২৬",
     allNationsSubtitle: "১২টি গ্রুপ, ৪৮টি দেশ",
     players: "খেলোয়াড়",

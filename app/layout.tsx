@@ -5,7 +5,7 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { LanguageProvider } from '@/components/language-provider'
 
 export const metadata: Metadata = {
-  title: 'FIFHUB 26',
+  title: 'FIFHUB',
   description: 'Everything you need to know sorted in one place.',
   keywords: ['FIFA', 'World Cup', '2026', 'Football', 'Soccer', 'Players', 'Squads'],
 }
