@@ -91,6 +91,10 @@ export function NationDetail({ nation, onBack }: NationDetailProps) {
         groups[player.position].push(player);
       }
     });
+    // Sort players within each position by jersey number ascending
+    Object.keys(groups).forEach((pos) => {
+      groups[pos].sort((a, b) => a.jerseyNumber - b.jerseyNumber);
+    });
     return groups;
   }, [filteredPlayers]);
 
@@ -219,6 +223,39 @@ export function NationDetail({ nation, onBack }: NationDetailProps) {
           )}
         </div>
       </div>
+
+      {/* Head Coach */}
+      {nation.headCoach && (
+        <div className="container mx-auto px-4 pb-8">
+          <div
+            className="rounded-xl p-6 border backdrop-blur-sm"
+            style={{
+              borderColor: `${primaryColor}20`,
+              backgroundColor: `${primaryColor}08`,
+            }}
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div
+                className="flex h-14 w-14 items-center justify-center rounded-full text-white text-lg font-bold shrink-0"
+                style={{ backgroundColor: primaryColor }}
+              >
+                HC
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground uppercase tracking-wider font-medium">
+                  Head Coach
+                </p>
+                <p
+                  className="font-bold text-2xl sm:text-3xl"
+                  style={{ color: primaryColor }}
+                >
+                  {nation.headCoach}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Players Grid by Position */}
       <div className="container mx-auto px-4 pb-12">

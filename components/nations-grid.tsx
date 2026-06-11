@@ -26,7 +26,7 @@ const fifaGroups: Record<string, string[]> = {
 };
 
 const qualifiedNationIds = new Set(Object.values(fifaGroups).flat());
-const localDataNationIds = new Set([...fifaGroups.A, ...fifaGroups.B]);
+const localDataNationIds = new Set(qualifiedNationIds);
 const localDataNations = new Map(
   fallbackNations
     .filter((nation) => localDataNationIds.has(nation.id))
