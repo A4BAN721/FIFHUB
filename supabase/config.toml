@@ -42,7 +42,7 @@ health_timeout = "2m"
 major_version = 17
 
 [db.pooler]
-enabled = false
+enabled = true
 # Port to use for the local connection pooler.
 port = 54329
 # Specifies when a server connection can be reused by other clients.
@@ -129,8 +129,8 @@ file_size_limit = "50MiB"
 enabled = true
 
 # Image transformation API is available to Supabase Pro plan.
-# [storage.image_transformation]
-# enabled = true
+[storage.image_transformation]
+enabled = true
 
 # Store analytical data in S3 for running ETL jobs over Iceberg Catalog
 # This feature is only available on the hosted platform.
