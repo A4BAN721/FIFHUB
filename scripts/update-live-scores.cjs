@@ -25,19 +25,39 @@ async function main() {
   const providerMatches = await loadProviderMatches();
   let updated = 0;
   let skipped = 0;
+  const unmatched = [];
 
   for (const match of providerMatches) {
-    const fixture = fixtureMap.get(teamPairKey(match.homeTeam, match.awayTeam));
+    let fixture = fixtureMap.get(teamPairKey(match.homeTeam, match.awayTeam));
+    let scoreMatch = match;
+
+    if (!fixture) {
+      fixture = fixtureMap.get(teamPairKey(match.awayTeam, match.homeTeam));
+      if (fixture) {
+        scoreMatch = {
+          ...match,
+          homeTeam: match.awayTeam,
+          awayTeam: match.homeTeam,
+          homeScore: match.awayScore,
+          awayScore: match.homeScore,
+        };
+      }
+    }
+
     if (!fixture) {
       skipped++;
+      unmatched.push(`${match.homeTeam} vs ${match.awayTeam}`);
       continue;
     }
 
-    await upsertLiveState(fixture, match);
+    await upsertLiveState(fixture, scoreMatch);
     updated++;
   }
 
   console.log(`Live score sync complete. Updated ${updated}; skipped ${skipped}; provider matches ${providerMatches.length}.`);
+  if (unmatched.length > 0) {
+    console.log(`Unmatched provider fixtures: ${unmatched.slice(0, 20).join("; ")}`);
+  }
 }
 
 async function loadFixtures() {
@@ -242,6 +262,26 @@ function teamPairKey(homeTeam, awayTeam) {
 
 function normalizeTeamName(name) {
   const direct = {
+    bih: "bosniaherzegovina",
+    "bosnia herzegovina": "bosniaherzegovina",
+    "bosnia-herzegovina": "bosniaherzegovina",
+    bosniaherzegovina: "bosniaherzegovina",
+    "cape verde island": "capeverde",
+    "cape verde islands": "capeverde",
+    "cote divoire": "ivorycoast",
+    "czech republic": "czechia",
+    "democratic republic of congo": "drcongo",
+    "congo dr": "drcongo",
+    congodr: "drcongo",
+    drc: "drcongo",
+    "ir iran": "iran",
+    iran: "iran",
+    "korea rep": "southkorea",
+    "republic of korea": "southkorea",
+    "saudi-arabia": "saudiarabia",
+    "saudi arabia": "saudiarabia",
+    turkey: "turkiye",
+    "united states of america": "usa",
     "usa": "usa",
     "united states": "usa",
     "cote d'ivoire": "ivorycoast",
@@ -256,7 +296,6 @@ function normalizeTeamName(name) {
     "cabo verde": "capeverde",
     "cape verde": "capeverde",
     "dr congo": "drcongo",
-    "congo dr": "drcongo",
     "bosnia & herzegovina": "bosniaherzegovina",
     "bosnia and herzegovina": "bosniaherzegovina",
   };
@@ -268,7 +307,8 @@ function normalizeTeamName(name) {
     .toLowerCase()
     .trim();
 
-  return direct[normalized] ?? normalized.replace(/[^a-z0-9]/g, "");
+  const compact = normalized.replace(/[^a-z0-9]/g, "");
+  return direct[normalized] ?? direct[compact] ?? compact;
 }
 
 async function fetchWithRetry(url, options, label, attempts = 3) {
