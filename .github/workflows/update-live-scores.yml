@@ -9,6 +9,9 @@ concurrency:
   group: update-live-scores
   cancel-in-progress: true
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   update-live-scores:
     runs-on: ubuntu-latest
