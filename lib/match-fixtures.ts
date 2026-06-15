@@ -117,7 +117,7 @@ export const matchFixtures: Match[] = [
     time: "5:00 AM",
     stage: "GROUP STAGE",
     group: "Group E",
-    homeTeam: "Côte d'Ivoire",
+    homeTeam: "Ivory Coast",
     awayTeam: "Ecuador",
     stadium: "Philadelphia Stadium"
   },
@@ -348,7 +348,7 @@ export const matchFixtures: Match[] = [
     stage: "GROUP STAGE",
     group: "Group E",
     homeTeam: "Germany",
-    awayTeam: "Côte d'Ivoire",
+    awayTeam: "Ivory Coast",
     stadium: "Toronto Stadium"
   },
   {
@@ -558,7 +558,7 @@ export const matchFixtures: Match[] = [
     stage: "GROUP STAGE",
     group: "Group E",
     homeTeam: "Curaçao",
-    awayTeam: "Côte d'Ivoire",
+    awayTeam: "Ivory Coast",
     stadium: "Philadelphia Stadium"
   },
   {

@@ -76,6 +76,42 @@ interface UseLiveMatchRealtimeOptions {
   onConnectionChange?: (status: ConnectionStatus) => void;
 }
 
+type LiveMatchStateRow = {
+  match_id?: string | null;
+  home_score?: number | null;
+  away_score?: number | null;
+  minute?: number | null;
+  phase?: string | null;
+  period?: string | null;
+  status?: string | null;
+  last_event_type?: string | null;
+  home_possession?: number | null;
+  away_possession?: number | null;
+  home_shots?: number | null;
+  away_shots?: number | null;
+  home_shots_on_target?: number | null;
+  away_shots_on_target?: number | null;
+  home_yellow_cards?: number | null;
+  away_yellow_cards?: number | null;
+  home_red_cards?: number | null;
+  away_red_cards?: number | null;
+  home_corners?: number | null;
+  away_corners?: number | null;
+  home_fouls?: number | null;
+  away_fouls?: number | null;
+};
+
+type MatchEventRow = {
+  match_id?: string | null;
+  event_type?: string | null;
+  minute?: number | null;
+  stoppage_minute?: number | null;
+  player_name?: string | null;
+  team_name?: string | null;
+  assist_player_name?: string | null;
+  description?: string | null;
+};
+
 /**
  * Hook return type
  */
@@ -144,6 +180,61 @@ export function useLiveMatchRealtime({
       });
 
       channel
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'live_match_state', filter: `match_id=eq.${matchId}` },
+          (payload: RealtimePostgresChangesPayload<LiveMatchStateRow>) => {
+            if (!mounted || !payload.new) return;
+            const data = payload.new;
+            const newState: LiveRealtimeState = {
+              matchId: data.match_id ?? matchId,
+              homeScore: data.home_score ?? 0,
+              awayScore: data.away_score ?? 0,
+              minute: data.minute ?? 0,
+              period: data.phase ?? data.period ?? '',
+              status: data.status ?? '',
+              lastEventType: data.last_event_type ?? undefined,
+              homePossession: data.home_possession ?? undefined,
+              awayPossession: data.away_possession ?? undefined,
+              homeShots: data.home_shots ?? undefined,
+              awayShots: data.away_shots ?? undefined,
+              homeShotsOnTarget: data.home_shots_on_target ?? undefined,
+              awayShotsOnTarget: data.away_shots_on_target ?? undefined,
+              homeYellowCards: data.home_yellow_cards ?? undefined,
+              awayYellowCards: data.away_yellow_cards ?? undefined,
+              homeRedCards: data.home_red_cards ?? undefined,
+              awayRedCards: data.away_red_cards ?? undefined,
+              homeCorners: data.home_corners ?? undefined,
+              awayCorners: data.away_corners ?? undefined,
+              homeFouls: data.home_fouls ?? undefined,
+              awayFouls: data.away_fouls ?? undefined,
+            };
+
+            setLiveState(newState);
+            onStateChange?.(newState);
+          },
+        )
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'match_events', filter: `match_id=eq.${matchId}` },
+          (payload: RealtimePostgresChangesPayload<MatchEventRow>) => {
+            if (!mounted || !payload.new) return;
+            const data = payload.new;
+            const eventData: RealtimeEventData = {
+              type: data.event_type ?? '',
+              matchId: data.match_id ?? matchId,
+              minute: data.minute ?? 0,
+              stoppageMinute: data.stoppage_minute ?? undefined,
+              playerName: data.player_name ?? '',
+              teamName: data.team_name ?? '',
+              assistPlayerName: data.assist_player_name ?? undefined,
+              description: data.description ?? undefined,
+            };
+
+            setRecentEvents(prev => [eventData, ...prev].slice(0, MAX_EVENTS));
+            onEvent?.(eventData);
+          },
+        )
         .on('broadcast', { event: 'match.update' }, (payload) => {
           if (!mounted) return;
           const data = payload.payload?.data;

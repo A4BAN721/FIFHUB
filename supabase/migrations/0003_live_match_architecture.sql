@@ -58,6 +58,19 @@ CREATE TABLE IF NOT EXISTS players (
   UNIQUE(provider_player_id, provider)
 );
 
+-- If a remote project already has a public.players table, CREATE TABLE IF NOT EXISTS
+-- skips the definition above. Keep the live-match columns present before indexing.
+ALTER TABLE players ADD COLUMN IF NOT EXISTS provider_player_id TEXT;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS provider TEXT;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS team_id UUID REFERENCES teams(id) ON DELETE SET NULL;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS position TEXT;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS jersey_number INTEGER;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS nationality TEXT;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}';
+ALTER TABLE players ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();
+ALTER TABLE players ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
+
 CREATE INDEX IF NOT EXISTS idx_players_team ON players(team_id);
 CREATE INDEX IF NOT EXISTS idx_players_provider ON players(provider);
 CREATE INDEX IF NOT EXISTS idx_players_name ON players(name);
@@ -147,6 +160,25 @@ CREATE TABLE IF NOT EXISTS matches (
   UNIQUE(provider_match_id, provider)
 );
 
+-- If a remote project already has a public.matches table, CREATE TABLE IF NOT EXISTS
+-- skips the definition above. Keep the live-match columns present before indexing.
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS provider_match_id TEXT;
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS provider TEXT;
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS home_team_id UUID REFERENCES teams(id);
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS away_team_id UUID REFERENCES teams(id);
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS competition_id UUID REFERENCES competitions(id);
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS venue_id UUID REFERENCES venues(id);
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS kickoff_time TIMESTAMPTZ;
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS timezone TEXT DEFAULT 'UTC';
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'scheduled';
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS matchday INTEGER;
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS round TEXT;
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS referee TEXT;
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS attendance INTEGER;
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}';
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
+
 -- Match indexes
 CREATE INDEX IF NOT EXISTS idx_matches_status ON matches(status);
 CREATE INDEX IF NOT EXISTS idx_matches_kickoff ON matches(kickoff_time);
@@ -209,6 +241,35 @@ CREATE TABLE IF NOT EXISTS live_match_state (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- If a remote project already has public.live_match_state, keep the legacy view
+-- and indexes compatible with the columns expected below.
+ALTER TABLE live_match_state ADD COLUMN IF NOT EXISTS home_score INTEGER DEFAULT 0;
+ALTER TABLE live_match_state ADD COLUMN IF NOT EXISTS away_score INTEGER DEFAULT 0;
+ALTER TABLE live_match_state ADD COLUMN IF NOT EXISTS minute INTEGER DEFAULT 0;
+ALTER TABLE live_match_state ADD COLUMN IF NOT EXISTS stoppage_time INTEGER DEFAULT 0;
+ALTER TABLE live_match_state ADD COLUMN IF NOT EXISTS period TEXT DEFAULT 'pre_match';
+ALTER TABLE live_match_state ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'scheduled';
+ALTER TABLE live_match_state ADD COLUMN IF NOT EXISTS last_event_id TEXT;
+ALTER TABLE live_match_state ADD COLUMN IF NOT EXISTS last_event_type TEXT;
+ALTER TABLE live_match_state ADD COLUMN IF NOT EXISTS home_possession REAL DEFAULT 50;
+ALTER TABLE live_match_state ADD COLUMN IF NOT EXISTS away_possession REAL DEFAULT 50;
+ALTER TABLE live_match_state ADD COLUMN IF NOT EXISTS home_shots INTEGER DEFAULT 0;
+ALTER TABLE live_match_state ADD COLUMN IF NOT EXISTS away_shots INTEGER DEFAULT 0;
+ALTER TABLE live_match_state ADD COLUMN IF NOT EXISTS home_shots_on_target INTEGER DEFAULT 0;
+ALTER TABLE live_match_state ADD COLUMN IF NOT EXISTS away_shots_on_target INTEGER DEFAULT 0;
+ALTER TABLE live_match_state ADD COLUMN IF NOT EXISTS home_yellow_cards INTEGER DEFAULT 0;
+ALTER TABLE live_match_state ADD COLUMN IF NOT EXISTS away_yellow_cards INTEGER DEFAULT 0;
+ALTER TABLE live_match_state ADD COLUMN IF NOT EXISTS home_red_cards INTEGER DEFAULT 0;
+ALTER TABLE live_match_state ADD COLUMN IF NOT EXISTS away_red_cards INTEGER DEFAULT 0;
+ALTER TABLE live_match_state ADD COLUMN IF NOT EXISTS home_corners INTEGER DEFAULT 0;
+ALTER TABLE live_match_state ADD COLUMN IF NOT EXISTS away_corners INTEGER DEFAULT 0;
+ALTER TABLE live_match_state ADD COLUMN IF NOT EXISTS home_fouls INTEGER DEFAULT 0;
+ALTER TABLE live_match_state ADD COLUMN IF NOT EXISTS away_fouls INTEGER DEFAULT 0;
+ALTER TABLE live_match_state ADD COLUMN IF NOT EXISTS home_offsides INTEGER DEFAULT 0;
+ALTER TABLE live_match_state ADD COLUMN IF NOT EXISTS away_offsides INTEGER DEFAULT 0;
+ALTER TABLE live_match_state ADD COLUMN IF NOT EXISTS statistics JSONB DEFAULT '{}';
+ALTER TABLE live_match_state ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
+
 -- Live match state index
 CREATE INDEX IF NOT EXISTS idx_live_match_state_status 
   ON live_match_state(updated_at DESC);
@@ -267,6 +328,29 @@ CREATE TABLE IF NOT EXISTS match_events (
   -- Prevent duplicates
   UNIQUE(external_event_id)
 );
+
+-- If a remote project already has a public.match_events table, CREATE TABLE IF NOT EXISTS
+-- skips the definition above. Keep the live-match columns present before indexing.
+ALTER TABLE match_events ADD COLUMN IF NOT EXISTS external_event_id TEXT;
+ALTER TABLE match_events ADD COLUMN IF NOT EXISTS match_id UUID REFERENCES matches(id) ON DELETE CASCADE;
+ALTER TABLE match_events ADD COLUMN IF NOT EXISTS provider TEXT;
+ALTER TABLE match_events ADD COLUMN IF NOT EXISTS event_type TEXT;
+ALTER TABLE match_events ADD COLUMN IF NOT EXISTS minute INTEGER;
+ALTER TABLE match_events ADD COLUMN IF NOT EXISTS stoppage_minute INTEGER;
+ALTER TABLE match_events ADD COLUMN IF NOT EXISTS period TEXT;
+ALTER TABLE match_events ADD COLUMN IF NOT EXISTS team_id UUID REFERENCES teams(id);
+ALTER TABLE match_events ADD COLUMN IF NOT EXISTS team_name TEXT;
+ALTER TABLE match_events ADD COLUMN IF NOT EXISTS player_id TEXT;
+ALTER TABLE match_events ADD COLUMN IF NOT EXISTS player_name TEXT;
+ALTER TABLE match_events ADD COLUMN IF NOT EXISTS assist_player_id TEXT;
+ALTER TABLE match_events ADD COLUMN IF NOT EXISTS assist_player_name TEXT;
+ALTER TABLE match_events ADD COLUMN IF NOT EXISTS substitute_player_id TEXT;
+ALTER TABLE match_events ADD COLUMN IF NOT EXISTS substitute_player_name TEXT;
+ALTER TABLE match_events ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE match_events ADD COLUMN IF NOT EXISTS xg REAL;
+ALTER TABLE match_events ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}';
+ALTER TABLE match_events ADD COLUMN IF NOT EXISTS event_timestamp TIMESTAMPTZ DEFAULT now();
+ALTER TABLE match_events ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();
 
 -- Event indexes
 CREATE INDEX IF NOT EXISTS idx_match_events_match ON match_events(match_id, minute ASC);
@@ -455,6 +539,29 @@ CREATE POLICY "Service write players"
 -- ==================== SUBSCRIPTIONS FOR REALTIME ====================
 
 -- Enable realtime for live match data
-ALTER PUBLICATION supabase_realtime ADD TABLE live_match_state;
-ALTER PUBLICATION supabase_realtime ADD TABLE match_events;
-ALTER PUBLICATION supabase_realtime ADD TABLE matches;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables
+      WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'live_match_state'
+    ) THEN
+      ALTER PUBLICATION supabase_realtime ADD TABLE live_match_state;
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables
+      WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'match_events'
+    ) THEN
+      ALTER PUBLICATION supabase_realtime ADD TABLE match_events;
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables
+      WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'matches'
+    ) THEN
+      ALTER PUBLICATION supabase_realtime ADD TABLE matches;
+    END IF;
+  END IF;
+END;
+$$;

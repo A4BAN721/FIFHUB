@@ -7,6 +7,7 @@ import type { Nation } from "@/lib/world-cup-data";
 import { matchFixtures as fallbackMatchFixtures } from "@/lib/match-fixtures";
 import { nations as fallbackNations } from "@/lib/world-cup-data";
 import { normalizeCountryName } from "@/lib/country-utils";
+import { getTeamDisplayName } from "@/lib/team-display";
 import { getMatchFixtures, getNations } from "@/lib/supabase/data";
 import { useLanguage } from "./language-provider";
 import { useTheme } from "next-themes";
@@ -43,20 +44,24 @@ export function MatchFixtures({
   useEffect(() => {
     let isMounted = true;
 
-    Promise.all([getMatchFixtures(), getNations()])
-      .then(([supabaseMatches, supabaseNations]) => {
+    Promise.allSettled([getMatchFixtures(), getNations()])
+      .then(([matchesResult, nationsResult]) => {
         if (!isMounted) return;
 
-        if (supabaseMatches.length > 0) {
-          setMatchFixtures(supabaseMatches);
+        if (matchesResult.status === "fulfilled" && matchesResult.value.length > 0) {
+          setMatchFixtures(matchesResult.value);
         }
 
-        if (supabaseNations.length > 0) {
-          setNations(supabaseNations);
+        if (nationsResult.status === "fulfilled" && nationsResult.value.length > 0) {
+          setNations(nationsResult.value);
         }
-      })
-      .catch((error) => {
-        console.error("Failed to load match fixtures from Supabase:", error);
+
+        if (matchesResult.status === "rejected" || nationsResult.status === "rejected") {
+          console.warn("Using local World Cup data because Supabase data could not be loaded.", {
+            matchFixtures: matchesResult.status === "rejected" ? matchesResult.reason : "loaded",
+            nations: nationsResult.status === "rejected" ? nationsResult.reason : "loaded",
+          });
+        }
       });
 
     return () => {
@@ -150,7 +155,8 @@ export function MatchFixtures({
     if (language === "bn" && normalized === "bosnia-herzegovina") return "বসনিয়া";
     const translationKey = normalized.replace(/-/g, "");
     const translated = t(translationKey);
-    return translated === translationKey ? teamName : translated;
+    if (translated !== translationKey) return translated;
+    return getTeamDisplayName(teamName);
   };
 
   const getTranslatedStage = (stage: string): string => {

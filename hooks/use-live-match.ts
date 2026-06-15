@@ -1,15 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import type { Match } from "@/lib/match-fixtures";
 import { createBrowserFootballProvider } from "@/lib/live-data/browser-provider";
 import type { FootballDataProvider } from "@/lib/live-data/football-provider";
+import { normalizeMatchPhase, normalizeMatchStatus } from "@/lib/live-data/status";
 import type { LiveMatch } from "@/lib/live-data/types";
-import { useLiveMatchRealtime } from "./use-live-match-realtime";
+import { useLiveMatchRealtime, type LiveRealtimeState } from "./use-live-match-realtime";
 
 type UseLiveMatchOptions = {
   enabled?: boolean;
   intervalMs?: number;
   provider?: FootballDataProvider | null;
+  fallbackMatch?: Match;
 };
 
 type UseLiveMatchResult = {
@@ -22,7 +25,7 @@ type UseLiveMatchResult = {
 
 export function useLiveMatch(
   matchId: string,
-  { enabled = true, intervalMs = 20000, provider }: UseLiveMatchOptions = {}
+  { enabled = true, intervalMs = 20000, provider, fallbackMatch }: UseLiveMatchOptions = {}
 ): UseLiveMatchResult {
   const [defaultProvider] = useState<FootballDataProvider | null>(() => createBrowserFootballProvider());
   const [liveMatch, setLiveMatch] = useState<LiveMatch | null>(null);
@@ -52,45 +55,55 @@ export function useLiveMatch(
     }
   }, [activeProvider, enabled, matchId]);
 
+  const applyRealtimeState = useCallback((state: LiveRealtimeState) => {
+    setLiveMatch((current) => {
+      const base =
+        current ??
+        (fallbackMatch
+          ? createLiveMatchShell(matchId, fallbackMatch.homeTeam, fallbackMatch.awayTeam)
+          : null);
+
+      if (!base) return current;
+
+      return {
+        ...base,
+        status: normalizeMatchStatus(state.status),
+        phase: normalizeMatchPhase(state.period),
+        homeScore: state.homeScore,
+        awayScore: state.awayScore,
+        minute: state.minute,
+        statistics: {
+          ...base.statistics,
+          homePossession: state.homePossession,
+          awayPossession: state.awayPossession,
+          homeShots: state.homeShots,
+          awayShots: state.awayShots,
+          homeShotsOnTarget: state.homeShotsOnTarget,
+          awayShotsOnTarget: state.awayShotsOnTarget,
+          homeYellowCards: state.homeYellowCards,
+          awayYellowCards: state.awayYellowCards,
+          homeRedCards: state.homeRedCards,
+          awayRedCards: state.awayRedCards,
+          homeCorners: state.homeCorners,
+          awayCorners: state.awayCorners,
+          homeFouls: state.homeFouls,
+          awayFouls: state.awayFouls,
+        },
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    setLastUpdated(new Date());
+  }, [fallbackMatch, matchId]);
+
+  const handleRealtimeEvent = useCallback(() => {
+    void refresh();
+  }, [refresh]);
+
   useLiveMatchRealtime({
     matchId,
     enabled: enabled && Boolean(activeProvider),
-    onStateChange: (state) => {
-      setLiveMatch((current) => {
-        if (!current) return current;
-
-        return {
-          ...current,
-          status: state.status as LiveMatch["status"],
-          phase: state.period as LiveMatch["phase"],
-          homeScore: state.homeScore,
-          awayScore: state.awayScore,
-          minute: state.minute,
-          statistics: {
-            ...current.statistics,
-            homePossession: state.homePossession,
-            awayPossession: state.awayPossession,
-            homeShots: state.homeShots,
-            awayShots: state.awayShots,
-            homeShotsOnTarget: state.homeShotsOnTarget,
-            awayShotsOnTarget: state.awayShotsOnTarget,
-            homeYellowCards: state.homeYellowCards,
-            awayYellowCards: state.awayYellowCards,
-            homeRedCards: state.homeRedCards,
-            awayRedCards: state.awayRedCards,
-            homeCorners: state.homeCorners,
-            awayCorners: state.awayCorners,
-            homeFouls: state.homeFouls,
-            awayFouls: state.awayFouls,
-          },
-          updatedAt: new Date().toISOString(),
-        };
-      });
-      setLastUpdated(new Date());
-    },
-    onEvent: () => {
-      void refresh();
-    },
+    onStateChange: applyRealtimeState,
+    onEvent: handleRealtimeEvent,
   });
 
   useEffect(() => {
@@ -114,4 +127,20 @@ export function useLiveMatch(
   }, [activeProvider, enabled, intervalMs, refresh]);
 
   return { liveMatch, error, isLoading, lastUpdated, refresh };
+}
+
+function createLiveMatchShell(matchId: string, homeTeam: string, awayTeam: string): LiveMatch {
+  return {
+    matchId,
+    status: "scheduled",
+    phase: "pre_match",
+    homeTeam,
+    awayTeam,
+    homeScore: 0,
+    awayScore: 0,
+    minute: null,
+    updatedAt: new Date().toISOString(),
+    statistics: {},
+    events: [],
+  };
 }

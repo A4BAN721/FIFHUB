@@ -8,6 +8,7 @@ import { normalizeCountryName } from "@/lib/country-utils";
 import { getCompletedMatch } from "@/lib/live-data/completed-matches";
 import { isVisibleLiveState } from "@/lib/live-data/status";
 import type { LiveMatch, MatchEvent } from "@/lib/live-data/types";
+import { getFifaAbbreviation, getTeamDisplayName } from "@/lib/team-display";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { NationFlag } from "@/components/nation-flag";
@@ -21,7 +22,7 @@ type LiveMatchCardProps = {
 
 export function LiveMatchCard({ match, children }: LiveMatchCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { liveMatch } = useLiveMatch(match.id);
+  const { liveMatch } = useLiveMatch(match.id, { fallbackMatch: match });
   const displayMatch = liveMatch ?? getCompletedMatch(match.id);
 
   if (!isVisibleLiveState(displayMatch)) {
@@ -107,7 +108,12 @@ function ExpandedMatchHeader({ liveMatch, stadium }: { liveMatch: LiveMatch; sta
     <div className="px-10 text-center">
       <p className="text-xs font-bold uppercase text-muted-foreground">Full Time</p>
       <h3 className="mt-1 text-xl font-black tracking-normal text-foreground sm:text-2xl">
-        {liveMatch.homeTeam} vs {liveMatch.awayTeam}
+        <span className="sm:hidden">
+          {getFifaAbbreviation(liveMatch.homeTeam)} vs {getFifaAbbreviation(liveMatch.awayTeam)}
+        </span>
+        <span className="hidden sm:inline">
+          {getTeamDisplayName(liveMatch.homeTeam)} vs {getTeamDisplayName(liveMatch.awayTeam)}
+        </span>
       </h3>
       <p className="mt-1 text-sm text-muted-foreground">{stadium}</p>
     </div>
@@ -144,7 +150,8 @@ function ExpandedTeamName({ teamName, align }: { teamName: string; align: "left"
         />
       )}
       <span className="min-w-0 truncate text-lg font-black text-foreground sm:text-2xl">
-        {teamName}
+        <span className="sm:hidden">{getFifaAbbreviation(teamName)}</span>
+        <span className="hidden sm:inline">{getTeamDisplayName(teamName)}</span>
       </span>
       {align === "right" && (
         <NationFlag
@@ -199,7 +206,10 @@ function TeamEventColumn({
 
   return (
     <div className={`flex flex-col gap-3 ${alignClass}`}>
-      <h4 className="text-xs font-black uppercase text-muted-foreground">{teamName}</h4>
+      <h4 className="text-xs font-black uppercase text-muted-foreground">
+        <span className="sm:hidden">{getFifaAbbreviation(teamName)}</span>
+        <span className="hidden sm:inline">{getTeamDisplayName(teamName)}</span>
+      </h4>
       <div className="space-y-1.5">
         {goals.length > 0 ? (
           goals.map((goal) => (

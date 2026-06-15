@@ -1,6 +1,8 @@
 export function normalizeCountryName(name: string): string {
   const directNameMap: Record<string, string> = {
     "Bosnia & Herzegovina": "bosnia-herzegovina",
+    "United States": "usa",
+    USA: "usa",
     "Côte d'Ivoire": "ivory-coast",
     "Cote d'Ivoire": "ivory-coast",
     "Côte d’Ivoire": "ivory-coast",
@@ -24,6 +26,8 @@ export function normalizeCountryName(name: string): string {
 
   const normalizedNameMap: Record<string, string> = {
     "bosnia & herzegovina": "bosnia-herzegovina",
+    "united states": "usa",
+    usa: "usa",
     "cote divoire": "ivory-coast",
     "dr congo": "dr-congo",
     "cabo verde": "cape-verde",
