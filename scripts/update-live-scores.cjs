@@ -130,10 +130,9 @@ function mapApiFootballPhase(status) {
 }
 
 async function loadFootballDataMatches() {
-  const today = new Date().toISOString().slice(0, 10);
-  const json = await footballDataRequest("matches", {
-    dateFrom: today,
-    dateTo: today,
+  const json = await footballDataRequest("competitions/WC/matches", {
+    dateFrom: process.env.FOOTBALL_DATA_DATE_FROM ?? "2026-06-11",
+    dateTo: process.env.FOOTBALL_DATA_DATE_TO ?? "2026-07-20",
   });
 
   return (json.matches ?? []).map(mapFootballDataMatch);
