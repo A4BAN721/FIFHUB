@@ -75,12 +75,13 @@ async function apiFootballRequest(endpoint, params) {
     url.searchParams.set(key, String(value));
   }
 
-  const response = await fetch(url, {
+  const response = await fetchWithRetry(url, {
     headers: {
       "x-rapidapi-key": apiFootballKey,
       "x-rapidapi-host": "v3.football.api-sports.io",
+      "user-agent": "fifhub-live-score-updater/1.0",
     },
-  });
+  }, `API-Football ${endpoint}`);
 
   if (!response.ok) {
     throw new Error(`API-Football returned ${response.status}`);
@@ -144,9 +145,12 @@ async function footballDataRequest(endpoint, params) {
     url.searchParams.set(key, String(value));
   }
 
-  const response = await fetch(url, {
-    headers: { "X-Auth-Token": footballDataKey },
-  });
+  const response = await fetchWithRetry(url, {
+    headers: {
+      "X-Auth-Token": footballDataKey,
+      "user-agent": "fifhub-live-score-updater/1.0",
+    },
+  }, `Football-Data.org ${endpoint}`);
 
   if (!response.ok) {
     throw new Error(`Football-Data.org returned ${response.status}`);
@@ -266,4 +270,31 @@ function normalizeTeamName(name) {
     .trim();
 
   return direct[normalized] ?? normalized.replace(/[^a-z0-9]/g, "");
+}
+
+async function fetchWithRetry(url, options, label, attempts = 3) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      if (response.status >= 500 && attempt < attempts) {
+        lastError = new Error(`${label} returned ${response.status}`);
+      } else {
+        return response;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+
+    const delayMs = 1000 * attempt;
+    console.warn(`${label} request failed on attempt ${attempt}/${attempts}. Retrying in ${delayMs}ms.`);
+    await sleep(delayMs);
+  }
+
+  throw new Error(`${label} request failed after ${attempts} attempts: ${lastError?.message ?? lastError}`);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
