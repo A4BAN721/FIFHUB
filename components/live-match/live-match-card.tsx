@@ -91,14 +91,30 @@ export function LiveMatchCard({ match, children }: LiveMatchCardProps) {
 }
 
 function CompactScoreOverlay({ liveMatch }: { liveMatch: LiveMatch }) {
+  const timerLabel = getTimerLabel(liveMatch);
+  const showLiveIndicator = isMatchInProgress(liveMatch);
+
   return (
     <div className="pointer-events-none absolute inset-0 z-20">
+      {showLiveIndicator && (
+        <span
+          className="absolute right-2 top-2 h-3 w-3 rounded-full border border-white/80 bg-red-600 shadow-lg shadow-red-600/60 live-dot-pulse"
+          aria-hidden="true"
+        />
+      )}
       <span className="absolute left-2 top-2 rounded-full border border-zinc-200 bg-white px-2 py-0.5 text-[10px] font-black uppercase text-zinc-950 shadow-md dark:border-zinc-700 dark:bg-zinc-950 dark:text-white">
         {getStatusLabel(liveMatch)}
       </span>
-      <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-lg border border-zinc-200 bg-white px-3 py-1 text-sm font-black tabular-nums text-zinc-950 shadow-lg dark:border-zinc-700 dark:bg-zinc-950 dark:text-white">
-        {liveMatch.homeScore} - {liveMatch.awayScore}
-      </span>
+      <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1">
+        <span className="rounded-lg border border-zinc-200 bg-white px-3 py-1 text-sm font-black tabular-nums text-zinc-950 shadow-lg dark:border-zinc-700 dark:bg-zinc-950 dark:text-white">
+          {liveMatch.homeScore} - {liveMatch.awayScore}
+        </span>
+        {timerLabel && (
+          <span className="rounded-full border border-zinc-200 bg-white/95 px-2 py-0.5 text-[10px] font-black uppercase tabular-nums text-red-600 shadow-md dark:border-zinc-700 dark:bg-zinc-950/95">
+            {timerLabel}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -128,6 +144,22 @@ function getStatusLabel(liveMatch: LiveMatch) {
   if (minute && liveMatch.status !== "scheduled") return minute;
 
   return formatPhaseLabel(liveMatch.phase);
+}
+
+function getTimerLabel(liveMatch: LiveMatch) {
+  if (!isMatchInProgress(liveMatch)) return "";
+  if (liveMatch.status === "half_time" || liveMatch.phase === "half_time") return "HT";
+
+  return formatMatchMinute(liveMatch.minute, liveMatch.stoppageMinute) || formatPhaseLabel(liveMatch.phase);
+}
+
+function isMatchInProgress(liveMatch: LiveMatch) {
+  return (
+    liveMatch.status === "live" ||
+    liveMatch.status === "half_time" ||
+    liveMatch.status === "extra_time" ||
+    liveMatch.status === "penalties"
+  );
 }
 
 function ExpandedScoreboard({ liveMatch }: { liveMatch: LiveMatch }) {

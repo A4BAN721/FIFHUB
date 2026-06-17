@@ -176,6 +176,20 @@
   animation: diagonal-float 18s ease-in-out infinite;
 }
 
+@keyframes live-dot-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.32);
+  }
+}
+
+.live-dot-pulse {
+  animation: live-dot-pulse 1.2s ease-in-out infinite;
+  transform-origin: center;
+}
+
 /* Smooth flowing gradient background */
 @keyframes background-flow {
   0%, 100% {
