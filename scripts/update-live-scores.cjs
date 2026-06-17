@@ -23,11 +23,31 @@ async function main() {
   const fixtureMap = new Map(fixtures.map((fixture) => [teamPairKey(fixture.home_team, fixture.away_team), fixture]));
 
   const providerMatches = await loadProviderMatches();
+  const primaryResult = await syncMatches(providerMatches, fixtureMap, { writeEvents: false });
+  const completedMatches = await loadEspnCompletedMatches();
+  const completedResult = await syncMatches(completedMatches, fixtureMap, { writeEvents: true });
+
+  console.log(
+    `Live score sync complete. Updated ${primaryResult.updated}; skipped ${primaryResult.skipped}; provider matches ${providerMatches.length}.`,
+  );
+  if (primaryResult.unmatched.length > 0) {
+    console.log(`Unmatched provider fixtures: ${primaryResult.unmatched.slice(0, 20).join("; ")}`);
+  }
+
+  console.log(
+    `Completed match stats sync complete. Updated ${completedResult.updated}; skipped ${completedResult.skipped}; ESPN matches ${completedMatches.length}.`,
+  );
+  if (completedResult.unmatched.length > 0) {
+    console.log(`Unmatched ESPN fixtures: ${completedResult.unmatched.slice(0, 20).join("; ")}`);
+  }
+}
+
+async function syncMatches(matches, fixtureMap, options) {
   let updated = 0;
   let skipped = 0;
   const unmatched = [];
 
-  for (const match of providerMatches) {
+  for (const match of matches) {
     let fixture = fixtureMap.get(teamPairKey(match.homeTeam, match.awayTeam));
     let scoreMatch = match;
 
@@ -51,13 +71,13 @@ async function main() {
     }
 
     await upsertLiveState(fixture, scoreMatch);
+    if (options.writeEvents) {
+      await replaceMatchEvents(fixture, scoreMatch);
+    }
     updated++;
   }
 
-  console.log(`Live score sync complete. Updated ${updated}; skipped ${skipped}; provider matches ${providerMatches.length}.`);
-  if (unmatched.length > 0) {
-    console.log(`Unmatched provider fixtures: ${unmatched.slice(0, 20).join("; ")}`);
-  }
+  return { updated, skipped, unmatched };
 }
 
 async function loadFixtures() {
@@ -72,7 +92,7 @@ async function loadFixtures() {
 async function loadProviderMatches() {
   if (apiFootballKey) return loadApiFootballMatches();
   if (footballDataKey) return loadFootballDataMatches();
-  throw new Error("Missing API_FOOTBALL_KEY or FOOTBALL_DATA_KEY.");
+  return [];
 }
 
 async function loadApiFootballMatches() {
@@ -231,10 +251,159 @@ function estimateFootballDataMinute(match) {
   return Math.min(120, Math.max(46, estimatedMinute));
 }
 
+async function loadEspnCompletedMatches() {
+  const dateFrom = process.env.ESPN_DATE_FROM ?? "2026-06-11";
+  const dateTo = process.env.ESPN_DATE_TO ?? new Date().toISOString().slice(0, 10);
+  const matches = [];
+
+  for (const date of enumerateIsoDates(dateFrom, dateTo)) {
+    const json = await espnScoreboardRequest(date);
+    for (const event of json.events ?? []) {
+      const match = mapEspnEvent(event);
+      if (match) matches.push(match);
+    }
+  }
+
+  return matches;
+}
+
+async function espnScoreboardRequest(date) {
+  const url = new URL("https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard");
+  url.searchParams.set("dates", date.replace(/-/g, ""));
+
+  const response = await fetchWithRetry(
+    url,
+    { headers: { "user-agent": "fifhub-completed-match-updater/1.0" } },
+    `ESPN scoreboard ${date}`,
+  );
+
+  if (!response.ok) {
+    throw new Error(`ESPN scoreboard returned ${response.status}`);
+  }
+
+  return response.json();
+}
+
+function mapEspnEvent(event) {
+  const competition = event.competitions?.[0];
+  if (!competition?.status?.type?.completed) return null;
+
+  const home = competition.competitors?.find((competitor) => competitor.homeAway === "home");
+  const away = competition.competitors?.find((competitor) => competitor.homeAway === "away");
+  if (!home || !away) return null;
+
+  const teamById = new Map([
+    [String(home.id), home.team?.displayName ?? home.team?.shortDisplayName],
+    [String(away.id), away.team?.displayName ?? away.team?.shortDisplayName],
+  ]);
+
+  return {
+    provider: "espn",
+    providerMatchId: String(event.id),
+    homeTeam: home.team?.displayName ?? home.team?.shortDisplayName,
+    awayTeam: away.team?.displayName ?? away.team?.shortDisplayName,
+    homeScore: Number(home.score ?? 0),
+    awayScore: Number(away.score ?? 0),
+    minute: 90,
+    stoppageMinute: null,
+    status: "finished",
+    phase: "full_time",
+    kickoffTime: competition.date ?? event.date,
+    providerUpdatedAt: new Date().toISOString(),
+    statistics: mapEspnStatistics(home, away, competition.details ?? []),
+    events: mapEspnGoalEvents(competition, teamById),
+  };
+}
+
+function mapEspnStatistics(home, away, details) {
+  return {
+    homePossession: espnStat(home, "possessionPct"),
+    awayPossession: espnStat(away, "possessionPct"),
+    homeShots: espnStat(home, "totalShots") ?? 0,
+    awayShots: espnStat(away, "totalShots") ?? 0,
+    homeShotsOnTarget: espnStat(home, "shotsOnTarget") ?? 0,
+    awayShotsOnTarget: espnStat(away, "shotsOnTarget") ?? 0,
+    homeYellowCards: countEspnCard(details, home.id, "yellowCard"),
+    awayYellowCards: countEspnCard(details, away.id, "yellowCard"),
+    homeRedCards: countEspnCard(details, home.id, "redCard"),
+    awayRedCards: countEspnCard(details, away.id, "redCard"),
+    homeCorners: espnStat(home, "wonCorners") ?? 0,
+    awayCorners: espnStat(away, "wonCorners") ?? 0,
+    homeFouls: espnStat(home, "foulsCommitted") ?? 0,
+    awayFouls: espnStat(away, "foulsCommitted") ?? 0,
+    homeOffsides: espnStat(home, "totalOffside") ?? 0,
+    awayOffsides: espnStat(away, "totalOffside") ?? 0,
+  };
+}
+
+function mapEspnGoalEvents(competition, teamById) {
+  return (competition.details ?? [])
+    .filter((detail) => detail.scoringPlay && detail.type?.id === "70")
+    .map((detail, index) => {
+      const timing = parseEspnClock(detail.clock?.displayValue);
+      const scorer = detail.athletesInvolved?.[0]?.displayName ?? null;
+      const eventType = detail.ownGoal ? "own_goal" : detail.penaltyKick ? "penalty_goal" : "goal";
+      const teamName = teamById.get(String(detail.team?.id)) ?? detail.team?.displayName ?? null;
+
+      return {
+        externalEventId: `espn:${competition.id}:${index}:${detail.clock?.displayValue ?? "0"}:${detail.type?.id ?? "goal"}:${detail.athletesInvolved?.[0]?.id ?? "unknown"}`,
+        provider: "espn",
+        minute: timing.minute,
+        stoppageMinute: timing.stoppageMinute,
+        sequenceNumber: index + 1,
+        eventType,
+        teamName,
+        playerName: scorer,
+        description: detail.text ?? null,
+        createdAt: competition.date ?? new Date().toISOString(),
+      };
+    });
+}
+
+function espnStat(competitor, name) {
+  const stat = competitor.statistics?.find((item) => item.name === name);
+  if (!stat) return null;
+
+  const value = Number.parseFloat(String(stat.value ?? stat.displayValue).replace("%", ""));
+  return Number.isFinite(value) ? value : null;
+}
+
+function countEspnCard(details, teamId, typeId) {
+  return details.filter((detail) => String(detail.team?.id) === String(teamId) && detail.type?.id === typeId).length;
+}
+
+function parseEspnClock(displayValue) {
+  const normalized = String(displayValue ?? "0").replace(/[’']/g, "");
+  const [minute, stoppageMinute] = normalized.split("+").map((part) => Number.parseInt(part, 10));
+
+  return {
+    minute: Number.isFinite(minute) ? minute : 0,
+    stoppageMinute: Number.isFinite(stoppageMinute) ? stoppageMinute : null,
+  };
+}
+
+function enumerateIsoDates(dateFrom, dateTo) {
+  const dates = [];
+  const cursor = new Date(`${dateFrom}T00:00:00.000Z`);
+  const end = new Date(`${dateTo}T00:00:00.000Z`);
+
+  if (!Number.isFinite(cursor.getTime()) || !Number.isFinite(end.getTime()) || cursor > end) {
+    return dates;
+  }
+
+  while (cursor <= end) {
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return dates;
+}
+
 async function upsertLiveState(fixture, match) {
   const now = new Date().toISOString();
   const finalScoreConfirmedAt = match.status === "finished" ? match.providerUpdatedAt ?? now : null;
   const phase = normalizePhase(match.phase);
+  const statistics = match.statistics ?? {};
 
   const { error } = await supabase.from("live_match_state").upsert(
     {
@@ -251,6 +420,22 @@ async function upsertLiveState(fixture, match) {
       period: periodForPhase(phase),
       started_at: match.kickoffTime ?? null,
       final_score_confirmed_at: finalScoreConfirmedAt,
+      home_possession: statistics.homePossession,
+      away_possession: statistics.awayPossession,
+      home_shots: statistics.homeShots,
+      away_shots: statistics.awayShots,
+      home_shots_on_target: statistics.homeShotsOnTarget,
+      away_shots_on_target: statistics.awayShotsOnTarget,
+      home_yellow_cards: statistics.homeYellowCards,
+      away_yellow_cards: statistics.awayYellowCards,
+      home_red_cards: statistics.homeRedCards,
+      away_red_cards: statistics.awayRedCards,
+      home_corners: statistics.homeCorners,
+      away_corners: statistics.awayCorners,
+      home_fouls: statistics.homeFouls,
+      away_fouls: statistics.awayFouls,
+      home_offsides: statistics.homeOffsides,
+      away_offsides: statistics.awayOffsides,
       provider_updated_at: match.providerUpdatedAt ?? now,
       updated_at: now,
     },
@@ -259,6 +444,42 @@ async function upsertLiveState(fixture, match) {
 
   if (error) {
     throw new Error(`Failed to update ${fixture.home_team} vs ${fixture.away_team}: ${error.message}`);
+  }
+}
+
+async function replaceMatchEvents(fixture, match) {
+  if (!match.events || match.events.length === 0) return;
+
+  const { error: deleteError } = await supabase
+    .from("match_events")
+    .delete()
+    .eq("match_id", fixture.id)
+    .eq("provider", match.provider);
+
+  if (deleteError) {
+    throw new Error(`Failed to clear events for ${fixture.home_team} vs ${fixture.away_team}: ${deleteError.message}`);
+  }
+
+  const rows = match.events.map((event) => ({
+    external_event_id: event.externalEventId,
+    provider: event.provider,
+    match_id: fixture.id,
+    minute: event.minute,
+    stoppage_minute: event.stoppageMinute,
+    sequence_number: event.sequenceNumber,
+    event_type: event.eventType,
+    team_name: event.teamName,
+    player_name: event.playerName,
+    assist_player_name: null,
+    description: event.description,
+    event_timestamp: event.createdAt,
+    created_at: event.createdAt,
+  }));
+
+  const { error: insertError } = await supabase.from("match_events").insert(rows);
+
+  if (insertError) {
+    throw new Error(`Failed to insert events for ${fixture.home_team} vs ${fixture.away_team}: ${insertError.message}`);
   }
 }
 
