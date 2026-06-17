@@ -6,7 +6,7 @@ import { X } from "lucide-react";
 import type { Match } from "@/lib/match-fixtures";
 import { normalizeCountryName } from "@/lib/country-utils";
 import { getCompletedMatch } from "@/lib/live-data/completed-matches";
-import { isVisibleLiveState } from "@/lib/live-data/status";
+import { formatMatchMinute, formatPhaseLabel, isVisibleLiveState } from "@/lib/live-data/status";
 import type { LiveMatch, MatchEvent } from "@/lib/live-data/types";
 import { getFifaAbbreviation, getTeamDisplayName } from "@/lib/team-display";
 import { Button } from "@/components/ui/button";
@@ -94,7 +94,7 @@ function CompactScoreOverlay({ liveMatch }: { liveMatch: LiveMatch }) {
   return (
     <div className="pointer-events-none absolute inset-0 z-20">
       <span className="absolute left-2 top-2 rounded-full border border-zinc-200 bg-white px-2 py-0.5 text-[10px] font-black uppercase text-zinc-950 shadow-md dark:border-zinc-700 dark:bg-zinc-950 dark:text-white">
-        FT
+        {getStatusLabel(liveMatch)}
       </span>
       <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-lg border border-zinc-200 bg-white px-3 py-1 text-sm font-black tabular-nums text-zinc-950 shadow-lg dark:border-zinc-700 dark:bg-zinc-950 dark:text-white">
         {liveMatch.homeScore} - {liveMatch.awayScore}
@@ -106,7 +106,7 @@ function CompactScoreOverlay({ liveMatch }: { liveMatch: LiveMatch }) {
 function ExpandedMatchHeader({ liveMatch, stadium }: { liveMatch: LiveMatch; stadium: string }) {
   return (
     <div className="px-10 text-center">
-      <p className="text-xs font-bold uppercase text-muted-foreground">Full Time</p>
+      <p className="text-xs font-bold uppercase text-muted-foreground">{getStatusLabel(liveMatch)}</p>
       <h3 className="mt-1 text-xl font-black tracking-normal text-foreground sm:text-2xl">
         <span className="sm:hidden">
           {getFifaAbbreviation(liveMatch.homeTeam)} vs {getFifaAbbreviation(liveMatch.awayTeam)}
@@ -118,6 +118,16 @@ function ExpandedMatchHeader({ liveMatch, stadium }: { liveMatch: LiveMatch; sta
       <p className="mt-1 text-sm text-muted-foreground">{stadium}</p>
     </div>
   );
+}
+
+function getStatusLabel(liveMatch: LiveMatch) {
+  if (liveMatch.status === "finished") return "FT";
+  if (liveMatch.status === "half_time" || liveMatch.phase === "half_time") return "HT";
+
+  const minute = formatMatchMinute(liveMatch.minute, liveMatch.stoppageMinute);
+  if (minute && liveMatch.status !== "scheduled") return minute;
+
+  return formatPhaseLabel(liveMatch.phase);
 }
 
 function ExpandedScoreboard({ liveMatch }: { liveMatch: LiveMatch }) {

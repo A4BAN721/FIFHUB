@@ -15,7 +15,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { RedisCache, CACHE_KEYS, CACHE_TTL } from '../../../services/cache/redis-cache';
+import { RedisCache, CACHE_TTL } from '../../../services/cache/redis-cache';
 
 // Initialize cache (will use in-memory fallback if Redis unavailable)
 const cache = RedisCache.getInstance({
@@ -25,6 +25,25 @@ const cache = RedisCache.getInstance({
 });
 
 let supabase: ReturnType<typeof createClient> | null = null;
+
+type FixtureScoreboardRow = {
+  fixture_id: string;
+  match_date: string;
+  match_time: string;
+  stage: string;
+  group_name: string | null;
+  home_team: string;
+  away_team: string;
+  stadium: string;
+  status: string;
+  phase: string;
+  home_score: number;
+  away_score: number;
+  minute: number | null;
+  stoppage_minute: number | null;
+  final_score_confirmed_at: string | null;
+  updated_at: string | null;
+};
 
 function getSupabase() {
   if (!supabase) {
@@ -64,12 +83,12 @@ export async function GET(request: NextRequest) {
 
     const db = getSupabase();
 
-    // Build query
+    // Build query from the fixture-backed live scoreboard contract.
     let query = db
-      .from('live_matches_view')
+      .from('fixture_live_scoreboard_view')
       .select('*')
-      .order('kickoff_time', { ascending: true })
-      .range(offset, offset + limit);
+      .order('fixture_id', { ascending: true })
+      .range(offset, offset + limit - 1);
 
     if (status) {
       const statuses = status.split(',');
@@ -77,20 +96,15 @@ export async function GET(request: NextRequest) {
     }
 
     if (date) {
-      const startDate = new Date(date);
-      const endDate = new Date(startDate);
-      endDate.setDate(endDate.getDate() + 1);
-      query = query
-        .gte('kickoff_time', startDate.toISOString())
-        .lt('kickoff_time', endDate.toISOString());
+      query = query.ilike('match_date', `%${date}%`);
     }
 
     if (competition) {
-      query = query.eq('competition_name', competition);
+      query = query.eq('stage', competition);
     }
 
     if (team) {
-      query = query.or(`home_team_name.eq.${team},away_team_name.eq.${team}`);
+      query = query.or(`home_team.eq.${team},away_team.eq.${team}`);
     }
 
     const { data, error } = await query;
@@ -103,9 +117,29 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const matches = ((data || []) as FixtureScoreboardRow[]).map((match) => ({
+      id: match.fixture_id,
+      matchId: match.fixture_id,
+      matchDate: match.match_date,
+      matchTime: match.match_time,
+      stage: match.stage,
+      group: match.group_name,
+      homeTeam: match.home_team,
+      awayTeam: match.away_team,
+      stadium: match.stadium,
+      status: match.status,
+      period: match.phase,
+      homeScore: match.home_score,
+      awayScore: match.away_score,
+      minute: match.minute,
+      stoppageTime: match.stoppage_minute,
+      finalScoreConfirmedAt: match.final_score_confirmed_at,
+      updatedAt: match.updated_at,
+    }));
+
     const response = {
-      matches: data || [],
-      count: data?.length || 0,
+      matches,
+      count: matches.length,
       limit,
       offset,
     };

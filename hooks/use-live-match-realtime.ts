@@ -185,7 +185,7 @@ export function useLiveMatchRealtime({
           { event: '*', schema: 'public', table: 'live_match_state', filter: `match_id=eq.${matchId}` },
           (payload: RealtimePostgresChangesPayload<LiveMatchStateRow>) => {
             if (!mounted || !payload.new) return;
-            const data = payload.new;
+            const data = payload.new as LiveMatchStateRow;
             const newState: LiveRealtimeState = {
               matchId: data.match_id ?? matchId,
               homeScore: data.home_score ?? 0,
@@ -219,7 +219,7 @@ export function useLiveMatchRealtime({
           { event: 'INSERT', schema: 'public', table: 'match_events', filter: `match_id=eq.${matchId}` },
           (payload: RealtimePostgresChangesPayload<MatchEventRow>) => {
             if (!mounted || !payload.new) return;
-            const data = payload.new;
+            const data = payload.new as MatchEventRow;
             const eventData: RealtimeEventData = {
               type: data.event_type ?? '',
               matchId: data.match_id ?? matchId,

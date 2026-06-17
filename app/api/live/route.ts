@@ -26,6 +26,21 @@ let supabase: ReturnType<typeof createClient> | null = null;
 // Initialize cache (will use in-memory fallback if Redis unavailable)
 const cache = RedisCache.getInstance();
 
+type FixtureScoreboardRow = {
+  fixture_id: string;
+  status: string;
+  phase: string;
+  home_team: string;
+  away_team: string;
+  home_score: number;
+  away_score: number;
+  minute: number | null;
+  stoppage_minute: number | null;
+  stage: string;
+  group_name: string | null;
+  updated_at: string | null;
+};
+
 function getSupabase() {
   if (!supabase) {
     if (!supabaseUrl || !supabaseKey) {
@@ -56,14 +71,15 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Query live matches from view
+    // Query live/active matches from the fixture-backed scoreboard view.
     let query = db
-      .from('live_matches_view')
+      .from('fixture_live_scoreboard_view')
       .select('*')
-      .order('kickoff_time', { ascending: true });
+      .in('status', ['live', 'half_time', 'extra_time', 'penalties'])
+      .order('fixture_id', { ascending: true });
 
     if (competition) {
-      query = query.eq('competition_name', competition);
+      query = query.eq('stage', competition);
     }
 
     const { data: matches, error } = await query;
@@ -77,24 +93,28 @@ export async function GET(request: NextRequest) {
     }
 
     // Transform to minimal response format
-    const liveMatches = (matches || []).map((match: any) => ({
-      id: match.id,
+    const liveMatches = ((matches || []) as FixtureScoreboardRow[]).map((match) => ({
+      id: match.fixture_id,
+      matchId: match.fixture_id,
       status: match.status,
-      period: match.period,
+      period: match.phase,
       homeTeam: {
-        name: match.home_team_name,
-        logo: match.home_team_logo,
+        name: match.home_team,
+        logo: null,
         score: match.home_score,
       },
       awayTeam: {
-        name: match.away_team_name,
-        logo: match.away_team_logo,
+        name: match.away_team,
+        logo: null,
         score: match.away_score,
       },
       minute: match.minute,
-      stoppageTime: match.stoppage_time,
-      lastEvent: match.last_event_type,
-      competition: match.competition_name,
+      stoppageTime: match.stoppage_minute,
+      lastEvent: null,
+      competition: match.stage,
+      stage: match.stage,
+      group: match.group_name,
+      updatedAt: match.updated_at,
     }));
 
     const response = {
