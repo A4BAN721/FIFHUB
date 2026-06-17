@@ -179,6 +179,9 @@ async function footballDataRequest(endpoint, params) {
 }
 
 function mapFootballDataMatch(match) {
+  const minute = estimateFootballDataMinute(match);
+  const status = mapFootballDataStatus(match.status);
+
   return {
     provider: "football-data",
     providerMatchId: String(match.id),
@@ -186,10 +189,11 @@ function mapFootballDataMatch(match) {
     awayTeam: match.awayTeam.name,
     homeScore: match.score.fullTime.home ?? match.score.halfTime.home ?? 0,
     awayScore: match.score.fullTime.away ?? match.score.halfTime.away ?? 0,
-    minute: null,
+    minute,
     stoppageMinute: null,
-    status: mapFootballDataStatus(match.status),
-    phase: mapFootballDataPhase(match.status),
+    status,
+    phase: mapFootballDataPhase(match.status, minute),
+    kickoffTime: match.utcDate,
     providerUpdatedAt: match.lastUpdated ?? new Date().toISOString(),
   };
 }
@@ -201,11 +205,30 @@ function mapFootballDataStatus(status) {
   return "scheduled";
 }
 
-function mapFootballDataPhase(status) {
+function mapFootballDataPhase(status, minute) {
   if (status === "FINISHED") return "full_time";
   if (status === "PAUSED") return "half_time";
-  if (["LIVE", "IN_PLAY"].includes(status)) return "second_half";
+  if (["LIVE", "IN_PLAY"].includes(status)) {
+    if (typeof minute === "number" && minute <= 45) return "first_half";
+    return "second_half";
+  }
   return "pre_match";
+}
+
+function estimateFootballDataMinute(match) {
+  if (match.status === "PAUSED") return 45;
+  if (!["LIVE", "IN_PLAY"].includes(match.status)) return null;
+
+  const kickoffTime = Date.parse(match.utcDate);
+  if (!Number.isFinite(kickoffTime)) return null;
+
+  const elapsedSinceKickoff = Math.floor((Date.now() - kickoffTime) / 60_000);
+  if (elapsedSinceKickoff < 0) return null;
+
+  if (elapsedSinceKickoff <= 45) return Math.max(1, elapsedSinceKickoff);
+
+  const estimatedMinute = elapsedSinceKickoff - 15;
+  return Math.min(120, Math.max(46, estimatedMinute));
 }
 
 async function upsertLiveState(fixture, match) {
@@ -226,6 +249,7 @@ async function upsertLiveState(fixture, match) {
       status: match.status,
       phase,
       period: periodForPhase(phase),
+      started_at: match.kickoffTime ?? null,
       final_score_confirmed_at: finalScoreConfirmedAt,
       provider_updated_at: match.providerUpdatedAt ?? now,
       updated_at: now,

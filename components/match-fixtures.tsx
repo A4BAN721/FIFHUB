@@ -392,7 +392,7 @@ export function MatchFixtures({
                               >
                               <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.08),transparent_15%),radial-gradient(circle_at_bottom_right,_rgba(0,0,0,0.03),transparent_20%)]" />
                               
-                              <div className="relative p-3">
+                              <div className="relative flex min-h-[126px] flex-col justify-between p-3">
                                 {/* Group name at top right for Group Stage */}
                                 <div className="absolute top-2 right-2">
                                   <span className="text-[9px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">
@@ -401,14 +401,14 @@ export function MatchFixtures({
                                 </div>
 
                                 {/* Date and Time for Group Stage */}
-                                <div className="flex items-center justify-center mb-2 pt-4">
+                                <div className="flex items-center justify-center pt-4">
                                   <span className="text-[10px] text-muted-foreground">
                                     {getTranslatedDate(match.date)} • {getTranslatedTime(match.time)}
                                   </span>
                                 </div>
 
                                 {/* Teams - Horizontal Layout */}
-                                <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center justify-between gap-2 py-3">
                                   {/* Home Team */}
                                   <div className="min-w-0 flex-1">
                                     {homeNationId ? (
@@ -502,7 +502,7 @@ export function MatchFixtures({
                                 </div>
 
                                 {/* Stadium */}
-                                <div className="flex items-center gap-1 text-muted-foreground text-xs mt-2 pt-2 border-t border-border/20">
+                                <div className="flex items-center gap-1 border-t border-border/20 pt-2 text-xs text-muted-foreground">
                                   <MapPin className="h-3 w-3" />
                                   <span className="truncate">{getTranslatedStadium(match.stadium)}</span>
                                 </div>
@@ -563,9 +563,9 @@ export function MatchFixtures({
                         >
                         <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.08),transparent_15%),radial-gradient(circle_at_bottom_right,_rgba(0,0,0,0.03),transparent_20%)]" />
                         
-                        <div className="relative p-3">
+                        <div className="relative flex min-h-[126px] flex-col justify-between p-3">
                           {/* Header: Time and Info */}
-                          <div className="flex items-center justify-between mb-2 pb-2 border-b border-border/20">
+                          <div className="flex items-center justify-between border-b border-border/20 pb-2">
                             <span className="text-xs font-semibold text-muted-foreground">{getTranslatedTime(match.time)}</span>
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">
                               {getTranslatedDate(match.date)}
@@ -573,7 +573,7 @@ export function MatchFixtures({
                           </div>
 
                           {/* Teams - Horizontal Layout */}
-                          <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center justify-between gap-2 py-3">
                             {/* Home Team */}
                             <div className="min-w-0 flex-1">
                               {homeNationId ? (
@@ -667,7 +667,7 @@ export function MatchFixtures({
                           </div>
 
                           {/* Stadium */}
-                          <div className="flex items-center gap-1 text-muted-foreground text-xs mt-2 pt-2 border-t border-border/20">
+                          <div className="flex items-center gap-1 border-t border-border/20 pt-2 text-xs text-muted-foreground">
                             <MapPin className="h-3 w-3" />
                             <span className="truncate">{getTranslatedStadium(match.stadium)}</span>
                           </div>
