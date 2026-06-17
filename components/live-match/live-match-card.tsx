@@ -102,10 +102,10 @@ function CompactScoreOverlay({ liveMatch }: { liveMatch: LiveMatch }) {
           aria-hidden="true"
         />
       )}
-      <span className="absolute left-2 top-2 rounded-full border border-zinc-200 bg-white px-2 py-0.5 text-[10px] font-black uppercase text-zinc-950 shadow-md dark:border-zinc-700 dark:bg-zinc-950 dark:text-white">
-        {getStatusLabel(liveMatch)}
+      <span className="absolute left-2 top-2 rounded-full border border-zinc-200 bg-white px-2 py-0.5 text-[9px] font-black text-zinc-950 shadow-md dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:text-[10px]">
+        {getPlayPeriodLabel(liveMatch)}
       </span>
-      <div className="absolute left-1/2 top-[44%] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1">
+      <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1">
         <span className="rounded-lg border border-zinc-200 bg-white px-3 py-1 text-sm font-black tabular-nums text-zinc-950 shadow-lg dark:border-zinc-700 dark:bg-zinc-950 dark:text-white">
           {liveMatch.homeScore} - {liveMatch.awayScore}
         </span>
@@ -146,6 +146,27 @@ function getStatusLabel(liveMatch: LiveMatch) {
   if (isMatchInProgress(liveMatch)) return "LIVE";
 
   return formatPhaseLabel(liveMatch.phase);
+}
+
+function getPlayPeriodLabel(liveMatch: LiveMatch) {
+  if (liveMatch.status === "finished" || liveMatch.phase === "full_time") return "Full Time";
+  if (liveMatch.status === "half_time" || liveMatch.phase === "half_time") return "Half Time";
+  if (liveMatch.status === "penalties" || liveMatch.phase === "penalties") return "Penalties";
+
+  if (liveMatch.status === "extra_time" || liveMatch.phase === "extra_time") {
+    return getExtraTimeHalfLabel(liveMatch.minute);
+  }
+
+  if (liveMatch.status === "live") {
+    return liveMatch.phase === "first_half" ? "First Half" : "Second Half";
+  }
+
+  return formatPhaseLabel(liveMatch.phase);
+}
+
+function getExtraTimeHalfLabel(minute?: number | null) {
+  if (typeof minute === "number" && minute > 105) return "Extra Time Second Half";
+  return "Extra Time First Half";
 }
 
 function getTimerLabel(liveMatch: LiveMatch) {
