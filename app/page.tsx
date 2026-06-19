@@ -5,6 +5,7 @@ import { Header } from "@/components/header";
 import { NationsGrid } from "@/components/nations-grid";
 import { TriondaBackground } from "@/components/trionda-background";
 import { MatchFixtures } from "@/components/match-fixtures";
+import { GroupStandingsTable } from "@/components/group-standings-table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useLanguage } from "@/components/language-provider";
 import { Instagram, Mail } from "lucide-react";
@@ -69,6 +70,7 @@ export default function Home() {
             <TabsList className="mx-auto mb-6">
               <TabsTrigger value="squads">{t("groups")}</TabsTrigger>
               <TabsTrigger value="fixtures">{t("fixtures")}</TabsTrigger>
+              <TabsTrigger value="table">{t("table")}</TabsTrigger>
             </TabsList>
             <TabsContent value="squads" className="mt-0">
               <NationsGrid initialSelectedNationId={selectedNationId} onNationBack={handleNationBack} />
@@ -79,6 +81,9 @@ export default function Home() {
                 initialSelectedStage={fixturesView.selectedStage}
                 onViewChange={setFixturesView}
               />
+            </TabsContent>
+            <TabsContent value="table" className="mt-0">
+              <GroupStandingsTable />
             </TabsContent>
           </Tabs>
         </div>

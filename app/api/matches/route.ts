@@ -65,13 +65,14 @@ export async function GET(request: NextRequest) {
   const team = searchParams.get('team');
   const limit = parseInt(searchParams.get('limit') || '50', 10);
   const offset = parseInt(searchParams.get('offset') || '0', 10);
+  const fresh = searchParams.get('fresh') === '1' || searchParams.get('fresh') === 'true';
 
   // Build cache key from query params
   const cacheKey = `api:matches:${status || 'all'}:${date || ''}:${competition || ''}:${team || ''}:${limit}:${offset}`;
 
   try {
     // Try cache first
-    const cached = await cache.get(cacheKey);
+    const cached = fresh ? null : await cache.get(cacheKey);
     if (cached) {
       return NextResponse.json(cached, {
         headers: {
@@ -145,12 +146,14 @@ export async function GET(request: NextRequest) {
     };
 
     // Cache the response
-    await cache.set(cacheKey, response, CACHE_TTL.MATCH_LIST);
+    if (!fresh) {
+      await cache.set(cacheKey, response, CACHE_TTL.MATCH_LIST);
+    }
 
     return NextResponse.json(response, {
       headers: {
-        'X-Cache': 'MISS',
-        'Cache-Control': 'public, s-maxage=15, stale-while-revalidate=30',
+        'X-Cache': fresh ? 'BYPASS' : 'MISS',
+        'Cache-Control': fresh ? 'no-store' : 'public, s-maxage=15, stale-while-revalidate=30',
       },
     });
   } catch (error) {

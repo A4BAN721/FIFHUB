@@ -180,6 +180,21 @@ export function MatchFixtures({
   };
 
   const convertToBanglaNumerals = (str: string): string => {
+    const cleanBanglaNumerals: Record<string, string> = {
+      "0": "\u09e6",
+      "1": "\u09e7",
+      "2": "\u09e8",
+      "3": "\u09e9",
+      "4": "\u09ea",
+      "5": "\u09eb",
+      "6": "\u09ec",
+      "7": "\u09ed",
+      "8": "\u09ee",
+      "9": "\u09ef",
+    };
+
+    return str.replace(/\d/g, (digit) => cleanBanglaNumerals[digit] || digit);
+
     const banglaNumerals: Record<string, string> = {
       '0': '০', '1': '১', '2': '২', '3': '৩', '4': '৪',
       '5': '৫', '6': '৬', '7': '৭', '8': '৮', '9': '৯'
@@ -229,6 +244,27 @@ export function MatchFixtures({
   const getTranslatedStadium = (stadium: string): string => {
     if (language === "en") return stadium;
 
+    const cleanStadiumMap: Record<string, string> = {
+      "Atlanta Stadium": "আটলান্টা স্টেডিয়াম",
+      "BC Place Vancouver": "বিসি প্লেস ভ্যাঙ্কুভার",
+      "Boston Stadium": "বস্টন স্টেডিয়াম",
+      "Dallas Stadium": "ডালাস স্টেডিয়াম",
+      "Estadio Guadalajara": "এস্তাদিও গুয়াদালাহারা",
+      "Estadio Monterrey": "এস্তাদিও মন্টেরে",
+      "Houston Stadium": "হিউস্টন স্টেডিয়াম",
+      "Kansas City Stadium": "কানসাস সিটি স্টেডিয়াম",
+      "Los Angeles Stadium": "লস অ্যাঞ্জেলেস স্টেডিয়াম",
+      "Mexico City Stadium": "মেক্সিকো সিটি স্টেডিয়াম",
+      "Miami Stadium": "মায়ামি স্টেডিয়াম",
+      "New York New Jersey Stadium": "নিউ ইয়র্ক নিউ জার্সি স্টেডিয়াম",
+      "Philadelphia Stadium": "ফিলাডেলফিয়া স্টেডিয়াম",
+      "San Francisco Bay Area Stadium": "সান ফ্রান্সিসকো বে এরিয়া স্টেডিয়াম",
+      "Seattle Stadium": "সিয়াটল স্টেডিয়াম",
+      "Toronto Stadium": "টরন্টো স্টেডিয়াম",
+    };
+
+    if (cleanStadiumMap[stadium]) return cleanStadiumMap[stadium];
+
     const stadiumMap: Record<string, string> = {
       "Atlanta Stadium": "আটলান্টা স্টেডিয়াম",
       "BC Place Vancouver": "বিসি প্লেস ভ্যাঙ্কুভার",
@@ -262,6 +298,26 @@ export function MatchFixtures({
 
   const getTranslatedGroup = (group: string): string => {
     if (language === "en") return group;
+
+    const groupLetter = group.replace("Group ", "");
+    const banglaGroupLetters: Record<string, string> = {
+      A: "\u098f",
+      B: "\u09ac\u09bf",
+      C: "\u09b8\u09bf",
+      D: "\u09a1\u09bf",
+      E: "\u0987",
+      F: "\u098f\u09ab",
+      G: "\u099c\u09bf",
+      H: "\u098f\u0987\u099a",
+      I: "\u0986\u0987",
+      J: "\u099c\u09c7",
+      K: "\u0995\u09c7",
+      L: "\u098f\u09b2",
+    };
+
+    if (banglaGroupLetters[groupLetter]) {
+      return `\u0997\u09cd\u09b0\u09c1\u09aa ${banglaGroupLetters[groupLetter]}`;
+    }
     
     // Translate group names like "Group A" to "গ্রুপ এ"
     const groupMap: Record<string, string> = {

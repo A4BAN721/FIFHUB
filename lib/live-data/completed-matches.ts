@@ -1,5 +1,29 @@
 import type { LiveMatch } from "./types";
 
+function completedMatch(
+  matchId: string,
+  homeTeam: string,
+  awayTeam: string,
+  homeScore: number,
+  awayScore: number,
+  finalScoreConfirmedAt: string
+): LiveMatch {
+  return {
+    matchId,
+    status: "finished",
+    phase: "full_time",
+    homeTeam,
+    awayTeam,
+    homeScore,
+    awayScore,
+    minute: 90,
+    finalScoreConfirmedAt,
+    updatedAt: finalScoreConfirmedAt,
+    statistics: {},
+    events: [],
+  };
+}
+
 export const completedMatchData: Record<string, LiveMatch> = {
   "1": {
     matchId: "1",
@@ -263,6 +287,30 @@ export const completedMatchData: Record<string, LiveMatch> = {
       },
     ],
   },
+  "5": completedMatch("5", "Qatar", "Switzerland", 1, 1, "2026-06-14T03:00:00.000Z"),
+  "6": completedMatch("6", "Brazil", "Morocco", 1, 1, "2026-06-14T06:00:00.000Z"),
+  "7": completedMatch("7", "Haiti", "Scotland", 0, 1, "2026-06-14T09:00:00.000Z"),
+  "8": completedMatch("8", "Australia", "TÃ¼rkiye", 2, 0, "2026-06-14T12:00:00.000Z"),
+  "9": completedMatch("9", "Germany", "CuraÃ§ao", 7, 1, "2026-06-15T01:00:00.000Z"),
+  "10": completedMatch("10", "Netherlands", "Japan", 2, 2, "2026-06-15T04:00:00.000Z"),
+  "11": completedMatch("11", "Ivory Coast", "Ecuador", 1, 0, "2026-06-15T07:00:00.000Z"),
+  "12": completedMatch("12", "Sweden", "Tunisia", 5, 1, "2026-06-15T10:00:00.000Z"),
+  "13": completedMatch("13", "Spain", "Cabo Verde", 0, 0, "2026-06-16T00:00:00.000Z"),
+  "14": completedMatch("14", "Belgium", "Egypt", 1, 1, "2026-06-16T03:00:00.000Z"),
+  "15": completedMatch("15", "Saudi Arabia", "Uruguay", 1, 1, "2026-06-16T06:00:00.000Z"),
+  "16": completedMatch("16", "Iran", "New Zealand", 2, 2, "2026-06-16T09:00:00.000Z"),
+  "17": completedMatch("17", "France", "Senegal", 3, 1, "2026-06-17T03:00:00.000Z"),
+  "18": completedMatch("18", "Iraq", "Norway", 1, 4, "2026-06-17T06:00:00.000Z"),
+  "19": completedMatch("19", "Argentina", "Algeria", 3, 0, "2026-06-17T09:00:00.000Z"),
+  "20": completedMatch("20", "Austria", "Jordan", 3, 1, "2026-06-17T12:00:00.000Z"),
+  "21": completedMatch("21", "Portugal", "DR Congo", 1, 1, "2026-06-18T01:00:00.000Z"),
+  "22": completedMatch("22", "England", "Croatia", 4, 2, "2026-06-18T04:00:00.000Z"),
+  "23": completedMatch("23", "Ghana", "Panama", 1, 0, "2026-06-18T07:00:00.000Z"),
+  "24": completedMatch("24", "Uzbekistan", "Colombia", 1, 3, "2026-06-18T10:00:00.000Z"),
+  "25": completedMatch("25", "Czechia", "South Africa", 1, 1, "2026-06-19T00:00:00.000Z"),
+  "26": completedMatch("26", "Switzerland", "Bosnia & Herzegovina", 4, 1, "2026-06-19T03:00:00.000Z"),
+  "27": completedMatch("27", "Canada", "Qatar", 6, 0, "2026-06-19T06:00:00.000Z"),
+  "28": completedMatch("28", "Mexico", "South Korea", 1, 0, "2026-06-19T09:00:00.000Z"),
 };
 
 export function getCompletedMatch(matchId: string) {
