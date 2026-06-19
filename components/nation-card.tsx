@@ -13,6 +13,10 @@ interface NationCardProps {
   index: number;
 }
 
+type NationCardStyle = React.CSSProperties & {
+  "--tab-color": string;
+};
+
 export function NationCard({ nation, onClick, index }: NationCardProps) {
   const { t, language } = useLanguage();
   const labelSpacingClass = language === "bn" ? "" : "uppercase tracking-[0.35em]";
@@ -72,10 +76,10 @@ export function NationCard({ nation, onClick, index }: NationCardProps) {
     return confederationMap[confederation] || confederation;
   };
 
-  const cardStyle: React.CSSProperties = {
+  const cardStyle: NationCardStyle = {
     borderColor: nation.jerseyColors.primary,
     backgroundImage: `linear-gradient(140deg, ${nation.jerseyColors.primary}22 0%, ${nation.jerseyColors.secondary}14 35%, ${nation.jerseyColors.accent}10 100%), radial-gradient(circle at top left, ${nation.jerseyColors.primary}10, transparent 38%)`,
-    ["--tab-color" as any]: nation.jerseyColors.primary,
+    "--tab-color": nation.jerseyColors.primary,
   };
 
   const lowerPanelStyle: React.CSSProperties = {

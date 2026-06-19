@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { X } from "lucide-react";
 import type { Match } from "@/lib/match-fixtures";
@@ -22,8 +22,23 @@ type LiveMatchCardProps = {
 
 export function LiveMatchCard({ match, children }: LiveMatchCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
   const { liveMatch } = useLiveMatch(match.id, { fallbackMatch: match });
-  const displayMatch = liveMatch ?? getCompletedMatch(match.id);
+  const sourcedMatch = liveMatch ?? getCompletedMatch(match.id);
+  const displayMatch = sourcedMatch ? withRunningMinute(sourcedMatch, now) : null;
+  const shouldRunTimer = Boolean(sourcedMatch && isMatchInProgress(sourcedMatch));
+
+  useEffect(() => {
+    if (!shouldRunTimer) return;
+
+    const timer = window.setInterval(() => {
+      setNow(Date.now());
+    }, 15_000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [shouldRunTimer, sourcedMatch?.matchId]);
 
   if (!isVisibleLiveState(displayMatch)) {
     return <>{children}</>;
@@ -174,6 +189,57 @@ function getTimerLabel(liveMatch: LiveMatch) {
   if (liveMatch.status === "half_time" || liveMatch.phase === "half_time") return "HT";
 
   return formatMatchMinute(liveMatch.minute, liveMatch.stoppageMinute);
+}
+
+function withRunningMinute(liveMatch: LiveMatch, now: number): LiveMatch {
+  const timer = estimateRunningMinute(liveMatch, now);
+  if (!timer) return liveMatch;
+
+  return {
+    ...liveMatch,
+    minute: timer.minute,
+    stoppageMinute: timer.stoppageMinute,
+  };
+}
+
+function estimateRunningMinute(liveMatch: LiveMatch, now: number) {
+  if (!isMatchInProgress(liveMatch) || liveMatch.status === "half_time" || liveMatch.phase === "half_time") {
+    return null;
+  }
+
+  const startedAt = liveMatch.startedAt ? Date.parse(liveMatch.startedAt) : NaN;
+  if (!Number.isFinite(startedAt)) return null;
+
+  const elapsed = Math.floor((now - startedAt) / 60_000);
+  if (elapsed < 0) return null;
+
+  if (liveMatch.phase === "first_half") {
+    return minuteWithStoppage(Math.max(liveMatch.minute ?? 1, elapsed), 45);
+  }
+
+  if (liveMatch.phase === "second_half" || liveMatch.status === "live") {
+    return minuteWithStoppage(Math.max(liveMatch.minute ?? 46, elapsed - 15), 90);
+  }
+
+  if (liveMatch.phase === "extra_time" || liveMatch.status === "extra_time") {
+    return minuteWithStoppage(Math.max(liveMatch.minute ?? 91, elapsed - 20), 120);
+  }
+
+  return null;
+}
+
+function minuteWithStoppage(value: number, regulationMinute: number) {
+  if (value > regulationMinute) {
+    return {
+      minute: regulationMinute,
+      stoppageMinute: value - regulationMinute,
+    };
+  }
+
+  return {
+    minute: Math.max(1, value),
+    stoppageMinute: null,
+  };
 }
 
 function isMatchInProgress(liveMatch: LiveMatch) {

@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Globe } from "lucide-react";
 
 export function LanguageSelector() {
-  const { language, setLanguage, t } = useLanguage();
+  const { language, setLanguage } = useLanguage();
 
   return (
     <DropdownMenu>

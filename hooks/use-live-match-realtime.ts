@@ -112,6 +112,11 @@ type MatchEventRow = {
   description?: string | null;
 };
 
+type LiveScoreboardMatch = {
+  matchId: string;
+  [key: string]: unknown;
+};
+
 /**
  * Hook return type
  */
@@ -378,26 +383,28 @@ export function useLiveMatchRealtime({
  */
 export function useLiveScoreboard(options?: {
   enabled?: boolean;
-  onUpdate?: (matches: any[]) => void;
+  onUpdate?: (matches: LiveScoreboardMatch[]) => void;
 }): {
-  liveMatches: any[];
+  liveMatches: LiveScoreboardMatch[];
   connectionStatus: ConnectionStatus;
   error: string | null;
 } {
+  const enabled = options?.enabled ?? true;
+  const onUpdate = options?.onUpdate;
   const [supabase] = useState(() => (getSupabaseConfig() ? createClient() : null));
-  const [liveMatches, setLiveMatches] = useState<any[]>([]);
+  const [liveMatches, setLiveMatches] = useState<LiveScoreboardMatch[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (options?.enabled === false || !supabase) return;
+    if (!enabled || !supabase) return;
 
     const channel = supabase.channel('live-scores');
 
     channel
       .on('broadcast', { event: 'match.update' }, (payload) => {
         const data = payload.payload?.data;
-        if (data) {
+        if (isLiveScoreboardMatch(data)) {
           setLiveMatches(prev => {
             const index = prev.findIndex(m => m.matchId === data.matchId);
             if (index >= 0) {
@@ -423,9 +430,11 @@ export function useLiveScoreboard(options?: {
       try {
         const response = await fetch('/api/live');
         const data = await response.json();
-        if (data.matches) {
+        if (Array.isArray(data.matches)) {
           setLiveMatches(data.matches);
-          options?.onUpdate?.(data.matches);
+          const matches = data.matches.filter(isLiveScoreboardMatch);
+          setLiveMatches(matches);
+          onUpdate?.(matches);
         }
       } catch {
         setError('Failed to fetch initial live matches');
@@ -437,7 +446,16 @@ export function useLiveScoreboard(options?: {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [options?.enabled, options?.onUpdate, supabase]);
+  }, [enabled, onUpdate, supabase]);
 
   return { liveMatches, connectionStatus, error };
+}
+
+function isLiveScoreboardMatch(value: unknown): value is LiveScoreboardMatch {
+  return Boolean(
+    value &&
+      typeof value === 'object' &&
+      'matchId' in value &&
+      typeof (value as { matchId?: unknown }).matchId === 'string'
+  );
 }

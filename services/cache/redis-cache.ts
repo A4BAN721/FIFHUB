@@ -130,7 +130,7 @@ export class RedisCache {
 
       this.stats.misses++;
       return null;
-    } catch (error) {
+    } catch {
       // Fall back to in-memory cache on Redis failure
       this.useInMemoryFallback = true;
       return this.getFromMemory<T>(fullKey);
@@ -357,12 +357,12 @@ export class MatchCache {
   /**
    * Cache live match state
    */
-  async setLiveMatch(matchId: string, data: unknown): Promise<void> {
+  async setLiveMatch(matchId: string, data: { homeScore?: number; awayScore?: number }): Promise<void> {
     await Promise.all([
       this.cache.set(CACHE_KEYS.liveMatch(matchId), data, CACHE_TTL.LIVE_SCORE),
       this.cache.set(CACHE_KEYS.score(matchId), {
-        homeScore: (data as any).homeScore,
-        awayScore: (data as any).awayScore,
+        homeScore: data.homeScore,
+        awayScore: data.awayScore,
       }, CACHE_TTL.LIVE_SCORE),
     ]);
   }

@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useEffect } from "react";
+import type { CSSProperties } from "react";
 import type { Match } from "@/lib/match-fixtures";
 import type { Nation } from "@/lib/world-cup-data";
 import { matchFixtures as fallbackMatchFixtures } from "@/lib/match-fixtures";
@@ -15,7 +16,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { LiveMatchCard } from "@/components/live-match";
 import { NationFlag } from "./nation-flag";
-import { Search, Calendar, MapPin, Clock } from "lucide-react";
+import { Search, Calendar, MapPin } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface MatchFixturesProps {
@@ -24,22 +25,22 @@ interface MatchFixturesProps {
   onViewChange?: (view: { search: string; selectedStage: string }) => void;
 }
 
+type TeamAccentStyle = CSSProperties & {
+  "--team-color": string;
+  "--shadow-color": string;
+};
+
 export function MatchFixtures({
   initialSearch = "",
   initialSelectedStage = "ALL",
   onViewChange,
 }: MatchFixturesProps) {
   const { t, language } = useLanguage();
-  const { theme } = useTheme();
-  const [mounted, setMounted] = useState(false);
+  const { resolvedTheme } = useTheme();
   const [search, setSearch] = useState(initialSearch);
   const [selectedStage, setSelectedStage] = useState<string>(initialSelectedStage);
   const [matchFixtures, setMatchFixtures] = useState<Match[]>(fallbackMatchFixtures);
   const [nations, setNations] = useState<Nation[]>(fallbackNations);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -281,17 +282,17 @@ export function MatchFixtures({
   };
 
   const getCardBackgroundColor = () => {
-    const activeTheme = mounted ? theme : "dark";
+    const activeTheme = resolvedTheme ?? "dark";
     return activeTheme === "dark" ? "rgba(30, 30, 35, 0.6)" : "rgba(255, 255, 255, 0.7)";
   };
 
   const getCardBorderColor = () => {
-    const activeTheme = mounted ? theme : "dark";
+    const activeTheme = resolvedTheme ?? "dark";
     return activeTheme === "dark" ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.1)";
   };
 
   const getTextShadowColor = () => {
-    const activeTheme = mounted ? theme : "dark";
+    const activeTheme = resolvedTheme ?? "dark";
     return activeTheme === "dark" ? "rgba(0, 0, 0, 0.8)" : "rgba(255, 255, 255, 0.9)";
   };
 
@@ -392,7 +393,7 @@ export function MatchFixtures({
                               >
                               <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.08),transparent_15%),radial-gradient(circle_at_bottom_right,_rgba(0,0,0,0.03),transparent_20%)]" />
                               
-                              <div className="relative flex min-h-[126px] flex-col justify-between p-3">
+                              <div className="relative flex min-h-[112px] flex-col justify-between p-3">
                                 {/* Group name at top right for Group Stage */}
                                 <div className="absolute top-2 right-2">
                                   <span className="text-[9px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">
@@ -421,7 +422,7 @@ export function MatchFixtures({
                                           );
                                         }}
                                         className="flex w-full min-w-0 items-center gap-2"
-                                        style={{ ['--team-color' as any]: homeColor, ['--shadow-color' as any]: getTextShadowColor() }}
+                                        style={{ "--team-color": homeColor, "--shadow-color": getTextShadowColor() } as TeamAccentStyle}
                                       >
                                         <NationFlag
                                           className="h-5 w-7"
@@ -469,7 +470,7 @@ export function MatchFixtures({
                                           );
                                         }}
                                         className="flex w-full min-w-0 items-center justify-end gap-2"
-                                        style={{ ['--team-color' as any]: awayColor, ['--shadow-color' as any]: getTextShadowColor() }}
+                                        style={{ "--team-color": awayColor, "--shadow-color": getTextShadowColor() } as TeamAccentStyle}
                                       >
                                         <span className="min-w-0 truncate text-right text-xs font-semibold text-foreground">
                                           <span className="block truncate hover:text-[var(--team-color)] transition-colors cursor-pointer hover:drop-shadow-[0_0_2px_var(--shadow-color)]">
@@ -563,7 +564,7 @@ export function MatchFixtures({
                         >
                         <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.08),transparent_15%),radial-gradient(circle_at_bottom_right,_rgba(0,0,0,0.03),transparent_20%)]" />
                         
-                        <div className="relative flex min-h-[126px] flex-col justify-between p-3">
+                        <div className="relative flex min-h-[112px] flex-col justify-between p-3">
                           {/* Header: Time and Info */}
                           <div className="flex items-center justify-between border-b border-border/20 pb-2">
                             <span className="text-xs font-semibold text-muted-foreground">{getTranslatedTime(match.time)}</span>
@@ -586,7 +587,7 @@ export function MatchFixtures({
                                     );
                                   }}
                                   className="flex w-full min-w-0 items-center gap-2"
-                                  style={{ ['--team-color' as any]: homeColor, ['--shadow-color' as any]: getTextShadowColor() }}
+                                  style={{ "--team-color": homeColor, "--shadow-color": getTextShadowColor() } as TeamAccentStyle}
                                 >
                                   <NationFlag
                                     className="h-5 w-7"
@@ -634,7 +635,7 @@ export function MatchFixtures({
                                     );
                                   }}
                                   className="flex w-full min-w-0 items-center justify-end gap-2"
-                                  style={{ ['--team-color' as any]: awayColor, ['--shadow-color' as any]: getTextShadowColor() }}
+                                  style={{ "--team-color": awayColor, "--shadow-color": getTextShadowColor() } as TeamAccentStyle}
                                 >
                                   <span className="min-w-0 truncate text-right text-xs font-semibold text-foreground">
                                     <span className="block truncate hover:text-[var(--team-color)] transition-colors cursor-pointer hover:drop-shadow-[0_0_2px_var(--shadow-color)]">

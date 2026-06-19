@@ -12,7 +12,6 @@ https.get(url, opts, res => {
     const sections = [...html.matchAll(teamSectionRegex)];
     const map = {};
     for (const sec of sections) {
-      const heading = sec[1].replace(/<[^>]+>/g, '').trim();
       const table = sec[2];
       const rows = [...table.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)];
       for (const row of rows) {

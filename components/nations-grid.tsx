@@ -74,12 +74,6 @@ export function NationsGrid({ initialSelectedNationId, onNationBack }: NationsGr
   }, []);
 
   useEffect(() => {
-    if (initialSelectedNationId) {
-      setSelectedNationId(initialSelectedNationId);
-    }
-  }, [initialSelectedNationId]);
-
-  useEffect(() => {
     const handleNationSelection = (event: CustomEvent) => {
       const detail = event.detail;
       const nationId = typeof detail === "string" ? detail : detail?.nationId;

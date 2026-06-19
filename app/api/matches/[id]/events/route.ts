@@ -72,7 +72,7 @@ export async function GET(
       query = query.eq('event_type', eventType);
     }
 
-    const { data: events, error, count } = await query;
+    const { data: events, error } = await query;
 
     if (error) {
       console.error('Error fetching events:', error);

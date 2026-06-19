@@ -47,6 +47,15 @@ interface ProviderState {
   averageResponseTime: number;
 }
 
+type ProviderStats = {
+  isAvailable: boolean;
+  circuitOpen: boolean;
+  totalRequests: number;
+  totalFailures: number;
+  averageResponseTime: number;
+  consecutiveFailures: number;
+};
+
 export class ProviderManager extends EventEmitter {
   private providers: Map<string, ProviderState> = new Map();
   private healthCheckInterval: NodeJS.Timeout | null = null;
@@ -157,15 +166,8 @@ export class ProviderManager extends EventEmitter {
   /**
    * Get provider statistics
    */
-  getProviderStats(): Record<string, {
-    isAvailable: boolean;
-    circuitOpen: boolean;
-    totalRequests: number;
-    totalFailures: number;
-    averageResponseTime: number;
-    consecutiveFailures: number;
-  }> {
-    const stats: Record<string, any> = {};
+  getProviderStats(): Record<string, ProviderStats> {
+    const stats: Record<string, ProviderStats> = {};
     
     this.providers.forEach((state, name) => {
       stats[name] = {
@@ -321,7 +323,7 @@ export class ProviderManager extends EventEmitter {
   private async performHealthChecks(): Promise<void> {
     const healthPromises: Promise<void>[] = [];
 
-    this.providers.forEach((state, name) => {
+    this.providers.forEach((state) => {
       const promise = this.checkProviderHealth(state);
       healthPromises.push(promise);
     });

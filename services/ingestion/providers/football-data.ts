@@ -10,7 +10,6 @@ import type {
   ProviderMatch,
   ProviderEvent,
   ProviderMatchStatus,
-  ProviderEventType,
 } from '../types';
 import { ProviderError, ProviderRateLimitError, ProviderAuthError } from '../types';
 
@@ -85,34 +84,6 @@ interface FootballDataMatch {
   }>;
 }
 
-interface FootballDataEvent {
-  id: number;
-  matchId: number;
-  type: string;
-  detail: string;
-  minute: number;
-  extraMinute?: number;
-  team?: {
-    id: number;
-    name: string;
-    shortName: string;
-    tla: string;
-    crest: string;
-  };
-  player?: {
-    id: number;
-    name: string;
-  };
-  assistPlayer?: {
-    id: number;
-    name: string;
-  };
-  substitute?: {
-    id: number;
-    name: string;
-  };
-}
-
 const STATUS_MAP: Record<string, ProviderMatchStatus> = {
   'SCHEDULED': 'NS',
   'TIMED': 'NS',
@@ -125,18 +96,6 @@ const STATUS_MAP: Record<string, ProviderMatchStatus> = {
   'POSTPONED': 'POST',
   'CANCELLED': 'CAN',
   'SUSPENDED': 'SUSP',
-};
-
-const EVENT_TYPE_MAP: Record<string, ProviderEventType> = {
-  'GOAL': 'GOAL',
-  'OWN_GOAL': 'OWN_GOAL',
-  'PENALTY': 'PENALTY_GOAL',
-  'MISSED_PENALTY': 'MISSED_PENALTY',
-  'YELLOW_CARD': 'YELLOW_CARD',
-  'RED_CARD': 'RED_CARD',
-  'SECOND_YELLOW': 'SECOND_YELLOW',
-  'SUBSTITUTION': 'SUBSTITUTION',
-  'VAR': 'VAR',
 };
 
 export class FootballDataProvider implements FootballProvider {

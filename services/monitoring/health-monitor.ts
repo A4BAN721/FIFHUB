@@ -346,7 +346,7 @@ export class HealthMonitor extends EventEmitter {
    * Cleanup all checks and intervals
    */
   async shutdown(): Promise<void> {
-    for (const [name, interval] of this.checkIntervals) {
+    for (const interval of this.checkIntervals.values()) {
       clearInterval(interval);
     }
     

@@ -19,8 +19,8 @@
  */
 
 import { EventEmitter } from 'events';
+import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 import type { PipelineEvent } from '../event-processor/event-pipeline';
-import type { MatchSummaryResponse, MatchEventResponse } from '../normalization/types';
 
 /**
  * Channel types for realtime subscriptions
@@ -77,7 +77,7 @@ export class SupabaseRealtimePublisher extends EventEmitter implements Publisher
   private maxReconnectAttempts: number = 10;
   private reconnectDelayMs: number = 1000;
   private subscriptions: Map<string, boolean> = new Map();
-  private supabaseClient: any = null; // Supabase client reference
+  private supabaseClient: SupabaseClient | null = null;
   private messageQueue: PipelineEvent[] = [];
   private isProcessingQueue: boolean = false;
 
@@ -88,7 +88,7 @@ export class SupabaseRealtimePublisher extends EventEmitter implements Publisher
   /**
    * Initialize the publisher with a Supabase client
    */
-  initialize(supabaseClient: any): void {
+  initialize(supabaseClient: SupabaseClient): void {
     this.supabaseClient = supabaseClient;
     this.connectionState = 'connected';
     this.emit('connected');
@@ -327,11 +327,11 @@ export class SupabaseRealtimePublisher extends EventEmitter implements Publisher
  * This is consumed by the React frontend
  */
 export class RealtimeClient {
-  private supabaseClient: any;
-  private subscriptions: Map<string, any> = new Map();
-  private listeners: Map<string, Array<(data: any) => void>> = new Map();
+  private supabaseClient: SupabaseClient;
+  private subscriptions: Map<string, RealtimeChannel> = new Map();
+  private listeners: Map<string, Array<(data: unknown) => void>> = new Map();
 
-  constructor(supabaseClient: any) {
+  constructor(supabaseClient: SupabaseClient) {
     this.supabaseClient = supabaseClient;
   }
 
@@ -339,7 +339,7 @@ export class RealtimeClient {
    * Subscribe to a match channel
    * Clients subscribe only to relevant matches, not all matches
    */
-  subscribeToMatch(matchId: string, onUpdate: (data: any) => void): () => void {
+  subscribeToMatch(matchId: string, onUpdate: (data: unknown) => void): () => void {
     const channelName = `match:${matchId}`;
     return this.subscribe(channelName, 'match.update', onUpdate);
   }
@@ -347,7 +347,7 @@ export class RealtimeClient {
   /**
    * Subscribe to match events
    */
-  subscribeToMatchEvents(matchId: string, onEvent: (data: any) => void): () => void {
+  subscribeToMatchEvents(matchId: string, onEvent: (data: unknown) => void): () => void {
     const channelName = `match:${matchId}`;
     return this.subscribe(channelName, 'match.event', onEvent);
   }
@@ -355,7 +355,7 @@ export class RealtimeClient {
   /**
    * Subscribe to all live matches
    */
-  subscribeToLiveScores(onUpdate: (data: any) => void): () => void {
+  subscribeToLiveScores(onUpdate: (data: unknown) => void): () => void {
     const channelName = 'live-scores';
     return this.subscribe(channelName, 'match.update', onUpdate);
   }
@@ -363,7 +363,7 @@ export class RealtimeClient {
   /**
    * Subscribe to a competition channel
    */
-  subscribeToCompetition(competitionId: string, onUpdate: (data: any) => void): () => void {
+  subscribeToCompetition(competitionId: string, onUpdate: (data: unknown) => void): () => void {
     const channelName = `competition:${competitionId}`;
     return this.subscribe(channelName, 'match.update', onUpdate);
   }
@@ -371,7 +371,7 @@ export class RealtimeClient {
   /**
    * Subscribe to World Cup live channel
    */
-  subscribeToWorldCup(onUpdate: (data: any) => void): () => void {
+  subscribeToWorldCup(onUpdate: (data: unknown) => void): () => void {
     const channelName = 'worldcup:live';
     return this.subscribe(channelName, 'match.update', onUpdate);
   }
@@ -382,7 +382,7 @@ export class RealtimeClient {
   subscribe(
     channel: string,
     event: string,
-    callback: (data: any) => void
+    callback: (data: unknown) => void
   ): () => void {
     // Track listener
     const key = `${channel}:${event}`;
@@ -397,7 +397,7 @@ export class RealtimeClient {
         .on(
           'broadcast',
           { event },
-          (payload: any) => {
+          (payload: { payload: unknown }) => {
             this.notifyListeners(channel, event, payload.payload);
           }
         )
@@ -432,7 +432,7 @@ export class RealtimeClient {
   /**
    * Notify all listeners for a channel/event
    */
-  private notifyListeners(channel: string, event: string, data: any): void {
+  private notifyListeners(channel: string, event: string, data: unknown): void {
     const key = `${channel}:${event}`;
     const listeners = this.listeners.get(key) || [];
     listeners.forEach(callback => {
@@ -467,7 +467,7 @@ export class RealtimeClient {
    * Cleanup all subscriptions
    */
   async cleanup(): Promise<void> {
-    for (const [channel, subscription] of this.subscriptions) {
+    for (const subscription of this.subscriptions.values()) {
       subscription.unsubscribe();
     }
     this.subscriptions.clear();

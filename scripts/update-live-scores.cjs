@@ -90,8 +90,8 @@ async function loadFixtures() {
 }
 
 async function loadProviderMatches() {
-  if (apiFootballKey) return loadApiFootballMatches();
   if (footballDataKey) return loadFootballDataMatches();
+  if (apiFootballKey) return loadApiFootballMatches();
   return [];
 }
 
@@ -338,7 +338,7 @@ function mapEspnStatistics(home, away, details) {
 
 function mapEspnGoalEvents(competition, teamById) {
   return (competition.details ?? [])
-    .filter((detail) => detail.scoringPlay && detail.type?.id === "70")
+    .filter((detail) => detail.scoringPlay && !detail.shootout)
     .map((detail, index) => {
       const timing = parseEspnClock(detail.clock?.displayValue);
       const scorer = detail.athletesInvolved?.[0]?.displayName ?? null;
@@ -373,7 +373,7 @@ function countEspnCard(details, teamId, typeId) {
 }
 
 function parseEspnClock(displayValue) {
-  const normalized = String(displayValue ?? "0").replace(/[’']/g, "");
+  const normalized = String(displayValue ?? "0").replace(/[\u2019']/g, "");
   const [minute, stoppageMinute] = normalized.split("+").map((part) => Number.parseInt(part, 10));
 
   return {
@@ -468,7 +468,7 @@ async function replaceMatchEvents(fixture, match) {
     stoppage_minute: event.stoppageMinute,
     sequence_number: event.sequenceNumber,
     event_type: event.eventType,
-    team_name: event.teamName,
+    team_name: getFixtureTeamNameForEvent(event.teamName, match, fixture),
     player_name: event.playerName,
     assist_player_name: null,
     description: event.description,
@@ -481,6 +481,22 @@ async function replaceMatchEvents(fixture, match) {
   if (insertError) {
     throw new Error(`Failed to insert events for ${fixture.home_team} vs ${fixture.away_team}: ${insertError.message}`);
   }
+}
+
+function getFixtureTeamNameForEvent(eventTeamName, match, fixture) {
+  if (!eventTeamName) return null;
+
+  const eventTeamKey = normalizeTeamName(eventTeamName);
+
+  if (eventTeamKey === normalizeTeamName(match.homeTeam)) {
+    return fixture.home_team;
+  }
+
+  if (eventTeamKey === normalizeTeamName(match.awayTeam)) {
+    return fixture.away_team;
+  }
+
+  return eventTeamName;
 }
 
 function periodForPhase(phase) {
@@ -530,7 +546,7 @@ function normalizeTeamName(name) {
     "usa": "usa",
     "united states": "usa",
     "cote d'ivoire": "ivorycoast",
-    "cote d’ivoire": "ivorycoast",
+    "cote d\u2019ivoire": "ivorycoast",
     "côte d'ivoire": "ivorycoast",
     "côte d’ivoire": "ivorycoast",
     "ivory coast": "ivorycoast",
@@ -548,7 +564,7 @@ function normalizeTeamName(name) {
   const normalized = String(name)
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[’']/g, "")
+    .replace(/[\u2019']/g, "")
     .toLowerCase()
     .trim();
 

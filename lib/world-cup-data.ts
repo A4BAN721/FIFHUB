@@ -308,7 +308,8 @@ export const translations: Record<string, Record<string, string>> = {
   },
 };
 
-function generatePlayers(nationId: string, nationName: string): Player[] {
+function generatePlayers(nationId: string, nationName?: string): Player[] {
+  void nationName;
   const positions = ["Goalkeeper", "Defender", "Defender", "Defender", "Defender", "Midfielder", "Midfielder", "Midfielder", "Midfielder", "Forward", "Forward", "Forward", "Goalkeeper", "Defender", "Defender", "Midfielder", "Midfielder", "Forward", "Defender", "Midfielder", "Forward", "Goalkeeper", "Defender", "Midfielder", "Forward", "Forward"];
   
   const playersByNation: Record<string, PlayerData[]> = {
