@@ -308,18 +308,23 @@ function TeamEventSummary({ liveMatch }: { liveMatch: LiveMatch }) {
     <div className="grid gap-4 border-t border-border/40 pt-4 sm:grid-cols-2">
       <TeamEventColumn
         teamName={liveMatch.homeTeam}
-        goals={goals.filter((event) => event.teamName === liveMatch.homeTeam)}
-        redCards={redCards.filter((event) => event.teamName === liveMatch.homeTeam)}
+        goals={goals.filter((event) => isSameTeam(event.teamName, liveMatch.homeTeam))}
+        redCards={redCards.filter((event) => isSameTeam(event.teamName, liveMatch.homeTeam))}
         align="left"
       />
       <TeamEventColumn
         teamName={liveMatch.awayTeam}
-        goals={goals.filter((event) => event.teamName === liveMatch.awayTeam)}
-        redCards={redCards.filter((event) => event.teamName === liveMatch.awayTeam)}
+        goals={goals.filter((event) => isSameTeam(event.teamName, liveMatch.awayTeam))}
+        redCards={redCards.filter((event) => isSameTeam(event.teamName, liveMatch.awayTeam))}
         align="right"
       />
     </div>
   );
+}
+
+function isSameTeam(eventTeamName: string | null | undefined, teamName: string) {
+  if (!eventTeamName) return false;
+  return normalizeCountryName(eventTeamName) === normalizeCountryName(teamName);
 }
 
 function TeamEventColumn({

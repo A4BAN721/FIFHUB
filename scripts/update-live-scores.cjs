@@ -4,6 +4,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const apiFootballKey = process.env.API_FOOTBALL_KEY;
 const footballDataKey = process.env.FOOTBALL_DATA_KEY;
+const isDryRun = process.argv.includes("--dry-run") || process.env.DRY_RUN === "1";
 
 if (!supabaseUrl || !serviceRoleKey) {
   throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.");
@@ -40,12 +41,23 @@ async function main() {
   if (completedResult.unmatched.length > 0) {
     console.log(`Unmatched ESPN fixtures: ${completedResult.unmatched.slice(0, 20).join("; ")}`);
   }
+  if (completedResult.eventErrors.length > 0) {
+    console.log(`ESPN event write errors: ${completedResult.eventErrors.slice(0, 20).join("; ")}`);
+  }
+  if (isDryRun && completedResult.matched.length > 0) {
+    console.log("Dry run completed-match sample:");
+    for (const item of completedResult.matched.slice(0, 30)) {
+      console.log(`- ${item.fixtureId}: ${item.label} ${item.score}; goals=${item.goalCount}`);
+    }
+  }
 }
 
 async function syncMatches(matches, fixtureMap, options) {
   let updated = 0;
   let skipped = 0;
   const unmatched = [];
+  const matched = [];
+  const eventErrors = [];
 
   for (const match of matches) {
     let fixture = fixtureMap.get(teamPairKey(match.homeTeam, match.awayTeam));
@@ -70,14 +82,30 @@ async function syncMatches(matches, fixtureMap, options) {
       continue;
     }
 
+    matched.push({
+      fixtureId: fixture.id,
+      label: `${fixture.home_team} vs ${fixture.away_team}`,
+      score: `${scoreMatch.homeScore}-${scoreMatch.awayScore}`,
+      goalCount: scoreMatch.events?.length ?? 0,
+    });
+
+    if (isDryRun) {
+      updated++;
+      continue;
+    }
+
     await upsertLiveState(fixture, scoreMatch);
     if (options.writeEvents) {
-      await replaceMatchEvents(fixture, scoreMatch);
+      try {
+        await replaceMatchEvents(fixture, scoreMatch);
+      } catch (error) {
+        eventErrors.push(`${fixture.home_team} vs ${fixture.away_team}: ${error.message}`);
+      }
     }
     updated++;
   }
 
-  return { updated, skipped, unmatched };
+  return { updated, skipped, unmatched, matched, eventErrors };
 }
 
 async function loadFixtures() {
@@ -478,9 +506,30 @@ async function replaceMatchEvents(fixture, match) {
 
   const { error: insertError } = await supabase.from("match_events").insert(rows);
 
+  if (insertError && isEventTypeConstraintError(insertError)) {
+    const upperRows = rows.map((row) => ({
+      ...row,
+      event_type: row.event_type.toUpperCase(),
+    }));
+    const { error: upperInsertError } = await supabase.from("match_events").insert(upperRows);
+
+    if (!upperInsertError) {
+      return;
+    }
+
+    throw new Error(`Failed to insert events for ${fixture.home_team} vs ${fixture.away_team}: ${upperInsertError.message}`);
+  }
+
   if (insertError) {
     throw new Error(`Failed to insert events for ${fixture.home_team} vs ${fixture.away_team}: ${insertError.message}`);
   }
+}
+
+function isEventTypeConstraintError(error) {
+  return (
+    error?.code === "23514" &&
+    String(error?.message ?? "").toLowerCase().includes("event_type")
+  );
 }
 
 function getFixtureTeamNameForEvent(eventTeamName, match, fixture) {
