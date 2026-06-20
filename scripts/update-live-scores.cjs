@@ -1,4 +1,8 @@
+const fs = require("node:fs");
+const path = require("node:path");
 const { createClient } = require("@supabase/supabase-js");
+
+loadEnvFile(process.env.ENV_FILE_PATH ?? path.join(process.cwd(), ".env.local"));
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -58,30 +62,25 @@ async function syncMatches(matches, fixtureMap, options) {
   const unmatched = [];
   const matched = [];
   const eventErrors = [];
+  const bestMatchByFixtureId = new Map();
 
   for (const match of matches) {
-    let fixture = fixtureMap.get(teamPairKey(match.homeTeam, match.awayTeam));
-    let scoreMatch = match;
+    const resolved = resolveFixtureMatch(match, fixtureMap);
 
-    if (!fixture) {
-      fixture = fixtureMap.get(teamPairKey(match.awayTeam, match.homeTeam));
-      if (fixture) {
-        scoreMatch = {
-          ...match,
-          homeTeam: match.awayTeam,
-          awayTeam: match.homeTeam,
-          homeScore: match.awayScore,
-          awayScore: match.homeScore,
-        };
-      }
-    }
-
-    if (!fixture) {
+    if (!resolved) {
       skipped++;
       unmatched.push(`${match.homeTeam} vs ${match.awayTeam}`);
       continue;
     }
 
+    const { fixture, scoreMatch } = resolved;
+    const current = bestMatchByFixtureId.get(fixture.id);
+    if (!current || isBetterScoreMatch(scoreMatch, current.scoreMatch)) {
+      bestMatchByFixtureId.set(fixture.id, { fixture, scoreMatch });
+    }
+  }
+
+  for (const { fixture, scoreMatch } of bestMatchByFixtureId.values()) {
     matched.push({
       fixtureId: fixture.id,
       label: `${fixture.home_team} vs ${fixture.away_team}`,
@@ -108,6 +107,27 @@ async function syncMatches(matches, fixtureMap, options) {
   return { updated, skipped, unmatched, matched, eventErrors };
 }
 
+function resolveFixtureMatch(match, fixtureMap) {
+  let fixture = fixtureMap.get(teamPairKey(match.homeTeam, match.awayTeam));
+  let scoreMatch = match;
+
+  if (!fixture) {
+    fixture = fixtureMap.get(teamPairKey(match.awayTeam, match.homeTeam));
+    if (fixture) {
+      scoreMatch = {
+        ...match,
+        homeTeam: match.awayTeam,
+        awayTeam: match.homeTeam,
+        homeScore: match.awayScore,
+        awayScore: match.homeScore,
+      };
+    }
+  }
+
+  if (!fixture) return null;
+  return { fixture, scoreMatch };
+}
+
 async function loadFixtures() {
   const { data, error } = await supabase
     .from("match_fixtures")
@@ -118,20 +138,28 @@ async function loadFixtures() {
 }
 
 async function loadProviderMatches() {
-  if (footballDataKey) return loadFootballDataMatches();
-  if (apiFootballKey) return loadApiFootballMatches();
-  return [];
+  const providerMatches = [];
+
+  if (footballDataKey) {
+    providerMatches.push(...await loadFootballDataMatches());
+  }
+
+  if (apiFootballKey) {
+    providerMatches.push(...await loadApiFootballMatches());
+  }
+
+  return dedupeProviderMatches(providerMatches);
 }
 
 async function loadApiFootballMatches() {
-  const today = new Date().toISOString().slice(0, 10);
-  const [live, todayMatches] = await Promise.all([
+  const dates = enumerateIsoDates(offsetIsoDate(todayIsoDate(), -1), offsetIsoDate(todayIsoDate(), 1));
+  const responses = await Promise.all([
     apiFootballRequest("fixtures", { live: "all" }),
-    apiFootballRequest("fixtures", { date: today }),
+    ...dates.map((date) => apiFootballRequest("fixtures", { date })),
   ]);
 
   const byId = new Map();
-  for (const fixture of [...live, ...todayMatches]) {
+  for (const fixture of responses.flat()) {
     byId.set(String(fixture.fixture.id), mapApiFootballFixture(fixture));
   }
   return [...byId.values()];
@@ -176,6 +204,7 @@ function mapApiFootballFixture(fixture) {
     stoppageMinute: fixture.fixture.status.extra,
     status: mapApiFootballStatus(status),
     phase: mapApiFootballPhase(status),
+    kickoffTime: fixture.fixture.date,
     providerUpdatedAt: new Date().toISOString(),
   };
 }
@@ -204,6 +233,48 @@ async function loadFootballDataMatches() {
   });
 
   return (json.matches ?? []).map(mapFootballDataMatch);
+}
+
+function dedupeProviderMatches(matches) {
+  const bestByProviderMatch = new Map();
+
+  for (const match of matches) {
+    const key = `${match.provider}:${match.providerMatchId}`;
+    const current = bestByProviderMatch.get(key);
+    if (!current || isBetterScoreMatch(match, current)) {
+      bestByProviderMatch.set(key, match);
+    }
+  }
+
+  return [...bestByProviderMatch.values()];
+}
+
+function isBetterScoreMatch(candidate, current) {
+  const priorityDelta = scoreMatchPriority(candidate) - scoreMatchPriority(current);
+  if (priorityDelta !== 0) return priorityDelta > 0;
+
+  const candidateUpdatedAt = parseComparableDate(candidate.providerUpdatedAt ?? candidate.kickoffTime);
+  const currentUpdatedAt = parseComparableDate(current.providerUpdatedAt ?? current.kickoffTime);
+  if (candidateUpdatedAt !== currentUpdatedAt) return candidateUpdatedAt > currentUpdatedAt;
+
+  return scoreValue(candidate) >= scoreValue(current);
+}
+
+function scoreMatchPriority(match) {
+  if (match.status === "finished") return 4;
+  if (match.status === "half_time") return 3;
+  if (["live", "extra_time", "penalties"].includes(match.status)) return 2;
+  if (match.status === "scheduled") return 1;
+  return 0;
+}
+
+function scoreValue(match) {
+  return Number(match.homeScore ?? 0) + Number(match.awayScore ?? 0);
+}
+
+function parseComparableDate(value) {
+  const timestamp = Date.parse(value ?? "");
+  return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
 async function footballDataRequest(endpoint, params) {
@@ -281,7 +352,7 @@ function estimateFootballDataMinute(match) {
 
 async function loadEspnCompletedMatches() {
   const dateFrom = process.env.ESPN_DATE_FROM ?? "2026-06-11";
-  const dateTo = process.env.ESPN_DATE_TO ?? new Date().toISOString().slice(0, 10);
+  const dateTo = process.env.ESPN_DATE_TO ?? offsetIsoDate(todayIsoDate(), 1);
   const matches = [];
 
   for (const date of enumerateIsoDates(dateFrom, dateTo)) {
@@ -427,11 +498,28 @@ function enumerateIsoDates(dateFrom, dateTo) {
   return dates;
 }
 
+function todayIsoDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function offsetIsoDate(date, days) {
+  const value = new Date(`${date}T00:00:00.000Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
 async function upsertLiveState(fixture, match) {
+  const existingState = await getExistingLiveState(fixture.id);
+
+  if (match.status !== "finished" && hasConfirmedFinalScore(existingState)) {
+    return;
+  }
+
   const now = new Date().toISOString();
   const finalScoreConfirmedAt = match.status === "finished" ? match.providerUpdatedAt ?? now : null;
   const phase = normalizePhase(match.phase);
   const statistics = match.statistics ?? {};
+  const statisticColumns = mapStatisticColumns(statistics, existingState);
 
   const { error } = await supabase.from("live_match_state").upsert(
     {
@@ -448,22 +536,7 @@ async function upsertLiveState(fixture, match) {
       period: periodForPhase(phase),
       started_at: match.kickoffTime ?? null,
       final_score_confirmed_at: finalScoreConfirmedAt,
-      home_possession: statistics.homePossession,
-      away_possession: statistics.awayPossession,
-      home_shots: statistics.homeShots,
-      away_shots: statistics.awayShots,
-      home_shots_on_target: statistics.homeShotsOnTarget,
-      away_shots_on_target: statistics.awayShotsOnTarget,
-      home_yellow_cards: statistics.homeYellowCards,
-      away_yellow_cards: statistics.awayYellowCards,
-      home_red_cards: statistics.homeRedCards,
-      away_red_cards: statistics.awayRedCards,
-      home_corners: statistics.homeCorners,
-      away_corners: statistics.awayCorners,
-      home_fouls: statistics.homeFouls,
-      away_fouls: statistics.awayFouls,
-      home_offsides: statistics.homeOffsides,
-      away_offsides: statistics.awayOffsides,
+      ...statisticColumns,
       provider_updated_at: match.providerUpdatedAt ?? now,
       updated_at: now,
     },
@@ -473,6 +546,55 @@ async function upsertLiveState(fixture, match) {
   if (error) {
     throw new Error(`Failed to update ${fixture.home_team} vs ${fixture.away_team}: ${error.message}`);
   }
+}
+
+async function getExistingLiveState(matchId) {
+  const { data, error } = await supabase
+    .from("live_match_state")
+    .select("status, final_score_confirmed_at, home_possession, away_possession, home_shots, away_shots, home_shots_on_target, away_shots_on_target, home_yellow_cards, away_yellow_cards, home_red_cards, away_red_cards, home_corners, away_corners, home_fouls, away_fouls, home_offsides, away_offsides")
+    .eq("match_id", matchId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load existing live state for match ${matchId}: ${error.message}`);
+  }
+
+  return data;
+}
+
+function hasConfirmedFinalScore(state) {
+  return Boolean(state && state.status === "finished" && state.final_score_confirmed_at);
+}
+
+function mapStatisticColumns(statistics, existingState) {
+  return compactObject({
+    home_possession: firstDefined(statistics.homePossession, existingState?.home_possession),
+    away_possession: firstDefined(statistics.awayPossession, existingState?.away_possession),
+    home_shots: firstDefined(statistics.homeShots, existingState?.home_shots),
+    away_shots: firstDefined(statistics.awayShots, existingState?.away_shots),
+    home_shots_on_target: firstDefined(statistics.homeShotsOnTarget, existingState?.home_shots_on_target),
+    away_shots_on_target: firstDefined(statistics.awayShotsOnTarget, existingState?.away_shots_on_target),
+    home_yellow_cards: firstDefined(statistics.homeYellowCards, existingState?.home_yellow_cards),
+    away_yellow_cards: firstDefined(statistics.awayYellowCards, existingState?.away_yellow_cards),
+    home_red_cards: firstDefined(statistics.homeRedCards, existingState?.home_red_cards),
+    away_red_cards: firstDefined(statistics.awayRedCards, existingState?.away_red_cards),
+    home_corners: firstDefined(statistics.homeCorners, existingState?.home_corners),
+    away_corners: firstDefined(statistics.awayCorners, existingState?.away_corners),
+    home_fouls: firstDefined(statistics.homeFouls, existingState?.home_fouls),
+    away_fouls: firstDefined(statistics.awayFouls, existingState?.away_fouls),
+    home_offsides: firstDefined(statistics.homeOffsides, existingState?.home_offsides),
+    away_offsides: firstDefined(statistics.awayOffsides, existingState?.away_offsides),
+  });
+}
+
+function firstDefined(...values) {
+  return values.find((value) => value != null);
+}
+
+function compactObject(value) {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entryValue]) => entryValue != null)
+  );
 }
 
 async function replaceMatchEvents(fixture, match) {
@@ -646,4 +768,34 @@ async function fetchWithRetry(url, options, label, attempts = 3) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function loadEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) return;
+
+  const content = fs.readFileSync(filePath, "utf8");
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+
+    const separatorIndex = trimmed.indexOf("=");
+    if (separatorIndex === -1) continue;
+
+    const key = trimmed.slice(0, separatorIndex).trim();
+    const rawValue = trimmed.slice(separatorIndex + 1).trim();
+    if (!key || Object.prototype.hasOwnProperty.call(process.env, key)) continue;
+
+    process.env[key] = unquoteEnvValue(rawValue);
+  }
+}
+
+function unquoteEnvValue(value) {
+  if (
+    (value.startsWith("\"") && value.endsWith("\"")) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    return value.slice(1, -1);
+  }
+
+  return value;
 }

@@ -72,23 +72,7 @@ export function useLiveMatch(
         homeScore: state.homeScore,
         awayScore: state.awayScore,
         minute: state.minute,
-        statistics: {
-          ...base.statistics,
-          homePossession: state.homePossession,
-          awayPossession: state.awayPossession,
-          homeShots: state.homeShots,
-          awayShots: state.awayShots,
-          homeShotsOnTarget: state.homeShotsOnTarget,
-          awayShotsOnTarget: state.awayShotsOnTarget,
-          homeYellowCards: state.homeYellowCards,
-          awayYellowCards: state.awayYellowCards,
-          homeRedCards: state.homeRedCards,
-          awayRedCards: state.awayRedCards,
-          homeCorners: state.homeCorners,
-          awayCorners: state.awayCorners,
-          homeFouls: state.homeFouls,
-          awayFouls: state.awayFouls,
-        },
+        statistics: mergeDefinedStatistics(base.statistics, state),
         updatedAt: new Date().toISOString(),
       };
     });
@@ -143,4 +127,35 @@ function createLiveMatchShell(matchId: string, homeTeam: string, awayTeam: strin
     statistics: {},
     events: [],
   };
+}
+
+function mergeDefinedStatistics(
+  current: LiveMatch["statistics"],
+  state: LiveRealtimeState
+): LiveMatch["statistics"] {
+  return {
+    ...current,
+    ...definedStats({
+      homePossession: state.homePossession,
+      awayPossession: state.awayPossession,
+      homeShots: state.homeShots,
+      awayShots: state.awayShots,
+      homeShotsOnTarget: state.homeShotsOnTarget,
+      awayShotsOnTarget: state.awayShotsOnTarget,
+      homeYellowCards: state.homeYellowCards,
+      awayYellowCards: state.awayYellowCards,
+      homeRedCards: state.homeRedCards,
+      awayRedCards: state.awayRedCards,
+      homeCorners: state.homeCorners,
+      awayCorners: state.awayCorners,
+      homeFouls: state.homeFouls,
+      awayFouls: state.awayFouls,
+    }),
+  };
+}
+
+function definedStats(statistics: LiveMatch["statistics"]): LiveMatch["statistics"] {
+  return Object.fromEntries(
+    Object.entries(statistics).filter(([, value]) => value != null)
+  ) as LiveMatch["statistics"];
 }

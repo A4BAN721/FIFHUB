@@ -24,9 +24,11 @@ export function LiveMatchCard({ match, children }: LiveMatchCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const { liveMatch } = useLiveMatch(match.id, { fallbackMatch: match });
-  const sourcedMatch = liveMatch ?? getCompletedMatch(match.id);
-  const displayMatch = sourcedMatch ? withRunningMinute(sourcedMatch, now) : null;
-  const shouldRunTimer = Boolean(sourcedMatch && isMatchInProgress(sourcedMatch));
+  const completedMatch = getCompletedMatch(match.id);
+  const scheduledLiveMatch = !liveMatch && !completedMatch ? createScheduledLiveMatch(match, now) : null;
+  const sourcedMatch = getBestMatchState({ completedMatch, liveMatch, scheduledLiveMatch });
+  const displayMatch = sourcedMatch ? withDisplayClock(sourcedMatch, now, match) : null;
+  const shouldRunTimer = Boolean(sourcedMatch && (isMatchInProgress(sourcedMatch) || scheduledLiveMatch));
 
   useEffect(() => {
     if (!shouldRunTimer) return;
@@ -107,7 +109,8 @@ export function LiveMatchCard({ match, children }: LiveMatchCardProps) {
 
 function CompactScoreOverlay({ liveMatch }: { liveMatch: LiveMatch }) {
   const timerLabel = getTimerLabel(liveMatch);
-  const showLiveIndicator = isMatchInProgress(liveMatch);
+  const showLiveIndicator = shouldShowLiveIndicator(liveMatch);
+  const scoreboardPosition = isMatchInProgress(liveMatch) ? "top-[58%]" : "top-1/2";
 
   return (
     <div className="pointer-events-none absolute inset-0 z-20">
@@ -120,7 +123,7 @@ function CompactScoreOverlay({ liveMatch }: { liveMatch: LiveMatch }) {
       <span className="absolute left-2 top-2 rounded-full border border-zinc-200 bg-white px-2 py-0.5 text-[9px] font-black text-zinc-950 shadow-md dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:text-[10px]">
         {getPlayPeriodLabel(liveMatch)}
       </span>
-      <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1">
+      <div className={`absolute left-1/2 ${scoreboardPosition} flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1`}>
         <span className="rounded-lg border border-zinc-200 bg-white px-3 py-1 text-sm font-black tabular-nums text-zinc-950 shadow-lg dark:border-zinc-700 dark:bg-zinc-950 dark:text-white">
           {liveMatch.homeScore} - {liveMatch.awayScore}
         </span>
@@ -132,6 +135,50 @@ function CompactScoreOverlay({ liveMatch }: { liveMatch: LiveMatch }) {
       </div>
     </div>
   );
+}
+
+function getBestMatchState({
+  completedMatch,
+  liveMatch,
+  scheduledLiveMatch,
+}: {
+  completedMatch: LiveMatch | null;
+  liveMatch: LiveMatch | null;
+  scheduledLiveMatch: LiveMatch | null;
+}) {
+  if (completedMatch && liveMatch) {
+    return mergeCompletedAndLiveMatch(completedMatch, liveMatch);
+  }
+
+  if (completedMatch) return completedMatch;
+  return liveMatch ?? scheduledLiveMatch;
+}
+
+function mergeCompletedAndLiveMatch(completedMatch: LiveMatch, liveMatch: LiveMatch): LiveMatch {
+  const liveIsConfirmedFinal = Boolean(
+    liveMatch.finalScoreConfirmedAt ||
+      liveMatch.status === "finished" ||
+      liveMatch.phase === "full_time"
+  );
+
+  const scoreSource = liveIsConfirmedFinal ? liveMatch : completedMatch;
+
+  return {
+    ...completedMatch,
+    homeScore: scoreSource.homeScore,
+    awayScore: scoreSource.awayScore,
+    startedAt: liveMatch.startedAt ?? completedMatch.startedAt,
+    finalScoreConfirmedAt: liveMatch.finalScoreConfirmedAt ?? completedMatch.finalScoreConfirmedAt,
+    updatedAt: liveMatch.updatedAt ?? completedMatch.updatedAt,
+    statistics: hasMatchStatistics(liveMatch.statistics)
+      ? { ...completedMatch.statistics, ...liveMatch.statistics }
+      : completedMatch.statistics,
+    events: liveMatch.events.length > 0 ? liveMatch.events : completedMatch.events,
+  };
+}
+
+function hasMatchStatistics(statistics: LiveMatch["statistics"]) {
+  return Object.values(statistics).some((value) => value != null);
 }
 
 function ExpandedMatchHeader({ liveMatch, stadium }: { liveMatch: LiveMatch; stadium: string }) {
@@ -186,60 +233,205 @@ function getExtraTimeHalfLabel(minute?: number | null) {
 
 function getTimerLabel(liveMatch: LiveMatch) {
   if (!isMatchInProgress(liveMatch)) return "";
-  if (liveMatch.status === "half_time" || liveMatch.phase === "half_time") return "HT";
+  if (liveMatch.status === "half_time" || liveMatch.phase === "half_time") return "Half Time";
 
   return formatMatchMinute(liveMatch.minute, liveMatch.stoppageMinute);
 }
 
-function withRunningMinute(liveMatch: LiveMatch, now: number): LiveMatch {
-  const timer = estimateRunningMinute(liveMatch, now);
-  if (!timer) return liveMatch;
+function withDisplayClock(liveMatch: LiveMatch, now: number, fixture: Match): LiveMatch {
+  const timer = estimateDisplayClock(liveMatch, now, fixture);
+  if (!timer) return sanitizeMatchClock(liveMatch);
 
   return {
     ...liveMatch,
+    status: timer.status,
+    phase: timer.phase,
     minute: timer.minute,
     stoppageMinute: timer.stoppageMinute,
   };
 }
 
-function estimateRunningMinute(liveMatch: LiveMatch, now: number) {
-  if (!isMatchInProgress(liveMatch) || liveMatch.status === "half_time" || liveMatch.phase === "half_time") {
-    return null;
+function sanitizeMatchClock(liveMatch: LiveMatch): LiveMatch {
+  if (liveMatch.status === "half_time" || liveMatch.phase === "half_time") {
+    return {
+      ...liveMatch,
+      status: "half_time",
+      phase: "half_time",
+      minute: 45,
+      stoppageMinute: null,
+    };
   }
 
-  const startedAt = liveMatch.startedAt ? Date.parse(liveMatch.startedAt) : NaN;
-  if (!Number.isFinite(startedAt)) return null;
+  if (liveMatch.status === "finished" || liveMatch.phase === "full_time") {
+    return {
+      ...liveMatch,
+      status: "finished",
+      phase: "full_time",
+      minute: 90,
+      stoppageMinute: null,
+    };
+  }
 
-  const elapsed = Math.floor((now - startedAt) / 60_000);
+  return {
+    ...liveMatch,
+    stoppageMinute: capStoppageMinute(liveMatch.stoppageMinute),
+  };
+}
+
+function estimateDisplayClock(liveMatch: LiveMatch, now: number, fixture: Match) {
+  if (!isMatchInProgress(liveMatch)) return null;
+
+  const kickoffTime = getKickoffTime(liveMatch, fixture);
+  if (!Number.isFinite(kickoffTime)) return phaseFallbackClock(liveMatch);
+
+  const elapsed = Math.floor((now - kickoffTime) / 60_000);
   if (elapsed < 0) return null;
 
+  if (elapsed < 45) {
+    return {
+      status: "live" as const,
+      phase: "first_half" as const,
+      minute: Math.max(1, elapsed + 1),
+      stoppageMinute: null,
+    };
+  }
+
+  if (elapsed < 60) {
+    return {
+      status: "half_time" as const,
+      phase: "half_time" as const,
+      minute: 45,
+      stoppageMinute: null,
+    };
+  }
+
+  if (elapsed < 105) {
+    return {
+      status: "live" as const,
+      phase: "second_half" as const,
+      minute: Math.min(90, Math.max(46, elapsed - 14)),
+      stoppageMinute: null,
+    };
+  }
+
+  if (liveMatch.status === "extra_time" || liveMatch.phase === "extra_time") {
+    return extraTimeClock(elapsed);
+  }
+
+  return {
+    status: "finished" as const,
+    phase: "full_time" as const,
+    minute: 90,
+    stoppageMinute: null,
+  };
+}
+
+function phaseFallbackClock(liveMatch: LiveMatch) {
+  if (liveMatch.status === "half_time" || liveMatch.phase === "half_time") {
+    return {
+      status: "half_time" as const,
+      phase: "half_time" as const,
+      minute: 45,
+      stoppageMinute: null,
+    };
+  }
+
   if (liveMatch.phase === "first_half") {
-    return minuteWithStoppage(Math.max(liveMatch.minute ?? 1, elapsed), 45);
+    return {
+      status: "live" as const,
+      phase: "first_half" as const,
+      minute: Math.min(45, Math.max(1, liveMatch.minute ?? 1)),
+      stoppageMinute: capStoppageMinute(liveMatch.stoppageMinute),
+    };
   }
 
   if (liveMatch.phase === "second_half" || liveMatch.status === "live") {
-    return minuteWithStoppage(Math.max(liveMatch.minute ?? 46, elapsed - 15), 90);
+    return {
+      status: "live" as const,
+      phase: "second_half" as const,
+      minute: Math.min(90, Math.max(46, liveMatch.minute ?? 46)),
+      stoppageMinute: capStoppageMinute(liveMatch.stoppageMinute),
+    };
   }
 
   if (liveMatch.phase === "extra_time" || liveMatch.status === "extra_time") {
-    return minuteWithStoppage(Math.max(liveMatch.minute ?? 91, elapsed - 20), 120);
+    return {
+      status: "extra_time" as const,
+      phase: "extra_time" as const,
+      minute: Math.min(120, Math.max(91, liveMatch.minute ?? 91)),
+      stoppageMinute: capStoppageMinute(liveMatch.stoppageMinute),
+    };
   }
 
   return null;
 }
 
-function minuteWithStoppage(value: number, regulationMinute: number) {
-  if (value > regulationMinute) {
+function extraTimeClock(elapsed: number) {
+  if (elapsed < 120) {
     return {
-      minute: regulationMinute,
-      stoppageMinute: value - regulationMinute,
+      status: "extra_time" as const,
+      phase: "extra_time" as const,
+      minute: Math.min(105, Math.max(91, elapsed - 14)),
+      stoppageMinute: null,
+    };
+  }
+
+  if (elapsed < 135) {
+    return {
+      status: "extra_time" as const,
+      phase: "extra_time" as const,
+      minute: Math.min(120, Math.max(106, elapsed - 14)),
+      stoppageMinute: null,
     };
   }
 
   return {
-    minute: Math.max(1, value),
+    status: "finished" as const,
+    phase: "full_time" as const,
+    minute: 120,
     stoppageMinute: null,
   };
+}
+
+function getKickoffTime(liveMatch: LiveMatch, fixture: Match) {
+  const startedAt = liveMatch.startedAt ? Date.parse(liveMatch.startedAt) : NaN;
+  if (Number.isFinite(startedAt)) return startedAt;
+
+  return parseFixtureDateTime(fixture.date, fixture.time);
+}
+
+function parseFixtureDateTime(date: string, time: string) {
+  const withoutWeekday = date.includes(",") ? date.split(",").slice(1).join(",").trim() : date;
+  const parsed = Date.parse(`${withoutWeekday} ${time}`);
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
+function createScheduledLiveMatch(match: Match, now: number): LiveMatch | null {
+  const kickoffTime = parseFixtureDateTime(match.date, match.time);
+  if (!Number.isFinite(kickoffTime)) return null;
+
+  const elapsed = Math.floor((now - kickoffTime) / 60_000);
+  if (elapsed < 0 || elapsed >= 105) return null;
+
+  return {
+    matchId: match.id,
+    status: "live",
+    phase: elapsed < 45 ? "first_half" : elapsed < 60 ? "half_time" : "second_half",
+    homeTeam: match.homeTeam,
+    awayTeam: match.awayTeam,
+    homeScore: 0,
+    awayScore: 0,
+    minute: null,
+    startedAt: new Date(kickoffTime).toISOString(),
+    updatedAt: new Date(now).toISOString(),
+    statistics: {},
+    events: [],
+  };
+}
+
+function capStoppageMinute(stoppageMinute?: number | null) {
+  if (typeof stoppageMinute !== "number" || stoppageMinute <= 0) return null;
+  return Math.min(stoppageMinute, 15);
 }
 
 function isMatchInProgress(liveMatch: LiveMatch) {
@@ -249,6 +441,15 @@ function isMatchInProgress(liveMatch: LiveMatch) {
     liveMatch.status === "extra_time" ||
     liveMatch.status === "penalties"
   );
+}
+
+function shouldShowLiveIndicator(liveMatch: LiveMatch) {
+  return isMatchInProgress(liveMatch);
+}
+
+function isSameTeam(eventTeamName: string | null | undefined, teamName: string) {
+  if (!eventTeamName) return false;
+  return normalizeCountryName(eventTeamName) === normalizeCountryName(teamName);
 }
 
 function ExpandedScoreboard({ liveMatch }: { liveMatch: LiveMatch }) {
@@ -320,11 +521,6 @@ function TeamEventSummary({ liveMatch }: { liveMatch: LiveMatch }) {
       />
     </div>
   );
-}
-
-function isSameTeam(eventTeamName: string | null | undefined, teamName: string) {
-  if (!eventTeamName) return false;
-  return normalizeCountryName(eventTeamName) === normalizeCountryName(teamName);
 }
 
 function TeamEventColumn({
