@@ -4,6 +4,8 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  color-scheme: light;
+
   /* World Cup 2026 Host Colors - Trionda Inspired */
   --wc-green: oklch(0.55 0.18 145); /* Mexico Green */
   --wc-blue: oklch(0.45 0.22 250); /* USA Blue */
@@ -45,6 +47,8 @@
 }
 
 .dark {
+  color-scheme: dark;
+
   --background: oklch(0.12 0.01 260);
   --foreground: oklch(0.96 0.005 90);
   --card: oklch(0.16 0.01 260);
@@ -247,7 +251,7 @@
   --bg-blend-3: rgba(239, 68, 68, 0.2);
 }
 
-:not(.dark) {
+html:not(.dark) {
   --bg-blend-1: rgba(59, 130, 246, 0.36);
   --bg-blend-2: rgba(16, 185, 129, 0.4);
   --bg-blend-3: rgba(239, 68, 68, 0.36);

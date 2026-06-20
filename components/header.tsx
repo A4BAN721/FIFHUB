@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 
 export function Header() {
   const { t } = useLanguage();
-  const { resolvedTheme, setTheme } = useTheme();
-  const activeTheme = resolvedTheme ?? "dark";
+  const { theme, setTheme } = useTheme();
+  const activeTheme = theme === "light" ? "light" : "dark";
   const nextTheme = activeTheme === "dark" ? "light" : "dark";
 
   return (

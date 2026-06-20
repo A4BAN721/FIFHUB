@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#1a1a1f' },
+    { media: '(prefers-color-scheme: light)', color: '#faf9f5' },
     { media: '(prefers-color-scheme: dark)', color: '#1a1a1f' },
   ],
 }
@@ -23,9 +23,9 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className="bg-background" suppressHydrationWarning>
-      <body className="font-sans antialiased">
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+    <html lang="en" className="dark bg-background" style={{ colorScheme: 'dark' }} suppressHydrationWarning>
+      <body className="min-h-screen bg-background font-sans text-foreground antialiased">
+        <ThemeProvider attribute="class" defaultTheme="dark" enableColorScheme enableSystem={false} disableTransitionOnChange>
           <LanguageProvider>
             {children}
           </LanguageProvider>
