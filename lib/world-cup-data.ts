@@ -1,6 +1,12 @@
 import jerseyNumbersByName from './jersey-numbers.json';
+import playerAgesByName from './player-ages.json';
+import playerAgeOverridesByName from './player-age-overrides.json';
 
 const jerseyNumbersByNameMap: Record<string, number> = jerseyNumbersByName as Record<string, number>;
+const playerAgesByNameMap: Record<string, number> = {
+  ...(playerAgesByName as Record<string, number>),
+  ...(playerAgeOverridesByName as Record<string, number>),
+};
 
 export interface Player {
   id: string;
@@ -12,6 +18,7 @@ export interface Player {
   strongFoot: string;
   marketValue: string;
   jerseyNumber: number;
+  age?: number;
 }
 
 type PlayerData = {
@@ -20,6 +27,7 @@ type PlayerData = {
   value: string;
   position?: string;
   number?: number;
+  age?: number;
   height?: string;
   weight?: string;
   strongFoot?: string;
@@ -49,6 +57,7 @@ export const translations: Record<string, Record<string, string>> = {
     players: "Players",
     position: "Position",
     club: "Club",
+    age: "Age",
     height: "Height",
     weight: "Weight",
     strongFoot: "Strong Foot",
@@ -1652,6 +1661,7 @@ function generatePlayers(nationId: string, nationName?: string): Player[] {
       fullName: p.name,
       position,
       club: p.club,
+      age: p.age ?? playerAgesByNameMap[p.name],
       height: p.height ?? heights[index % heights.length],
       weight: p.weight ?? weights[index % weights.length],
       strongFoot: p.strongFoot ?? feet[index % feet.length],

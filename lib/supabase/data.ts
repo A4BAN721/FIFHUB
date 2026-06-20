@@ -23,6 +23,7 @@ type PlayerRow = {
   strong_foot: string;
   market_value: string;
   jersey_number: number;
+  age?: number | null;
 };
 
 type MatchFixtureRow = {
@@ -101,6 +102,7 @@ export async function getNations(): Promise<Nation[]> {
       strongFoot: row.strong_foot,
       marketValue: row.market_value,
       jerseyNumber: row.jersey_number,
+      age: row.age ?? undefined,
     };
 
     const players = playersByNation.get(row.nation_id) ?? [];

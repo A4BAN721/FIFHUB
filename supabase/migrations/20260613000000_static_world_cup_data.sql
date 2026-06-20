@@ -21,6 +21,7 @@ create table if not exists public.squad_players (
   strong_foot text not null,
   market_value text not null,
   jersey_number integer not null,
+  age integer,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

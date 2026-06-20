@@ -93,6 +93,7 @@ async function createSchema(client) {
       strong_foot text not null,
       market_value text not null,
       jersey_number integer not null,
+      age integer,
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now()
     );
@@ -123,6 +124,11 @@ async function createSchema(client) {
 
     `);
   }
+
+  await client.query(`
+    alter table public.squad_players
+      add column if not exists age integer;
+  `);
 
   await client.query(`
       alter table public.nations enable row level security;
@@ -204,7 +210,7 @@ async function seedData(client, data) {
       `
         insert into public.squad_players (
           id, nation_id, full_name, position, club, height, weight,
-          strong_foot, market_value, jersey_number
+          strong_foot, market_value, jersey_number, age
         )
         select
           id,
@@ -216,7 +222,8 @@ async function seedData(client, data) {
           weight,
           strong_foot,
           market_value,
-          jersey_number
+          jersey_number,
+          age
         from jsonb_to_recordset($1::jsonb) as x(
           id text,
           nation_id text,
@@ -227,7 +234,8 @@ async function seedData(client, data) {
           weight text,
           strong_foot text,
           market_value text,
-          jersey_number integer
+          jersey_number integer,
+          age integer
         );
       `,
       [
@@ -244,6 +252,7 @@ async function seedData(client, data) {
               strong_foot: player.strongFoot,
               market_value: player.marketValue,
               jersey_number: player.jerseyNumber,
+              age: player.age ?? null,
             })),
           ),
         ),

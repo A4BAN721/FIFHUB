@@ -5,9 +5,9 @@ import { useLanguage } from "./language-provider";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { NationFlag } from "./nation-flag";
-import { ArrowLeft } from "lucide-react";
-import { motion } from "framer-motion";
-import { useState, useMemo } from "react";
+import { ArrowLeft, X } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useMemo, useState } from "react";
 
 interface NationDetailProps {
   nation: Nation;
@@ -17,6 +17,7 @@ interface NationDetailProps {
 export function NationDetail({ nation, onBack }: NationDetailProps) {
   const { t, language } = useLanguage();
   const [filterPosition, setFilterPosition] = useState<string>("all");
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
 
   const formatSquadValue = (value: string): string => {
     if (language !== "bn") return value;
@@ -105,6 +106,22 @@ export function NationDetail({ nation, onBack }: NationDetailProps) {
 
   // Determine if primary is light or dark for text contrast
   const isLightPrimary = isLightColor(primaryColor);
+
+  useEffect(() => {
+    if (!selectedPlayer) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedPlayer(null);
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [selectedPlayer]);
 
   return (
     <div
@@ -276,13 +293,25 @@ export function NationDetail({ nation, onBack }: NationDetailProps) {
                       nationColors={nation.jerseyColors}
                       index={index}
                       t={t}
+                      onSelect={() => setSelectedPlayer(player)}
                     />
                   ))}
                 </div>
               </section>
             )
-        )}
+          )}
       </div>
+
+      <AnimatePresence>
+        {selectedPlayer && (
+          <PlayerDetailOverlay
+            player={selectedPlayer}
+            nationColors={nation.jerseyColors}
+            onClose={() => setSelectedPlayer(null)}
+            t={t}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -292,24 +321,30 @@ interface PlayerCardProps {
   nationColors: Nation["jerseyColors"];
   index: number;
   t: (key: string) => string;
+  onSelect: () => void;
 }
 
-function PlayerCard({ player, nationColors, index, t }: PlayerCardProps) {
+function PlayerCard({ player, nationColors, index, t, onSelect }: PlayerCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.02, duration: 0.3 }}
     >
-      <Card className="overflow-hidden bg-card/90 backdrop-blur-sm border-border/50 hover:shadow-lg transition-all group">
+      <Card className="gap-0 overflow-hidden border-border/50 bg-card/90 py-0 backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:shadow-lg">
+        <button
+          className="block w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          onClick={onSelect}
+          type="button"
+        >
         <div
           className="h-1"
           style={{ backgroundColor: nationColors.primary }}
         />
-        <div className="p-4">
-          <div className="flex gap-4">
+        <div className="p-3">
+          <div className="flex items-center gap-3">
             <div
-              className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-lg border-2 bg-muted/70 text-[2.75rem] font-black leading-none text-foreground tabular-nums tracking-tight"
+              className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-md border-2 bg-muted/70 text-2xl font-black leading-none text-foreground tabular-nums tracking-tight"
               style={{
                 borderColor: `${nationColors.primary}30`,
                 backgroundColor: `${nationColors.secondary}15`,
@@ -318,49 +353,106 @@ function PlayerCard({ player, nationColors, index, t }: PlayerCardProps) {
               {player.jerseyNumber}
             </div>
 
-            {/* Player Info */}
             <div className="flex-1 min-w-0">
-              <h3 className="truncate font-bold uppercase text-foreground transition-colors group-hover:text-primary">
+              <h3 className="truncate font-bold uppercase text-foreground">
                 {player.fullName}
               </h3>
               <p
-                className="text-sm font-medium mb-1"
+                className="text-sm font-medium"
                 style={{ color: nationColors.primary }}
               >
                 {t(player.position.toLowerCase())}
               </p>
-              <p className="truncate text-xs text-muted-foreground">
-                {player.club}
-              </p>
-            </div>
-          </div>
-
-          {/* Stats Grid */}
-          <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-            <div className="flex justify-between p-2 rounded bg-muted/50">
-              <span className="text-muted-foreground">{t("height")}</span>
-              <span className="font-medium text-foreground">{player.height}</span>
-            </div>
-            <div className="flex justify-between p-2 rounded bg-muted/50">
-              <span className="text-muted-foreground">{t("weight")}</span>
-              <span className="font-medium text-foreground">{player.weight}</span>
-            </div>
-            <div className="flex justify-between p-2 rounded bg-muted/50">
-              <span className="text-muted-foreground">{t("strongFoot")}</span>
-              <span className="font-medium text-foreground">{t(player.strongFoot.toLowerCase())}</span>
-            </div>
-            <div className="flex justify-between p-2 rounded bg-muted/50">
-              <span className="text-muted-foreground">{t("marketValue")}</span>
-              <span
-                className="font-bold"
-                style={{ color: nationColors.primary }}
-              >
-                {player.marketValue}
-              </span>
             </div>
           </div>
         </div>
+        </button>
       </Card>
+    </motion.div>
+  );
+}
+
+interface PlayerDetailOverlayProps {
+  player: Player;
+  nationColors: Nation["jerseyColors"];
+  onClose: () => void;
+  t: (key: string) => string;
+}
+
+function PlayerDetailOverlay({ player, nationColors, onClose, t }: PlayerDetailOverlayProps) {
+  const detailItems = [
+    player.age ? { label: t("age"), value: String(player.age) } : null,
+    { label: t("club"), value: player.club },
+    { label: t("height"), value: player.height },
+    { label: t("weight"), value: player.weight },
+    { label: t("strongFoot"), value: t(player.strongFoot.toLowerCase()) },
+    { label: t("marketValue"), value: player.marketValue },
+  ].filter(Boolean) as { label: string; value: string }[];
+
+  return (
+    <motion.div
+      animate={{ opacity: 1 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+      exit={{ opacity: 0 }}
+      initial={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.div
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="relative max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-xl border border-white/10 bg-background shadow-2xl"
+        exit={{ opacity: 0, scale: 0.96, y: 20 }}
+        initial={{ opacity: 0, scale: 0.96, y: 20 }}
+        onClick={(event) => event.stopPropagation()}
+        transition={{ duration: 0.2 }}
+      >
+        <div
+          className="h-2"
+          style={{ backgroundColor: nationColors.primary }}
+        />
+        <button
+          aria-label="Close player details"
+          className="absolute right-3 top-3 rounded-full border border-border/60 bg-background/80 p-2 text-foreground shadow-sm transition hover:bg-muted"
+          onClick={onClose}
+          type="button"
+        >
+          <X className="h-4 w-4" />
+        </button>
+
+        <div className="grid gap-6 p-6 md:grid-cols-[220px_1fr] md:p-8">
+          <div
+            className="flex aspect-square items-center justify-center rounded-xl border-2 bg-muted/70 text-7xl font-black leading-none text-foreground tabular-nums tracking-tight md:text-8xl"
+            style={{
+              borderColor: `${nationColors.primary}45`,
+              backgroundColor: `${nationColors.secondary}18`,
+            }}
+          >
+            {player.jerseyNumber}
+          </div>
+
+          <div className="min-w-0">
+            <p
+              className="mb-2 text-sm font-semibold uppercase"
+              style={{ color: nationColors.primary }}
+            >
+              {t(player.position.toLowerCase())}
+            </p>
+            <h3 className="break-words text-3xl font-black uppercase text-foreground md:text-5xl">
+              {player.fullName}
+            </h3>
+
+            <div className="mt-8 grid gap-3 sm:grid-cols-2">
+              {detailItems.map((item) => (
+                <div key={item.label} className="rounded-lg bg-muted/50 p-4">
+                  <p className="text-xs font-medium uppercase text-muted-foreground">
+                    {item.label}
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-foreground">{item.value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </motion.div>
     </motion.div>
   );
 }
