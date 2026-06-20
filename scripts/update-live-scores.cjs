@@ -28,7 +28,7 @@ async function main() {
   const fixtureMap = new Map(fixtures.map((fixture) => [teamPairKey(fixture.home_team, fixture.away_team), fixture]));
 
   const providerMatches = await loadProviderMatches();
-  const primaryResult = await syncMatches(providerMatches, fixtureMap, { writeEvents: false });
+  const primaryResult = await syncMatches(providerMatches, fixtureMap, { writeEvents: true });
   const completedMatches = await loadEspnCompletedMatches();
   const completedResult = await syncMatches(completedMatches, fixtureMap, { writeEvents: true });
 
@@ -140,6 +140,8 @@ async function loadFixtures() {
 async function loadProviderMatches() {
   const providerMatches = [];
 
+  providerMatches.push(...await loadEspnLiveMatches());
+
   if (footballDataKey) {
     providerMatches.push(...await loadFootballDataMatches());
   }
@@ -149,6 +151,22 @@ async function loadProviderMatches() {
   }
 
   return dedupeProviderMatches(providerMatches);
+}
+
+async function loadEspnLiveMatches() {
+  const dateFrom = process.env.ESPN_LIVE_DATE_FROM ?? offsetIsoDate(todayIsoDate(), -1);
+  const dateTo = process.env.ESPN_LIVE_DATE_TO ?? offsetIsoDate(todayIsoDate(), 1);
+  const matches = [];
+
+  for (const date of enumerateIsoDates(dateFrom, dateTo)) {
+    const json = await espnScoreboardRequest(date);
+    for (const event of json.events ?? []) {
+      const match = mapEspnEvent(event, { completedOnly: false });
+      if (match) matches.push(match);
+    }
+  }
+
+  return matches;
 }
 
 async function loadApiFootballMatches() {
@@ -237,6 +255,7 @@ async function loadFootballDataMatches() {
 
 function dedupeProviderMatches(matches) {
   const bestByProviderMatch = new Map();
+  const bestByFixturePair = new Map();
 
   for (const match of matches) {
     const key = `${match.provider}:${match.providerMatchId}`;
@@ -244,9 +263,15 @@ function dedupeProviderMatches(matches) {
     if (!current || isBetterScoreMatch(match, current)) {
       bestByProviderMatch.set(key, match);
     }
+
+    const fixturePairKey = teamPairKey(match.homeTeam, match.awayTeam);
+    const pairCurrent = bestByFixturePair.get(fixturePairKey);
+    if (!pairCurrent || isBetterScoreMatch(match, pairCurrent)) {
+      bestByFixturePair.set(fixturePairKey, match);
+    }
   }
 
-  return [...bestByProviderMatch.values()];
+  return [...bestByFixturePair.values(), ...bestByProviderMatch.values()];
 }
 
 function isBetterScoreMatch(candidate, current) {
@@ -358,7 +383,7 @@ async function loadEspnCompletedMatches() {
   for (const date of enumerateIsoDates(dateFrom, dateTo)) {
     const json = await espnScoreboardRequest(date);
     for (const event of json.events ?? []) {
-      const match = mapEspnEvent(event);
+      const match = mapEspnEvent(event, { completedOnly: true });
       if (match) matches.push(match);
     }
   }
@@ -383,9 +408,10 @@ async function espnScoreboardRequest(date) {
   return response.json();
 }
 
-function mapEspnEvent(event) {
+function mapEspnEvent(event, { completedOnly }) {
   const competition = event.competitions?.[0];
-  if (!competition?.status?.type?.completed) return null;
+  const statusType = competition?.status?.type;
+  if (!competition || (completedOnly && !statusType?.completed)) return null;
 
   const home = competition.competitors?.find((competitor) => competitor.homeAway === "home");
   const away = competition.competitors?.find((competitor) => competitor.homeAway === "away");
@@ -403,15 +429,49 @@ function mapEspnEvent(event) {
     awayTeam: away.team?.displayName ?? away.team?.shortDisplayName,
     homeScore: Number(home.score ?? 0),
     awayScore: Number(away.score ?? 0),
-    minute: 90,
+    minute: mapEspnMinute(competition),
     stoppageMinute: null,
-    status: "finished",
-    phase: "full_time",
+    status: mapEspnStatus(statusType),
+    phase: mapEspnPhase(statusType, competition),
     kickoffTime: competition.date ?? event.date,
     providerUpdatedAt: new Date().toISOString(),
     statistics: mapEspnStatistics(home, away, competition.details ?? []),
     events: mapEspnGoalEvents(competition, teamById),
   };
+}
+
+function mapEspnStatus(statusType) {
+  if (statusType?.completed) return "finished";
+  if (statusType?.state === "in") return "live";
+  if (statusType?.state === "post") return "finished";
+  return "scheduled";
+}
+
+function mapEspnPhase(statusType, competition) {
+  if (statusType?.completed || statusType?.state === "post") return "full_time";
+
+  const period = Number(competition.status?.period ?? 0);
+  const statusName = String(statusType?.name ?? statusType?.description ?? "").toUpperCase();
+  if (statusName.includes("HALFTIME") || statusName === "STATUS_HALFTIME") return "half_time";
+  if (period === 1) return "first_half";
+  if (period === 2) return "second_half";
+  if (period > 2) return "extra_time";
+  return "pre_match";
+}
+
+function mapEspnMinute(competition) {
+  if (competition.status?.type?.completed) return 90;
+
+  const displayClock = competition.status?.displayClock;
+  const timing = parseEspnClock(displayClock);
+  if (timing.minute > 0) return timing.minute;
+
+  const clock = Number(competition.status?.clock);
+  if (Number.isFinite(clock) && clock > 0) {
+    return Math.max(1, Math.floor(clock / 60));
+  }
+
+  return null;
 }
 
 function mapEspnStatistics(home, away, details) {

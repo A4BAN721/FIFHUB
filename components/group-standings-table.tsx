@@ -10,7 +10,7 @@ import { normalizeCountryName } from "@/lib/country-utils";
 import { completedMatchData } from "@/lib/live-data/completed-matches";
 import { createClient, getSupabaseConfig } from "@/lib/supabase/client";
 import { getMatchFixtures, getNations } from "@/lib/supabase/data";
-import { getTeamDisplayName } from "@/lib/team-display";
+import { getFifaAbbreviation, getTeamDisplayName } from "@/lib/team-display";
 import { useLanguage } from "./language-provider";
 import { NationFlag } from "./nation-flag";
 import {
@@ -258,8 +258,8 @@ function KnockoutStageBracket() {
   ];
 
   return (
-    <section className="overflow-hidden rounded-lg border border-border/50 bg-card/75 p-2 backdrop-blur-xl sm:p-3">
-      <div className="relative grid h-[620px] grid-cols-9 grid-rows-[repeat(16,minmax(0,1fr))] gap-x-1 sm:gap-x-2 lg:h-[700px] lg:gap-x-3">
+    <section className="overflow-x-auto rounded-lg border border-border/50 bg-card/75 p-2 backdrop-blur-xl sm:overflow-hidden sm:p-3">
+      <div className="relative grid h-[620px] min-w-[860px] grid-cols-9 grid-rows-[repeat(16,minmax(0,1fr))] gap-x-2 sm:min-w-0 lg:h-[700px] lg:gap-x-3">
         <svg
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 z-0 h-full w-full"
@@ -472,6 +472,10 @@ export function GroupStandingsTable() {
     return getTeamDisplayName(nation.name);
   };
 
+  const getMobileTeamName = (nation: Nation): string => {
+    return getFifaAbbreviation(nation.name);
+  };
+
   const getTranslatedGroupName = (groupName: string): string => {
     if (language === "en") return groupName;
 
@@ -522,25 +526,36 @@ export function GroupStandingsTable() {
     highlightedNationIds = new Set<string>()
   ) => (
     <section className="overflow-hidden rounded-lg border border-border/50 bg-card/75 backdrop-blur-xl">
-      <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
+      <div className="flex min-h-10 items-center justify-between border-b border-border/50 px-1.5 py-1.5 sm:px-4 sm:py-3">
         <div>
-          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-          {subtitle && <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>}
+          <h3 className="text-[11px] font-semibold leading-tight text-foreground sm:text-sm">{title}</h3>
+          {subtitle && <p className="mt-1 text-[10px] leading-tight text-muted-foreground sm:text-xs">{subtitle}</p>}
         </div>
       </div>
 
-      <Table>
+      <Table className="table-fixed text-[8px] sm:text-sm">
+        <colgroup>
+          <col className="w-[34%] sm:w-[42%]" />
+          <col className="w-[8.25%] sm:w-auto" />
+          <col className="w-[8.25%] sm:w-auto" />
+          <col className="w-[8.25%] sm:w-auto" />
+          <col className="w-[8.25%] sm:w-auto" />
+          <col className="w-[8.25%] sm:w-auto" />
+          <col className="w-[8.25%] sm:w-auto" />
+          <col className="w-[8.25%] sm:w-auto" />
+          <col className="w-[8.25%] sm:w-auto" />
+        </colgroup>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className="min-w-36">{t("nation")}</TableHead>
-            <TableHead className="text-center">{t("playedShort")}</TableHead>
-            <TableHead className="text-center">{t("winsShort")}</TableHead>
-            <TableHead className="text-center">{t("drawsShort")}</TableHead>
-            <TableHead className="text-center">{t("lossesShort")}</TableHead>
-            <TableHead className="text-center">{t("goalsForShort")}</TableHead>
-            <TableHead className="text-center">{t("goalsAgainstShort")}</TableHead>
-            <TableHead className="text-center">{t("goalDifferenceShort")}</TableHead>
-            <TableHead className="text-center font-semibold">{t("pointsShort")}</TableHead>
+            <TableHead className="h-6 px-0.5 text-[7px] leading-none sm:h-10 sm:px-2 sm:text-sm">{t("nation")}</TableHead>
+            <TableHead className="h-6 px-0 text-center text-[7px] leading-none sm:h-10 sm:px-2 sm:text-sm">{t("playedShort")}</TableHead>
+            <TableHead className="h-6 px-0 text-center text-[7px] leading-none sm:h-10 sm:px-2 sm:text-sm">{t("winsShort")}</TableHead>
+            <TableHead className="h-6 px-0 text-center text-[7px] leading-none sm:h-10 sm:px-2 sm:text-sm">{t("drawsShort")}</TableHead>
+            <TableHead className="h-6 px-0 text-center text-[7px] leading-none sm:h-10 sm:px-2 sm:text-sm">{t("lossesShort")}</TableHead>
+            <TableHead className="h-6 px-0 text-center text-[7px] leading-none sm:h-10 sm:px-2 sm:text-sm">{t("goalsForShort")}</TableHead>
+            <TableHead className="h-6 px-0 text-center text-[7px] leading-none sm:h-10 sm:px-2 sm:text-sm">{t("goalsAgainstShort")}</TableHead>
+            <TableHead className="h-6 px-0 text-center text-[7px] leading-none sm:h-10 sm:px-2 sm:text-sm">{t("goalDifferenceShort")}</TableHead>
+            <TableHead className="h-6 px-0 text-center text-[7px] font-semibold leading-none sm:h-10 sm:px-2 sm:text-sm">{t("pointsShort")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -553,50 +568,53 @@ export function GroupStandingsTable() {
                 key={row.nation.id}
                 className={
                   isQualified
-                    ? "bg-blue-500/[0.03] [&>td:first-child]:border-l-4 [&>td:first-child]:border-l-blue-500 [&>td:first-child]:pl-1"
+                    ? "bg-blue-500/[0.03] [&>td:first-child]:border-l-2 [&>td:first-child]:border-l-blue-500 sm:[&>td:first-child]:border-l-4 sm:[&>td:first-child]:pl-1"
                     : undefined
                 }
               >
-                <TableCell>
+                <TableCell className="p-0.5 sm:p-2">
                   <button
-                    className="flex min-w-0 items-center gap-2 text-left"
+                    className="flex min-w-0 items-center gap-0.5 text-left sm:gap-2"
                     onClick={() => openNation(row.nation.id)}
                   >
-                    <span className="w-5 text-xs font-semibold text-muted-foreground">
+                    <span className="w-2.5 shrink-0 text-[7px] font-semibold text-muted-foreground sm:w-5 sm:text-xs">
                       {formatNumber(index + 1)}
                     </span>
                     <NationFlag
-                      className="h-4 w-6"
+                      className="h-2.5 w-3.5 shrink-0 sm:h-4 sm:w-6"
                       emoji={row.nation.flag}
-                      fallbackClassName="text-base"
+                      fallbackClassName="text-[10px] sm:text-base"
                       label={row.nation.name}
                       nationId={row.nation.id}
                     />
-                    <span className="max-w-32 truncate text-sm font-medium text-foreground">
+                    <span className="min-w-0 truncate text-[8px] font-semibold leading-none text-foreground sm:hidden">
+                      {getMobileTeamName(row.nation)}
+                    </span>
+                    <span className="hidden max-w-32 truncate text-sm font-medium text-foreground sm:inline">
                       {getTranslatedTeamName(row.nation)}
                     </span>
                     {liveNationIds.has(row.nation.id) && (
                       <span
                         aria-label="Currently playing"
-                        className="relative ml-auto flex h-2.5 w-2.5 shrink-0"
+                        className="relative ml-auto flex h-1.5 w-1.5 shrink-0 sm:h-2.5 sm:w-2.5"
                         title="Currently playing"
                       >
                         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
-                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-600" />
+                        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-600 sm:h-2.5 sm:w-2.5" />
                       </span>
                     )}
                   </button>
                 </TableCell>
-                <TableCell className="text-center">{formatNumber(row.played)}</TableCell>
-                <TableCell className="text-center">{formatNumber(row.wins)}</TableCell>
-                <TableCell className="text-center">{formatNumber(row.draws)}</TableCell>
-                <TableCell className="text-center">{formatNumber(row.losses)}</TableCell>
-                <TableCell className="text-center">{formatNumber(row.goalsFor)}</TableCell>
-                <TableCell className="text-center">{formatNumber(row.goalsAgainst)}</TableCell>
-                <TableCell className="text-center">
+                <TableCell className="p-0 text-center leading-none sm:p-2 sm:leading-normal">{formatNumber(row.played)}</TableCell>
+                <TableCell className="p-0 text-center leading-none sm:p-2 sm:leading-normal">{formatNumber(row.wins)}</TableCell>
+                <TableCell className="p-0 text-center leading-none sm:p-2 sm:leading-normal">{formatNumber(row.draws)}</TableCell>
+                <TableCell className="p-0 text-center leading-none sm:p-2 sm:leading-normal">{formatNumber(row.losses)}</TableCell>
+                <TableCell className="p-0 text-center leading-none sm:p-2 sm:leading-normal">{formatNumber(row.goalsFor)}</TableCell>
+                <TableCell className="p-0 text-center leading-none sm:p-2 sm:leading-normal">{formatNumber(row.goalsAgainst)}</TableCell>
+                <TableCell className="p-0 text-center leading-none sm:p-2 sm:leading-normal">
                   {formatGoalDifference(row.goalDifference)}
                 </TableCell>
-                <TableCell className="text-center font-semibold text-foreground">
+                <TableCell className="p-0 text-center font-semibold leading-none text-foreground sm:p-2 sm:leading-normal">
                   {formatNumber(row.points)}
                 </TableCell>
               </TableRow>
@@ -608,7 +626,7 @@ export function GroupStandingsTable() {
   );
 
   return (
-    <div className="container mx-auto px-4 py-6">
+    <div className="container mx-auto px-0 py-4 sm:px-4 sm:py-6">
       <Tabs defaultValue="group-stage" className="w-full">
         <TabsList className="mx-auto mb-6">
           <TabsTrigger value="group-stage">Group Stage</TabsTrigger>
@@ -616,8 +634,8 @@ export function GroupStandingsTable() {
         </TabsList>
 
         <TabsContent value="group-stage" className="mt-0">
-          <div className="space-y-6">
-            <div className="grid gap-6 lg:grid-cols-2">
+          <div className="space-y-3 sm:space-y-6">
+            <div className="grid grid-cols-2 gap-2 sm:gap-6">
               {Object.entries(standingsByGroup).map(([groupName, rows]) => (
                 <div key={groupName}>
                   {renderStandingsTable(

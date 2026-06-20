@@ -353,7 +353,7 @@ export function MatchFixtures({
   };
 
   return (
-    <div className="container mx-auto px-4 py-6">
+    <div className="container mx-auto px-2 py-4 sm:px-4 sm:py-6">
       {/* Search and Stage Filter */}
       <div className="mb-4 space-y-3">
         <div className="relative max-w-md mx-auto">
@@ -388,7 +388,7 @@ export function MatchFixtures({
       </div>
 
       {/* Matches by Stage */}
-      <div className="space-y-6">
+      <div className="space-y-5 sm:space-y-6">
         {Object.entries(matchesByStage).map(([stage, matches], stageIndex) => {
           const isGroupStage = stage === "GROUP STAGE";
           
@@ -425,7 +425,7 @@ export function MatchFixtures({
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
                       {matchday.matches.map((match: Match, matchIndex: number) => {
                         const homeNationId = getNationId(match.homeTeam);
                         const awayNationId = getNationId(match.awayTeam);
@@ -441,7 +441,7 @@ export function MatchFixtures({
                           >
                             <LiveMatchCard match={match}>
                               <Card 
-                                className="group relative overflow-hidden rounded-2xl backdrop-blur-xl transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
+                                className="group relative overflow-hidden rounded-xl backdrop-blur-xl transition-all duration-300 hover:shadow-lg hover:-translate-y-1 sm:rounded-2xl"
                                 style={{
                                   backgroundColor: getCardBackgroundColor(),
                                   borderColor: getCardBorderColor()
@@ -449,23 +449,23 @@ export function MatchFixtures({
                               >
                               <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.08),transparent_15%),radial-gradient(circle_at_bottom_right,_rgba(0,0,0,0.03),transparent_20%)]" />
                               
-                              <div className="relative flex min-h-[112px] flex-col justify-between p-3">
+                              <div className="relative flex min-h-[96px] flex-col justify-between p-2 sm:min-h-[112px] sm:p-3">
                                 {/* Group name at top right for Group Stage */}
-                                <div className="absolute top-2 right-2">
-                                  <span className="text-[9px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                                <div className="absolute right-1.5 top-1.5 sm:right-2 sm:top-2">
+                                  <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[8px] text-primary sm:px-2 sm:text-[9px]">
                                     {getTranslatedGroup(match.group || "")}
                                   </span>
                                 </div>
 
                                 {/* Date and Time for Group Stage */}
                                 <div className="flex items-center justify-center pt-4">
-                                  <span className="text-[10px] text-muted-foreground">
+                                  <span className="truncate text-[8px] text-muted-foreground sm:text-[10px]">
                                     {getTranslatedDate(match.date)} • {getTranslatedTime(match.time)}
                                   </span>
                                 </div>
 
                                 {/* Teams - Horizontal Layout */}
-                                <div className="flex items-center justify-between gap-2 py-3">
+                                <div className="flex items-center justify-between gap-1 py-2 sm:gap-2 sm:py-3">
                                   {/* Home Team */}
                                   <div className="min-w-0 flex-1">
                                     {homeNationId ? (
@@ -477,32 +477,32 @@ export function MatchFixtures({
                                             })
                                           );
                                         }}
-                                        className="flex w-full min-w-0 items-center gap-2"
+                                        className="flex w-full min-w-0 items-center gap-1 sm:gap-2"
                                         style={{ "--team-color": homeColor, "--shadow-color": getTextShadowColor() } as TeamAccentStyle}
                                       >
                                         <NationFlag
-                                          className="h-5 w-7"
+                                          className="h-4 w-6 shrink-0 sm:h-5 sm:w-7"
                                           emoji={getNationFlag(match.homeTeam)}
-                                          fallbackClassName="text-xl"
+                                          fallbackClassName="text-base sm:text-xl"
                                           label={match.homeTeam}
                                           nationId={homeNationId}
                                         />
-                                        <span className="min-w-0 truncate text-xs font-semibold text-foreground">
+                                        <span className="min-w-0 truncate text-[10px] font-semibold text-foreground sm:text-xs">
                                           <span className="block truncate hover:text-[var(--team-color)] transition-colors cursor-pointer hover:drop-shadow-[0_0_2px_var(--shadow-color)]">
                                             {getTranslatedTeamName(match.homeTeam)}
                                           </span>
                                         </span>
                                       </button>
                                     ) : (
-                                      <div className="flex min-w-0 items-center gap-2">
+                                      <div className="flex min-w-0 items-center gap-1 sm:gap-2">
                                         <NationFlag
-                                          className="h-5 w-7"
+                                          className="h-4 w-6 shrink-0 sm:h-5 sm:w-7"
                                           emoji={getNationFlag(match.homeTeam)}
-                                          fallbackClassName="text-xl"
+                                          fallbackClassName="text-base sm:text-xl"
                                           label={match.homeTeam}
                                           nationId={homeNationId}
                                         />
-                                        <span className="min-w-0 truncate text-xs font-semibold text-muted-foreground">
+                                        <span className="min-w-0 truncate text-[10px] font-semibold text-muted-foreground sm:text-xs">
                                           {getTranslatedTeamName(match.homeTeam)}
                                         </span>
                                       </div>
@@ -510,7 +510,7 @@ export function MatchFixtures({
                                   </div>
 
                                   {/* VS */}
-                                  <div className="text-muted-foreground font-bold text-xs px-1">
+                                  <div className="px-0.5 text-[9px] font-bold text-muted-foreground sm:px-1 sm:text-xs">
                                     {t("vs")}
                                   </div>
 
@@ -525,31 +525,31 @@ export function MatchFixtures({
                                             })
                                           );
                                         }}
-                                        className="flex w-full min-w-0 items-center justify-end gap-2"
+                                        className="flex w-full min-w-0 items-center justify-end gap-1 sm:gap-2"
                                         style={{ "--team-color": awayColor, "--shadow-color": getTextShadowColor() } as TeamAccentStyle}
                                       >
-                                        <span className="min-w-0 truncate text-right text-xs font-semibold text-foreground">
+                                        <span className="min-w-0 truncate text-right text-[10px] font-semibold text-foreground sm:text-xs">
                                           <span className="block truncate hover:text-[var(--team-color)] transition-colors cursor-pointer hover:drop-shadow-[0_0_2px_var(--shadow-color)]">
                                             {getTranslatedTeamName(match.awayTeam)}
                                           </span>
                                         </span>
                                         <NationFlag
-                                          className="h-5 w-7"
+                                          className="h-4 w-6 shrink-0 sm:h-5 sm:w-7"
                                           emoji={getNationFlag(match.awayTeam)}
-                                          fallbackClassName="text-xl"
+                                          fallbackClassName="text-base sm:text-xl"
                                           label={match.awayTeam}
                                           nationId={awayNationId}
                                         />
                                       </button>
                                     ) : (
-                                      <div className="flex min-w-0 items-center justify-end gap-2">
-                                        <span className="min-w-0 truncate text-right text-xs font-semibold text-muted-foreground">
+                                      <div className="flex min-w-0 items-center justify-end gap-1 sm:gap-2">
+                                        <span className="min-w-0 truncate text-right text-[10px] font-semibold text-muted-foreground sm:text-xs">
                                           {getTranslatedTeamName(match.awayTeam)}
                                         </span>
                                         <NationFlag
-                                          className="h-5 w-7"
+                                          className="h-4 w-6 shrink-0 sm:h-5 sm:w-7"
                                           emoji={getNationFlag(match.awayTeam)}
-                                          fallbackClassName="text-xl"
+                                          fallbackClassName="text-base sm:text-xl"
                                           label={match.awayTeam}
                                           nationId={awayNationId}
                                         />
@@ -559,8 +559,8 @@ export function MatchFixtures({
                                 </div>
 
                                 {/* Stadium */}
-                                <div className="flex items-center gap-1 border-t border-border/20 pt-2 text-xs text-muted-foreground">
-                                  <MapPin className="h-3 w-3" />
+                                <div className="flex items-center gap-1 border-t border-border/20 pt-1.5 text-[9px] text-muted-foreground sm:pt-2 sm:text-xs">
+                                  <MapPin className="h-2.5 w-2.5 shrink-0 sm:h-3 sm:w-3" />
                                   <span className="truncate">{getTranslatedStadium(match.stadium)}</span>
                                 </div>
                               </div>
@@ -596,7 +596,7 @@ export function MatchFixtures({
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
                 {matches.map((match: Match, matchIndex: number) => {
                   const homeNationId = getNationId(match.homeTeam);
                   const awayNationId = getNationId(match.awayTeam);
@@ -612,7 +612,7 @@ export function MatchFixtures({
                     >
                       <LiveMatchCard match={match}>
                         <Card 
-                          className="group relative overflow-hidden rounded-2xl backdrop-blur-xl transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
+                          className="group relative overflow-hidden rounded-xl backdrop-blur-xl transition-all duration-300 hover:shadow-lg hover:-translate-y-1 sm:rounded-2xl"
                           style={{
                             backgroundColor: getCardBackgroundColor(),
                             borderColor: getCardBorderColor()
@@ -620,17 +620,17 @@ export function MatchFixtures({
                         >
                         <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.08),transparent_15%),radial-gradient(circle_at_bottom_right,_rgba(0,0,0,0.03),transparent_20%)]" />
                         
-                        <div className="relative flex min-h-[112px] flex-col justify-between p-3">
+                        <div className="relative flex min-h-[96px] flex-col justify-between p-2 sm:min-h-[112px] sm:p-3">
                           {/* Header: Time and Info */}
-                          <div className="flex items-center justify-between border-b border-border/20 pb-2">
-                            <span className="text-xs font-semibold text-muted-foreground">{getTranslatedTime(match.time)}</span>
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                          <div className="flex items-center justify-between gap-1 border-b border-border/20 pb-1.5 sm:pb-2">
+                            <span className="text-[10px] font-semibold text-muted-foreground sm:text-xs">{getTranslatedTime(match.time)}</span>
+                            <span className="truncate rounded-full bg-primary/10 px-1.5 py-0.5 text-[8px] text-primary sm:px-2 sm:text-[10px]">
                               {getTranslatedDate(match.date)}
                             </span>
                           </div>
 
                           {/* Teams - Horizontal Layout */}
-                          <div className="flex items-center justify-between gap-2 py-3">
+                          <div className="flex items-center justify-between gap-1 py-2 sm:gap-2 sm:py-3">
                             {/* Home Team */}
                             <div className="min-w-0 flex-1">
                               {homeNationId ? (
@@ -642,32 +642,32 @@ export function MatchFixtures({
                                       })
                                     );
                                   }}
-                                  className="flex w-full min-w-0 items-center gap-2"
+                                  className="flex w-full min-w-0 items-center gap-1 sm:gap-2"
                                   style={{ "--team-color": homeColor, "--shadow-color": getTextShadowColor() } as TeamAccentStyle}
                                 >
                                   <NationFlag
-                                    className="h-5 w-7"
+                                    className="h-4 w-6 shrink-0 sm:h-5 sm:w-7"
                                     emoji={getNationFlag(match.homeTeam)}
-                                    fallbackClassName="text-xl"
+                                    fallbackClassName="text-base sm:text-xl"
                                     label={match.homeTeam}
                                     nationId={homeNationId}
                                   />
-                                  <span className="min-w-0 truncate text-xs font-semibold text-foreground">
+                                  <span className="min-w-0 truncate text-[10px] font-semibold text-foreground sm:text-xs">
                                     <span className="block truncate hover:text-[var(--team-color)] transition-colors cursor-pointer hover:drop-shadow-[0_0_2px_var(--shadow-color)]">
                                       {getTranslatedTeamName(match.homeTeam)}
                                     </span>
                                   </span>
                                 </button>
                               ) : (
-                                <div className="flex min-w-0 items-center gap-2">
+                                <div className="flex min-w-0 items-center gap-1 sm:gap-2">
                                   <NationFlag
-                                    className="h-5 w-7"
+                                    className="h-4 w-6 shrink-0 sm:h-5 sm:w-7"
                                     emoji={getNationFlag(match.homeTeam)}
-                                    fallbackClassName="text-xl"
+                                    fallbackClassName="text-base sm:text-xl"
                                     label={match.homeTeam}
                                     nationId={homeNationId}
                                   />
-                                  <span className="min-w-0 truncate text-xs font-semibold text-muted-foreground">
+                                  <span className="min-w-0 truncate text-[10px] font-semibold text-muted-foreground sm:text-xs">
                                     {getTranslatedTeamName(match.homeTeam)}
                                   </span>
                                 </div>
@@ -675,7 +675,7 @@ export function MatchFixtures({
                             </div>
 
                             {/* VS */}
-                            <div className="text-muted-foreground font-bold text-xs px-1">
+                            <div className="px-0.5 text-[9px] font-bold text-muted-foreground sm:px-1 sm:text-xs">
                               {t("vs")}
                             </div>
 
@@ -690,31 +690,31 @@ export function MatchFixtures({
                                       })
                                     );
                                   }}
-                                  className="flex w-full min-w-0 items-center justify-end gap-2"
+                                  className="flex w-full min-w-0 items-center justify-end gap-1 sm:gap-2"
                                   style={{ "--team-color": awayColor, "--shadow-color": getTextShadowColor() } as TeamAccentStyle}
                                 >
-                                  <span className="min-w-0 truncate text-right text-xs font-semibold text-foreground">
+                                  <span className="min-w-0 truncate text-right text-[10px] font-semibold text-foreground sm:text-xs">
                                     <span className="block truncate hover:text-[var(--team-color)] transition-colors cursor-pointer hover:drop-shadow-[0_0_2px_var(--shadow-color)]">
                                       {getTranslatedTeamName(match.awayTeam)}
                                     </span>
                                   </span>
                                   <NationFlag
-                                    className="h-5 w-7"
+                                    className="h-4 w-6 shrink-0 sm:h-5 sm:w-7"
                                     emoji={getNationFlag(match.awayTeam)}
-                                    fallbackClassName="text-xl"
+                                    fallbackClassName="text-base sm:text-xl"
                                     label={match.awayTeam}
                                     nationId={awayNationId}
                                   />
                                 </button>
                               ) : (
-                                <div className="flex min-w-0 items-center justify-end gap-2">
-                                  <span className="min-w-0 truncate text-right text-xs font-semibold text-muted-foreground">
+                                <div className="flex min-w-0 items-center justify-end gap-1 sm:gap-2">
+                                  <span className="min-w-0 truncate text-right text-[10px] font-semibold text-muted-foreground sm:text-xs">
                                     {getTranslatedTeamName(match.awayTeam)}
                                   </span>
                                   <NationFlag
-                                    className="h-5 w-7"
+                                    className="h-4 w-6 shrink-0 sm:h-5 sm:w-7"
                                     emoji={getNationFlag(match.awayTeam)}
-                                    fallbackClassName="text-xl"
+                                    fallbackClassName="text-base sm:text-xl"
                                     label={match.awayTeam}
                                     nationId={awayNationId}
                                   />
@@ -724,8 +724,8 @@ export function MatchFixtures({
                           </div>
 
                           {/* Stadium */}
-                          <div className="flex items-center gap-1 border-t border-border/20 pt-2 text-xs text-muted-foreground">
-                            <MapPin className="h-3 w-3" />
+                          <div className="flex items-center gap-1 border-t border-border/20 pt-1.5 text-[9px] text-muted-foreground sm:pt-2 sm:text-xs">
+                            <MapPin className="h-2.5 w-2.5 shrink-0 sm:h-3 sm:w-3" />
                             <span className="truncate">{getTranslatedStadium(match.stadium)}</span>
                           </div>
                         </div>

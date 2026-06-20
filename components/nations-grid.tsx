@@ -147,8 +147,8 @@ export function NationsGrid({ initialSelectedNationId, onNationBack }: NationsGr
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
+    <div className="container mx-auto px-2 py-5 sm:px-4 sm:py-8">
+      <div className="mb-5 sm:mb-8">
         <div className="relative max-w-md mx-auto">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -163,16 +163,16 @@ export function NationsGrid({ initialSelectedNationId, onNationBack }: NationsGr
         </p>
       </div>
 
-      <div className="space-y-10">
+      <div className="space-y-6 sm:space-y-10">
         {nationSections.map((section) => (
           <section key={section.title}>
-            <div className="flex items-center gap-3 mb-4">
-              <h3 className="text-lg font-semibold text-foreground">
+            <div className="mb-3 flex items-center gap-3 sm:mb-4">
+              <h3 className="text-sm font-semibold text-foreground sm:text-lg">
                 {section.title}
               </h3>
               <div className="flex-1 h-px bg-border/50" />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
               {section.nations.map((nation, index) => (
                 <NationCard
                   key={nation.id}

@@ -95,44 +95,44 @@ export function NationCard({ nation, onClick, index }: NationCardProps) {
       <Card
         onClick={onClick}
         style={cardStyle}
-        className="group relative cursor-pointer overflow-hidden rounded-[1.75rem] border border-border/20 bg-card/20 py-0 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-[var(--tab-color)] hover:shadow-[0_24px_90px_-40px_rgba(0,0,0,0.25)]"
+        className="group relative cursor-pointer overflow-hidden rounded-xl border border-border/20 bg-card/20 py-0 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-[var(--tab-color)] hover:shadow-[0_24px_90px_-40px_rgba(0,0,0,0.25)] sm:rounded-[1.75rem]"
       >
         <div className="absolute inset-0 opacity-40 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.14),transparent_28%),radial-gradient(circle_at_bottom_right,_rgba(0,0,0,0.08),transparent_40%)]" />
 
-        <div className="relative p-5 pt-6">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
+        <div className="relative p-2.5 pt-3 sm:p-5 sm:pt-6">
+          <div className="flex items-center justify-between gap-2 sm:gap-4">
+            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
               <NationFlag
-                className="h-8 w-11"
+                className="h-5 w-7 shrink-0 sm:h-8 sm:w-11"
                 code={nation.code}
                 emoji={nation.flag}
-                fallbackClassName="text-3xl"
+                fallbackClassName="text-xl sm:text-3xl"
                 label={nation.name}
                 nationId={nation.id}
               />
-              <div className="flex min-w-0 flex-1 items-baseline gap-2">
-                <h3 className="min-w-0 truncate text-lg font-semibold text-foreground transition-colors group-hover:text-[var(--tab-color)]">
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-2">
+                <h3 className="min-w-0 truncate text-xs font-semibold leading-tight text-foreground transition-colors group-hover:text-[var(--tab-color)] sm:text-lg">
                   {getTranslatedCountryName(nation.id)}
                 </h3>
-                <p className={`shrink-0 text-xs text-muted-foreground ${language === "bn" ? "" : "uppercase tracking-[0.24em]"}`}>
+                <p className={`shrink-0 text-[9px] leading-none text-muted-foreground sm:text-xs ${language === "bn" ? "" : "uppercase tracking-[0.12em] sm:tracking-[0.24em]"}`}>
                   {getTranslatedConfederation(nation.confederation)}
                 </p>
               </div>
             </div>
           </div>
 
-          <div style={lowerPanelStyle} className="-mx-5 -mb-5 mt-6 space-y-3 p-5">
-            <div className="flex items-center justify-between gap-3 rounded-[1.5rem] border border-white/10 bg-black/75 p-4 shadow-[0_16px_45px_-28px_rgba(0,0,0,0.9)]">
-              <div className="flex items-center gap-3">
+          <div style={lowerPanelStyle} className="-mx-2.5 -mb-2.5 mt-3 space-y-2 p-2.5 sm:-mx-5 sm:-mb-5 sm:mt-6 sm:space-y-3 sm:p-5">
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/75 p-2 shadow-[0_16px_45px_-28px_rgba(0,0,0,0.9)] sm:gap-3 sm:rounded-[1.5rem] sm:p-4">
+              <div className="min-w-0">
                 <div className="hidden">
                   <span className="text-foreground">⚽</span>
                 </div>
                 <div>
-                  <p className={`text-[10px] text-white/70 ${labelSpacingClass}`}>{t("squadValue")}</p>
-                  <p className="text-sm font-semibold text-white">{formatSquadValue(nation.totalSquadValue)}</p>
+                  <p className={`truncate text-[7px] leading-none text-white/70 sm:text-[10px] ${labelSpacingClass}`}>{t("squadValue")}</p>
+                  <p className="truncate text-[10px] font-semibold text-white sm:text-sm">{formatSquadValue(nation.totalSquadValue)}</p>
                 </div>
               </div>
-              <span className={`rounded-full bg-white/10 px-3 py-1 text-[11px] text-white ${mutedPillSpacingClass}`}>
+              <span className={`shrink-0 rounded-full bg-white/10 px-1.5 py-0.5 text-[8px] text-white sm:px-3 sm:py-1 sm:text-[11px] ${mutedPillSpacingClass}`}>
                 {nation.players.length} {t("players").toLowerCase()}
               </span>
             </div>
