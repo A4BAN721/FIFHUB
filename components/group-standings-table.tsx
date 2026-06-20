@@ -21,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type StandingRow = {
   nation: Nation;
@@ -70,6 +71,14 @@ const localDataNations = new Map(
     .filter((nation) => qualifiedNationIds.has(nation.id))
     .map((nation) => [nation.id, nation])
 );
+
+const knockoutRounds = [
+  { name: "Round of 32", matchCount: 16 },
+  { name: "Round of 16", matchCount: 8 },
+  { name: "Quarterfinals", matchCount: 4 },
+  { name: "Semifinals", matchCount: 2 },
+  { name: "Final", matchCount: 1 },
+];
 
 function convertToBanglaNumerals(value: string | number): string {
   const banglaNumerals: Record<string, string> = {
@@ -169,6 +178,50 @@ function mapScoreboardMatch(match: ScoreboardApiMatch): MatchWithOptionalScore {
     finalScoreConfirmedAt: match.finalScoreConfirmedAt,
     updatedAt: match.updatedAt,
   };
+}
+
+function KnockoutStageBracket() {
+  return (
+    <section className="overflow-hidden rounded-lg border border-border/50 bg-card/75 backdrop-blur-xl">
+      <div className="border-b border-border/50 px-4 py-3">
+        <h3 className="text-sm font-semibold text-foreground">World Cup 2026 Knockout Bracket</h3>
+      </div>
+
+      <div className="overflow-x-auto">
+        <div className="grid min-w-[980px] grid-cols-5 gap-4 p-4">
+          {knockoutRounds.map((round) => (
+            <div key={round.name} className="flex min-w-0 flex-col gap-3">
+              <div className="rounded-md border border-border/40 bg-background/70 px-3 py-2 text-center text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                {round.name}
+              </div>
+              <div className="flex flex-1 flex-col justify-around gap-3">
+                {Array.from({ length: round.matchCount }, (_, matchIndex) => (
+                  <div
+                    key={`${round.name}-${matchIndex + 1}`}
+                    className="overflow-hidden rounded-lg border border-border/50 bg-background/45 shadow-sm"
+                  >
+                    <div className="border-b border-border/40 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                      Match {matchIndex + 1}
+                    </div>
+                    <div className="divide-y divide-border/40">
+                      <div className="flex items-center justify-between gap-2 px-3 py-2">
+                        <span className="truncate text-sm font-medium text-foreground">TBD</span>
+                        <span className="text-xs font-semibold text-muted-foreground">-</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 px-3 py-2">
+                        <span className="truncate text-sm font-medium text-foreground">TBD</span>
+                        <span className="text-xs font-semibold text-muted-foreground">-</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
 }
 
 export function GroupStandingsTable() {
@@ -375,84 +428,97 @@ export function GroupStandingsTable() {
 
   return (
     <div className="container mx-auto px-4 py-6">
-      <div className="grid gap-6 lg:grid-cols-2">
-        {Object.entries(standingsByGroup).map(([groupName, rows]) => (
-          <section
-            key={groupName}
-            className="overflow-hidden rounded-lg border border-border/50 bg-card/75 backdrop-blur-xl"
-          >
-            <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
-              <h3 className="text-sm font-semibold text-foreground">
-                {getTranslatedGroupName(groupName)}
-              </h3>
-            </div>
+      <Tabs defaultValue="group-stage" className="w-full">
+        <TabsList className="mx-auto mb-6">
+          <TabsTrigger value="group-stage">Group Stage</TabsTrigger>
+          <TabsTrigger value="knockout-stage">Knockout Stage</TabsTrigger>
+        </TabsList>
 
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="min-w-36">{t("nation")}</TableHead>
-                  <TableHead className="text-center">{t("playedShort")}</TableHead>
-                  <TableHead className="text-center">{t("winsShort")}</TableHead>
-                  <TableHead className="text-center">{t("drawsShort")}</TableHead>
-                  <TableHead className="text-center">{t("lossesShort")}</TableHead>
-                  <TableHead className="text-center">{t("goalsForShort")}</TableHead>
-                  <TableHead className="text-center">{t("goalsAgainstShort")}</TableHead>
-                  <TableHead className="text-center">{t("goalDifferenceShort")}</TableHead>
-                  <TableHead className="text-center font-semibold">{t("pointsShort")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((row, index) => (
-                  <TableRow key={row.nation.id}>
-                    <TableCell>
-                      <button
-                        className="flex min-w-0 items-center gap-2 text-left"
-                        onClick={() => openNation(row.nation.id)}
-                      >
-                        <span className="w-5 text-xs font-semibold text-muted-foreground">
-                          {formatNumber(index + 1)}
-                        </span>
-                        <NationFlag
-                          className="h-4 w-6"
-                          emoji={row.nation.flag}
-                          fallbackClassName="text-base"
-                          label={row.nation.name}
-                          nationId={row.nation.id}
-                        />
-                        <span className="max-w-32 truncate text-sm font-medium text-foreground">
-                          {getTranslatedTeamName(row.nation)}
-                        </span>
-                        {liveNationIds.has(row.nation.id) && (
-                          <span
-                            aria-label="Currently playing"
-                            className="relative ml-auto flex h-2.5 w-2.5 shrink-0"
-                            title="Currently playing"
+        <TabsContent value="group-stage" className="mt-0">
+          <div className="grid gap-6 lg:grid-cols-2">
+            {Object.entries(standingsByGroup).map(([groupName, rows]) => (
+              <section
+                key={groupName}
+                className="overflow-hidden rounded-lg border border-border/50 bg-card/75 backdrop-blur-xl"
+              >
+                <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
+                  <h3 className="text-sm font-semibold text-foreground">
+                    {getTranslatedGroupName(groupName)}
+                  </h3>
+                </div>
+
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="min-w-36">{t("nation")}</TableHead>
+                      <TableHead className="text-center">{t("playedShort")}</TableHead>
+                      <TableHead className="text-center">{t("winsShort")}</TableHead>
+                      <TableHead className="text-center">{t("drawsShort")}</TableHead>
+                      <TableHead className="text-center">{t("lossesShort")}</TableHead>
+                      <TableHead className="text-center">{t("goalsForShort")}</TableHead>
+                      <TableHead className="text-center">{t("goalsAgainstShort")}</TableHead>
+                      <TableHead className="text-center">{t("goalDifferenceShort")}</TableHead>
+                      <TableHead className="text-center font-semibold">{t("pointsShort")}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((row, index) => (
+                      <TableRow key={row.nation.id}>
+                        <TableCell>
+                          <button
+                            className="flex min-w-0 items-center gap-2 text-left"
+                            onClick={() => openNation(row.nation.id)}
                           >
-                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
-                            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-600" />
-                          </span>
-                        )}
-                      </button>
-                    </TableCell>
-                    <TableCell className="text-center">{formatNumber(row.played)}</TableCell>
-                    <TableCell className="text-center">{formatNumber(row.wins)}</TableCell>
-                    <TableCell className="text-center">{formatNumber(row.draws)}</TableCell>
-                    <TableCell className="text-center">{formatNumber(row.losses)}</TableCell>
-                    <TableCell className="text-center">{formatNumber(row.goalsFor)}</TableCell>
-                    <TableCell className="text-center">{formatNumber(row.goalsAgainst)}</TableCell>
-                    <TableCell className="text-center">
-                      {formatGoalDifference(row.goalDifference)}
-                    </TableCell>
-                    <TableCell className="text-center font-semibold text-foreground">
-                      {formatNumber(row.points)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </section>
-        ))}
-      </div>
+                            <span className="w-5 text-xs font-semibold text-muted-foreground">
+                              {formatNumber(index + 1)}
+                            </span>
+                            <NationFlag
+                              className="h-4 w-6"
+                              emoji={row.nation.flag}
+                              fallbackClassName="text-base"
+                              label={row.nation.name}
+                              nationId={row.nation.id}
+                            />
+                            <span className="max-w-32 truncate text-sm font-medium text-foreground">
+                              {getTranslatedTeamName(row.nation)}
+                            </span>
+                            {liveNationIds.has(row.nation.id) && (
+                              <span
+                                aria-label="Currently playing"
+                                className="relative ml-auto flex h-2.5 w-2.5 shrink-0"
+                                title="Currently playing"
+                              >
+                                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+                                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-600" />
+                              </span>
+                            )}
+                          </button>
+                        </TableCell>
+                        <TableCell className="text-center">{formatNumber(row.played)}</TableCell>
+                        <TableCell className="text-center">{formatNumber(row.wins)}</TableCell>
+                        <TableCell className="text-center">{formatNumber(row.draws)}</TableCell>
+                        <TableCell className="text-center">{formatNumber(row.losses)}</TableCell>
+                        <TableCell className="text-center">{formatNumber(row.goalsFor)}</TableCell>
+                        <TableCell className="text-center">{formatNumber(row.goalsAgainst)}</TableCell>
+                        <TableCell className="text-center">
+                          {formatGoalDifference(row.goalDifference)}
+                        </TableCell>
+                        <TableCell className="text-center font-semibold text-foreground">
+                          {formatNumber(row.points)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </section>
+            ))}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="knockout-stage" className="mt-0">
+          <KnockoutStageBracket />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
