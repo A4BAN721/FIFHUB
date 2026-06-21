@@ -116,19 +116,19 @@ function CompactScoreOverlay({ liveMatch }: { liveMatch: LiveMatch }) {
     <div className="pointer-events-none absolute inset-0 z-20">
       {showLiveIndicator && (
         <span
-          className="absolute right-2 top-2 h-3 w-3 rounded-full border border-white/80 bg-red-600 shadow-lg shadow-red-600/60 live-dot-pulse"
+          className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full border border-white/80 bg-red-600 shadow-lg shadow-red-600/60 live-dot-pulse sm:h-3 sm:w-3"
           aria-hidden="true"
         />
       )}
-      <span className="absolute left-2 top-2 rounded-full border border-zinc-200 bg-white px-2 py-0.5 text-[9px] font-black text-zinc-950 shadow-md dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:text-[10px]">
+      <span className="absolute left-2 top-2 rounded-full border border-zinc-200 bg-white px-1.5 py-0.5 text-[8px] font-black text-zinc-950 shadow-md dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:px-2 sm:text-[10px]">
         {getPlayPeriodLabel(liveMatch)}
       </span>
       <div className={`absolute left-1/2 ${scoreboardPosition} flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1`}>
-        <span className="rounded-lg border border-zinc-200 bg-white px-3 py-1 text-sm font-black tabular-nums text-zinc-950 shadow-lg dark:border-zinc-700 dark:bg-zinc-950 dark:text-white">
+        <span className="rounded-lg border border-zinc-200 bg-white px-2 py-0.5 text-xs font-black tabular-nums text-zinc-950 shadow-lg dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:px-3 sm:py-1 sm:text-sm">
           {liveMatch.homeScore} - {liveMatch.awayScore}
         </span>
         {timerLabel && (
-          <span className="rounded-full border border-zinc-200 bg-white/95 px-2 py-0.5 text-[10px] font-black uppercase tabular-nums text-red-600 shadow-md dark:border-zinc-700 dark:bg-zinc-950/95">
+          <span className="rounded-full border border-zinc-200 bg-white/95 px-1.5 py-0.5 text-[9px] font-black uppercase tabular-nums text-red-600 shadow-md dark:border-zinc-700 dark:bg-zinc-950/95 sm:px-2 sm:text-[10px]">
             {timerLabel}
           </span>
         )}

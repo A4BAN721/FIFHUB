@@ -638,7 +638,7 @@ export function GroupStandingsTable() {
                     <span className="min-w-0 truncate text-[8px] font-semibold leading-none text-foreground sm:hidden">
                       {getMobileTeamName(row.nation)}
                     </span>
-                    <span className="hidden max-w-32 truncate text-sm font-medium text-foreground sm:inline">
+                    <span className="hidden min-w-0 truncate text-sm font-medium text-foreground sm:inline">
                       {getTranslatedTeamName(row.nation)}
                     </span>
                     {liveNationIds.has(row.nation.id) && (
@@ -683,7 +683,7 @@ export function GroupStandingsTable() {
 
         <TabsContent value="group-stage" className="mt-0">
           <div className="space-y-3 sm:space-y-6">
-            <div className="grid grid-cols-2 gap-2 sm:gap-6">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-6">
               {Object.entries(standingsByGroup).map(([groupName, rows]) => (
                 <div key={groupName}>
                   {renderStandingsTable(

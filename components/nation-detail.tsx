@@ -255,7 +255,7 @@ export function NationDetail({ nation, onBack }: NationDetailProps) {
               Head Coach
             </p>
             <p
-              className="font-bold text-3xl sm:text-4xl md:text-5xl"
+              className="text-3xl font-bold uppercase sm:text-4xl md:text-5xl"
               style={{ color: primaryColor }}
             >
               {nation.headCoach}
