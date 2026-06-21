@@ -48,6 +48,12 @@ async function main() {
   if (completedResult.eventErrors.length > 0) {
     console.log(`ESPN event write errors: ${completedResult.eventErrors.slice(0, 20).join("; ")}`);
   }
+  if (isDryRun && primaryResult.matched.length > 0) {
+    console.log("Dry run live/provider-match sample:");
+    for (const item of primaryResult.matched.slice(0, 30)) {
+      console.log(`- ${item.fixtureId}: ${item.label} ${item.score}; status=${item.status}; phase=${item.phase}`);
+    }
+  }
   if (isDryRun && completedResult.matched.length > 0) {
     console.log("Dry run completed-match sample:");
     for (const item of completedResult.matched.slice(0, 30)) {
@@ -85,6 +91,8 @@ async function syncMatches(matches, fixtureMap, options) {
       fixtureId: fixture.id,
       label: `${fixture.home_team} vs ${fixture.away_team}`,
       score: `${scoreMatch.homeScore}-${scoreMatch.awayScore}`,
+      status: scoreMatch.status,
+      phase: scoreMatch.phase,
       goalCount: scoreMatch.events?.length ?? 0,
     });
 

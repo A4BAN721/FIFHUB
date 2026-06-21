@@ -425,7 +425,7 @@ export function MatchFixtures({
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
+                    <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                       {matchday.matches.map((match: Match, matchIndex: number) => {
                         const homeNationId = getNationId(match.homeTeam);
                         const awayNationId = getNationId(match.awayTeam);
@@ -441,7 +441,7 @@ export function MatchFixtures({
                           >
                             <LiveMatchCard match={match}>
                               <Card 
-                                className="group relative overflow-hidden rounded-xl backdrop-blur-xl transition-all duration-300 hover:shadow-lg hover:-translate-y-1 sm:rounded-2xl"
+                                className="group relative overflow-hidden rounded-xl backdrop-blur-xl transition-all duration-300 hover:shadow-lg sm:rounded-2xl"
                                 style={{
                                   backgroundColor: getCardBackgroundColor(),
                                   borderColor: getCardBorderColor()
@@ -449,7 +449,7 @@ export function MatchFixtures({
                               >
                               <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.08),transparent_15%),radial-gradient(circle_at_bottom_right,_rgba(0,0,0,0.03),transparent_20%)]" />
                               
-                              <div className="relative flex min-h-[96px] flex-col justify-between p-2 sm:min-h-[112px] sm:p-3">
+                              <div className="relative flex min-h-[122px] flex-col justify-between p-2 sm:min-h-[136px] sm:p-3">
                                 {/* Group name at top right for Group Stage */}
                                 <div className="absolute right-1.5 top-1.5 sm:right-2 sm:top-2">
                                   <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[8px] text-primary sm:px-2 sm:text-[9px]">
@@ -458,14 +458,14 @@ export function MatchFixtures({
                                 </div>
 
                                 {/* Date and Time for Group Stage */}
-                                <div className="flex items-center justify-center pt-4">
-                                  <span className="truncate text-[8px] text-muted-foreground sm:text-[10px]">
+                                <div className="flex items-center justify-center pt-5 sm:pt-6">
+                                  <span className="max-w-[calc(100%-4.5rem)] truncate text-[8px] text-muted-foreground sm:text-[10px]">
                                     {getTranslatedDate(match.date)} • {getTranslatedTime(match.time)}
                                   </span>
                                 </div>
 
                                 {/* Teams - Horizontal Layout */}
-                                <div className="flex items-center justify-between gap-1 py-2 sm:gap-2 sm:py-3">
+                                <div className="grid grid-cols-[minmax(0,1fr)_58px_minmax(0,1fr)] items-center gap-1 py-1 sm:grid-cols-[minmax(0,1fr)_68px_minmax(0,1fr)] sm:gap-2 sm:py-2">
                                   {/* Home Team */}
                                   <div className="min-w-0 flex-1">
                                     {homeNationId ? (
@@ -514,7 +514,7 @@ export function MatchFixtures({
                                   </div>
 
                                   {/* VS */}
-                                  <div className="px-0.5 text-[9px] font-bold text-muted-foreground sm:px-1 sm:text-xs">
+                                  <div className="text-center text-[9px] font-bold text-muted-foreground sm:text-xs">
                                     {t("vs")}
                                   </div>
 
@@ -567,7 +567,7 @@ export function MatchFixtures({
                                 </div>
 
                                 {/* Stadium */}
-                                <div className="flex items-center gap-1 border-t border-border/20 pt-1.5 text-[8px] text-muted-foreground sm:pt-2 sm:text-xs">
+                                <div className="flex items-center gap-1 border-t border-border/20 pt-1 text-[8px] text-muted-foreground sm:pt-1.5 sm:text-xs">
                                   <MapPin className="h-2.5 w-2.5 shrink-0 sm:h-3 sm:w-3" />
                                   <span className="truncate">{getTranslatedStadium(match.stadium)}</span>
                                 </div>
@@ -604,7 +604,7 @@ export function MatchFixtures({
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {matches.map((match: Match, matchIndex: number) => {
                   const homeNationId = getNationId(match.homeTeam);
                   const awayNationId = getNationId(match.awayTeam);
@@ -620,7 +620,7 @@ export function MatchFixtures({
                     >
                       <LiveMatchCard match={match}>
                         <Card 
-                          className="group relative overflow-hidden rounded-xl backdrop-blur-xl transition-all duration-300 hover:shadow-lg hover:-translate-y-1 sm:rounded-2xl"
+                          className="group relative overflow-hidden rounded-xl backdrop-blur-xl transition-all duration-300 hover:shadow-lg sm:rounded-2xl"
                           style={{
                             backgroundColor: getCardBackgroundColor(),
                             borderColor: getCardBorderColor()
@@ -628,9 +628,9 @@ export function MatchFixtures({
                         >
                         <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.08),transparent_15%),radial-gradient(circle_at_bottom_right,_rgba(0,0,0,0.03),transparent_20%)]" />
                         
-                        <div className="relative flex min-h-[96px] flex-col justify-between p-2 sm:min-h-[112px] sm:p-3">
+                        <div className="relative flex min-h-[122px] flex-col justify-between p-2 sm:min-h-[136px] sm:p-3">
                           {/* Header: Time and Info */}
-                          <div className="flex items-center justify-between gap-1 border-b border-border/20 pb-1.5 sm:pb-2">
+                          <div className="flex -translate-y-0.5 items-center justify-between gap-1 border-b border-border/20 pb-1 sm:pb-1.5">
                             <span className="text-[10px] font-semibold text-muted-foreground sm:text-xs">{getTranslatedTime(match.time)}</span>
                             <span className="truncate rounded-full bg-primary/10 px-1.5 py-0.5 text-[8px] text-primary sm:px-2 sm:text-[10px]">
                               {getTranslatedDate(match.date)}
@@ -638,7 +638,7 @@ export function MatchFixtures({
                           </div>
 
                           {/* Teams - Horizontal Layout */}
-                          <div className="flex items-center justify-between gap-1 py-2 sm:gap-2 sm:py-3">
+                          <div className="grid grid-cols-[minmax(0,1fr)_58px_minmax(0,1fr)] items-center gap-1 py-1 sm:grid-cols-[minmax(0,1fr)_68px_minmax(0,1fr)] sm:gap-2 sm:py-2">
                             {/* Home Team */}
                             <div className="min-w-0 flex-1">
                               {homeNationId ? (
@@ -687,7 +687,7 @@ export function MatchFixtures({
                             </div>
 
                             {/* VS */}
-                            <div className="px-0.5 text-[9px] font-bold text-muted-foreground sm:px-1 sm:text-xs">
+                            <div className="text-center text-[9px] font-bold text-muted-foreground sm:text-xs">
                               {t("vs")}
                             </div>
 
@@ -740,7 +740,7 @@ export function MatchFixtures({
                           </div>
 
                           {/* Stadium */}
-                          <div className="flex items-center gap-1 border-t border-border/20 pt-1.5 text-[8px] text-muted-foreground sm:pt-2 sm:text-xs">
+                          <div className="flex items-center gap-1 border-t border-border/20 pt-1 text-[8px] text-muted-foreground sm:pt-1.5 sm:text-xs">
                             <MapPin className="h-2.5 w-2.5 shrink-0 sm:h-3 sm:w-3" />
                             <span className="truncate">{getTranslatedStadium(match.stadium)}</span>
                           </div>

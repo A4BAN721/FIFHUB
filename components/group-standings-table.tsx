@@ -10,7 +10,7 @@ import { normalizeCountryName } from "@/lib/country-utils";
 import { completedMatchData } from "@/lib/live-data/completed-matches";
 import { createClient, getSupabaseConfig } from "@/lib/supabase/client";
 import { getMatchFixtures, getNations } from "@/lib/supabase/data";
-import { getFifaAbbreviation, getTeamDisplayName } from "@/lib/team-display";
+import { getTeamDisplayName } from "@/lib/team-display";
 import { useLanguage } from "./language-provider";
 import { NationFlag } from "./nation-flag";
 import {
@@ -520,10 +520,6 @@ export function GroupStandingsTable() {
     return getTeamDisplayName(nation.name);
   };
 
-  const getMobileTeamName = (nation: Nation): string => {
-    return getFifaAbbreviation(nation.name);
-  };
-
   const getTranslatedGroupName = (groupName: string): string => {
     if (language === "en") return groupName;
 
@@ -583,15 +579,15 @@ export function GroupStandingsTable() {
 
       <Table className="table-fixed text-[8px] sm:text-sm">
         <colgroup>
-          <col className="w-[34%] sm:w-[42%]" />
-          <col className="w-[8.25%] sm:w-auto" />
-          <col className="w-[8.25%] sm:w-auto" />
-          <col className="w-[8.25%] sm:w-auto" />
-          <col className="w-[8.25%] sm:w-auto" />
-          <col className="w-[8.25%] sm:w-auto" />
-          <col className="w-[8.25%] sm:w-auto" />
-          <col className="w-[8.25%] sm:w-auto" />
-          <col className="w-[8.25%] sm:w-auto" />
+          <col className="w-[42%] sm:w-[42%]" />
+          <col className="w-[7.25%] sm:w-auto" />
+          <col className="w-[7.25%] sm:w-auto" />
+          <col className="w-[7.25%] sm:w-auto" />
+          <col className="w-[7.25%] sm:w-auto" />
+          <col className="w-[7.25%] sm:w-auto" />
+          <col className="w-[7.25%] sm:w-auto" />
+          <col className="w-[7.25%] sm:w-auto" />
+          <col className="w-[7.25%] sm:w-auto" />
         </colgroup>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
@@ -635,8 +631,8 @@ export function GroupStandingsTable() {
                       label={row.nation.name}
                       nationId={row.nation.id}
                     />
-                    <span className="min-w-0 truncate text-[8px] font-semibold leading-none text-foreground sm:hidden">
-                      {getMobileTeamName(row.nation)}
+                    <span className="min-w-0 whitespace-normal break-words text-[7.5px] font-semibold leading-tight text-foreground sm:hidden">
+                      {getTranslatedTeamName(row.nation)}
                     </span>
                     <span className="hidden min-w-0 truncate text-sm font-medium text-foreground sm:inline">
                       {getTranslatedTeamName(row.nation)}

@@ -43,7 +43,7 @@ export function LiveMatchCard({ match, children }: LiveMatchCardProps) {
   }, [shouldRunTimer, sourcedMatch?.matchId]);
 
   if (!isVisibleLiveState(displayMatch)) {
-    return <>{children}</>;
+    return <div className="relative transition-all duration-300 hover:-translate-y-1">{children}</div>;
   }
 
   return (
@@ -51,7 +51,7 @@ export function LiveMatchCard({ match, children }: LiveMatchCardProps) {
       <div
         role="button"
         tabIndex={0}
-        className="relative cursor-pointer"
+        className="relative cursor-pointer transition-all duration-300 hover:-translate-y-1"
         onClick={(event) => {
           const target = event.target as HTMLElement;
           if (target.closest("button,a,input,select,textarea")) return;
@@ -110,7 +110,6 @@ export function LiveMatchCard({ match, children }: LiveMatchCardProps) {
 function CompactScoreOverlay({ liveMatch }: { liveMatch: LiveMatch }) {
   const timerLabel = getTimerLabel(liveMatch);
   const showLiveIndicator = shouldShowLiveIndicator(liveMatch);
-  const scoreboardPosition = isMatchInProgress(liveMatch) ? "top-[58%]" : "top-1/2";
 
   return (
     <div className="pointer-events-none absolute inset-0 z-20">
@@ -123,12 +122,12 @@ function CompactScoreOverlay({ liveMatch }: { liveMatch: LiveMatch }) {
       <span className="absolute left-2 top-2 rounded-full border border-zinc-200 bg-white px-1.5 py-0.5 text-[8px] font-black text-zinc-950 shadow-md dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:px-2 sm:text-[10px]">
         {getPlayPeriodLabel(liveMatch)}
       </span>
-      <div className={`absolute left-1/2 ${scoreboardPosition} flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1`}>
-        <span className="rounded-lg border border-zinc-200 bg-white px-2 py-0.5 text-xs font-black tabular-nums text-zinc-950 shadow-lg dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:px-3 sm:py-1 sm:text-sm">
+      <div className="absolute left-1/2 top-[53%] flex -translate-x-1/2 flex-col items-center gap-0.5">
+        <span className="min-w-[58px] -translate-y-1/2 rounded-lg border border-zinc-200 bg-white px-2 py-0.5 text-center text-xs font-black tabular-nums leading-tight text-zinc-950 shadow-lg dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:min-w-[68px] sm:px-3 sm:py-1 sm:text-sm">
           {liveMatch.homeScore} - {liveMatch.awayScore}
         </span>
         {timerLabel && (
-          <span className="rounded-full border border-zinc-200 bg-white/95 px-1.5 py-0.5 text-[9px] font-black uppercase tabular-nums text-red-600 shadow-md dark:border-zinc-700 dark:bg-zinc-950/95 sm:px-2 sm:text-[10px]">
+          <span className="-mt-3 rounded-full border border-zinc-200 bg-white/95 px-1.5 py-0.5 text-[9px] font-black uppercase tabular-nums text-red-600 shadow-md dark:border-zinc-700 dark:bg-zinc-950/95 sm:px-2 sm:text-[10px]">
             {timerLabel}
           </span>
         )}
@@ -318,12 +317,7 @@ function estimateDisplayClock(liveMatch: LiveMatch, now: number, fixture: Match)
     return extraTimeClock(elapsed);
   }
 
-  return {
-    status: "finished" as const,
-    phase: "full_time" as const,
-    minute: 90,
-    stoppageMinute: null,
-  };
+  return capInProgressClock(liveMatch);
 }
 
 function phaseFallbackClock(liveMatch: LiveMatch) {
@@ -390,6 +384,24 @@ function extraTimeClock(elapsed: number) {
     phase: "full_time" as const,
     minute: 120,
     stoppageMinute: null,
+  };
+}
+
+function capInProgressClock(liveMatch: LiveMatch) {
+  if (liveMatch.status === "penalties" || liveMatch.phase === "penalties") {
+    return {
+      status: "penalties" as const,
+      phase: "penalties" as const,
+      minute: 120,
+      stoppageMinute: capStoppageMinute(liveMatch.stoppageMinute),
+    };
+  }
+
+  return {
+    status: "live" as const,
+    phase: "second_half" as const,
+    minute: Math.min(90, Math.max(46, liveMatch.minute ?? 90)),
+    stoppageMinute: capStoppageMinute(liveMatch.stoppageMinute),
   };
 }
 
