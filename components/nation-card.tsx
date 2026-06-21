@@ -111,10 +111,10 @@ export function NationCard({ nation, onClick, index }: NationCardProps) {
                 nationId={nation.id}
               />
               <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-2">
-                <h3 className="min-w-0 truncate text-xs font-semibold leading-tight text-foreground transition-colors group-hover:text-[var(--tab-color)] sm:text-lg">
+                <h3 className="min-w-0 truncate text-[10px] font-semibold leading-tight text-foreground transition-colors group-hover:text-[var(--tab-color)] sm:text-lg">
                   {getTranslatedCountryName(nation.id)}
                 </h3>
-                <p className={`shrink-0 text-[9px] leading-none text-muted-foreground sm:text-xs ${language === "bn" ? "" : "uppercase tracking-[0.12em] sm:tracking-[0.24em]"}`}>
+                <p className={`shrink-0 text-[8px] leading-none text-muted-foreground sm:text-xs ${language === "bn" ? "" : "uppercase tracking-[0.08em] sm:tracking-[0.24em]"}`}>
                   {getTranslatedConfederation(nation.confederation)}
                 </p>
               </div>
@@ -128,11 +128,11 @@ export function NationCard({ nation, onClick, index }: NationCardProps) {
                   <span className="text-foreground">⚽</span>
                 </div>
                 <div>
-                  <p className={`truncate text-[7px] leading-none text-white/70 sm:text-[10px] ${labelSpacingClass}`}>{t("squadValue")}</p>
-                  <p className="truncate text-[10px] font-semibold text-white sm:text-sm">{formatSquadValue(nation.totalSquadValue)}</p>
+                  <p className={`truncate text-[6px] leading-none text-white/70 sm:text-[10px] ${labelSpacingClass}`}>{t("squadValue")}</p>
+                  <p className="truncate text-[9px] font-semibold text-white sm:text-sm">{formatSquadValue(nation.totalSquadValue)}</p>
                 </div>
               </div>
-              <span className={`shrink-0 rounded-full bg-white/10 px-1.5 py-0.5 text-[8px] text-white sm:px-3 sm:py-1 sm:text-[11px] ${mutedPillSpacingClass}`}>
+              <span className={`shrink-0 rounded-full bg-white/10 px-1.5 py-0.5 text-[7px] text-white sm:px-3 sm:py-1 sm:text-[11px] ${mutedPillSpacingClass}`}>
                 {nation.players.length} {t("players").toLowerCase()}
               </span>
             </div>

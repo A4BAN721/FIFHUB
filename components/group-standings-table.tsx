@@ -121,6 +121,35 @@ const centerKnockoutPlacements = [
   { label: "Bronze Final", column: 5, rowStart: 9, rowSpan: 3 },
 ];
 
+const mobileKnockoutPlacements = [
+  ...Array.from({ length: 16 }, (_, index) => ({
+    label: `R32 ${index + 1}`,
+    column: 1,
+    rowStart: index * 2 + 1,
+    rowSpan: 2,
+  })),
+  ...Array.from({ length: 8 }, (_, index) => ({
+    label: `R16 ${index + 1}`,
+    column: 2,
+    rowStart: index * 4 + 1,
+    rowSpan: 4,
+  })),
+  ...Array.from({ length: 4 }, (_, index) => ({
+    label: `1/4 Finals ${index + 1}`,
+    column: 3,
+    rowStart: index * 8 + 1,
+    rowSpan: 8,
+  })),
+  ...Array.from({ length: 2 }, (_, index) => ({
+    label: `1/2 Finals ${index + 1}`,
+    column: 4,
+    rowStart: index * 16 + 1,
+    rowSpan: 16,
+  })),
+  { label: "Final", column: 5, rowStart: 11, rowSpan: 5 },
+  { label: "Bronze Final", column: 5, rowStart: 17, rowSpan: 5 },
+];
+
 function convertToBanglaNumerals(value: string | number): string {
   const banglaNumerals: Record<string, string> = {
     "0": "\u09e6",
@@ -258,49 +287,68 @@ function KnockoutStageBracket() {
   ];
 
   return (
-    <section className="overflow-x-auto rounded-lg border border-border/50 bg-card/75 p-2 backdrop-blur-xl sm:overflow-hidden sm:p-3">
-      <div className="relative grid h-[620px] min-w-[860px] grid-cols-9 grid-rows-[repeat(16,minmax(0,1fr))] gap-x-2 sm:min-w-0 lg:h-[700px] lg:gap-x-3">
-        <svg
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 z-0 h-full w-full"
-          preserveAspectRatio="none"
-          viewBox="0 0 100 100"
-        >
-          <g fill="none" stroke="rgb(59 130 246 / 0.72)" strokeLinecap="round" strokeWidth="0.35">
-            <path d="M10.8 6.25H12.7V12.5H16.3M10.8 18.75H12.7V12.5" />
-            <path d="M10.8 31.25H12.7V37.5H16.3M10.8 43.75H12.7V37.5" />
-            <path d="M10.8 56.25H12.7V62.5H16.3M10.8 68.75H12.7V62.5" />
-            <path d="M10.8 81.25H12.7V87.5H16.3M10.8 93.75H12.7V87.5" />
-            <path d="M21.9 12.5H24V25H27.4M21.9 37.5H24V25" />
-            <path d="M21.9 62.5H24V75H27.4M21.9 87.5H24V75" />
-            <path d="M33 25H35.2V50H38.5M33 75H35.2V50" />
-            <path d="M44.1 50H46.3V43.75H49.4M46.3 50V56.25H49.4" />
-
-            <path d="M89.2 6.25H87.3V12.5H83.7M89.2 18.75H87.3V12.5" />
-            <path d="M89.2 31.25H87.3V37.5H83.7M89.2 43.75H87.3V37.5" />
-            <path d="M89.2 56.25H87.3V62.5H83.7M89.2 68.75H87.3V62.5" />
-            <path d="M89.2 81.25H87.3V87.5H83.7M89.2 93.75H87.3V87.5" />
-            <path d="M78.1 12.5H76V25H72.6M78.1 37.5H76V25" />
-            <path d="M78.1 62.5H76V75H72.6M78.1 87.5H76V75" />
-            <path d="M67 25H64.8V50H61.5M67 75H64.8V50" />
-            <path d="M55.9 50H53.7V43.75H50.6M53.7 50V56.25H50.6" />
-          </g>
-        </svg>
-
-        {bracketPlacements.map((match) => (
-          <div
-            key={match.label}
-            className="relative z-10 flex items-center"
-            style={{
-              gridColumn: match.column,
-              gridRow: `${match.rowStart} / span ${match.rowSpan}`,
-            }}
-          >
-            <KnockoutMatchCard label={match.label} />
-          </div>
+    <>
+      <section className="overflow-x-auto rounded-lg border border-border/50 bg-card/75 p-2 backdrop-blur-xl sm:hidden">
+        <div className="relative grid h-[920px] min-w-[660px] grid-cols-5 grid-rows-[repeat(32,minmax(0,1fr))] gap-x-2">
+          {mobileKnockoutPlacements.map((match) => (
+            <div
+              key={match.label}
+              className="relative z-10 flex items-center"
+              style={{
+                gridColumn: match.column,
+                gridRow: `${match.rowStart} / span ${match.rowSpan}`,
+              }}
+            >
+              <KnockoutMatchCard label={match.label} />
+            </div>
           ))}
-      </div>
-    </section>
+        </div>
+      </section>
+
+      <section className="hidden overflow-x-auto rounded-lg border border-border/50 bg-card/75 p-2 backdrop-blur-xl sm:block sm:overflow-hidden sm:p-3">
+        <div className="relative grid h-[620px] min-w-[860px] grid-cols-9 grid-rows-[repeat(16,minmax(0,1fr))] gap-x-2 sm:min-w-0 lg:h-[700px] lg:gap-x-3">
+          <svg
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 z-0 h-full w-full"
+            preserveAspectRatio="none"
+            viewBox="0 0 100 100"
+          >
+            <g fill="none" stroke="rgb(59 130 246 / 0.72)" strokeLinecap="round" strokeWidth="0.35">
+              <path d="M10.8 6.25H12.7V12.5H16.3M10.8 18.75H12.7V12.5" />
+              <path d="M10.8 31.25H12.7V37.5H16.3M10.8 43.75H12.7V37.5" />
+              <path d="M10.8 56.25H12.7V62.5H16.3M10.8 68.75H12.7V62.5" />
+              <path d="M10.8 81.25H12.7V87.5H16.3M10.8 93.75H12.7V87.5" />
+              <path d="M21.9 12.5H24V25H27.4M21.9 37.5H24V25" />
+              <path d="M21.9 62.5H24V75H27.4M21.9 87.5H24V75" />
+              <path d="M33 25H35.2V50H38.5M33 75H35.2V50" />
+              <path d="M44.1 50H46.3V43.75H49.4M46.3 50V56.25H49.4" />
+
+              <path d="M89.2 6.25H87.3V12.5H83.7M89.2 18.75H87.3V12.5" />
+              <path d="M89.2 31.25H87.3V37.5H83.7M89.2 43.75H87.3V37.5" />
+              <path d="M89.2 56.25H87.3V62.5H83.7M89.2 68.75H87.3V62.5" />
+              <path d="M89.2 81.25H87.3V87.5H83.7M89.2 93.75H87.3V87.5" />
+              <path d="M78.1 12.5H76V25H72.6M78.1 37.5H76V25" />
+              <path d="M78.1 62.5H76V75H72.6M78.1 87.5H76V75" />
+              <path d="M67 25H64.8V50H61.5M67 75H64.8V50" />
+              <path d="M55.9 50H53.7V43.75H50.6M53.7 50V56.25H50.6" />
+            </g>
+          </svg>
+
+          {bracketPlacements.map((match) => (
+            <div
+              key={match.label}
+              className="relative z-10 flex items-center"
+              style={{
+                gridColumn: match.column,
+                gridRow: `${match.rowStart} / span ${match.rowSpan}`,
+              }}
+            >
+              <KnockoutMatchCard label={match.label} />
+            </div>
+            ))}
+        </div>
+      </section>
+    </>
   );
 }
 

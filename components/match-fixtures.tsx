@@ -8,7 +8,7 @@ import type { Nation } from "@/lib/world-cup-data";
 import { matchFixtures as fallbackMatchFixtures } from "@/lib/match-fixtures";
 import { nations as fallbackNations } from "@/lib/world-cup-data";
 import { normalizeCountryName } from "@/lib/country-utils";
-import { getTeamDisplayName } from "@/lib/team-display";
+import { getFifaAbbreviation, getTeamDisplayName } from "@/lib/team-display";
 import { getMatchFixtures, getNations } from "@/lib/supabase/data";
 import { useLanguage } from "./language-provider";
 import { useTheme } from "next-themes";
@@ -487,8 +487,11 @@ export function MatchFixtures({
                                           label={match.homeTeam}
                                           nationId={homeNationId}
                                         />
-                                        <span className="min-w-0 truncate text-[10px] font-semibold text-foreground sm:text-xs">
-                                          <span className="block truncate hover:text-[var(--team-color)] transition-colors cursor-pointer hover:drop-shadow-[0_0_2px_var(--shadow-color)]">
+                                        <span className="min-w-0 truncate text-[9px] font-semibold text-foreground sm:text-xs">
+                                          <span className="block truncate hover:text-[var(--team-color)] transition-colors cursor-pointer hover:drop-shadow-[0_0_2px_var(--shadow-color)] sm:hidden">
+                                            {getFifaAbbreviation(match.homeTeam)}
+                                          </span>
+                                          <span className="hidden truncate hover:text-[var(--team-color)] transition-colors cursor-pointer hover:drop-shadow-[0_0_2px_var(--shadow-color)] sm:block">
                                             {getTranslatedTeamName(match.homeTeam)}
                                           </span>
                                         </span>
@@ -502,8 +505,9 @@ export function MatchFixtures({
                                           label={match.homeTeam}
                                           nationId={homeNationId}
                                         />
-                                        <span className="min-w-0 truncate text-[10px] font-semibold text-muted-foreground sm:text-xs">
-                                          {getTranslatedTeamName(match.homeTeam)}
+                                        <span className="min-w-0 truncate text-[9px] font-semibold text-muted-foreground sm:text-xs">
+                                          <span className="sm:hidden">{getFifaAbbreviation(match.homeTeam)}</span>
+                                          <span className="hidden sm:inline">{getTranslatedTeamName(match.homeTeam)}</span>
                                         </span>
                                       </div>
                                     )}
@@ -528,8 +532,11 @@ export function MatchFixtures({
                                         className="flex w-full min-w-0 items-center justify-end gap-1 sm:gap-2"
                                         style={{ "--team-color": awayColor, "--shadow-color": getTextShadowColor() } as TeamAccentStyle}
                                       >
-                                        <span className="min-w-0 truncate text-right text-[10px] font-semibold text-foreground sm:text-xs">
-                                          <span className="block truncate hover:text-[var(--team-color)] transition-colors cursor-pointer hover:drop-shadow-[0_0_2px_var(--shadow-color)]">
+                                        <span className="min-w-0 truncate text-right text-[9px] font-semibold text-foreground sm:text-xs">
+                                          <span className="block truncate hover:text-[var(--team-color)] transition-colors cursor-pointer hover:drop-shadow-[0_0_2px_var(--shadow-color)] sm:hidden">
+                                            {getFifaAbbreviation(match.awayTeam)}
+                                          </span>
+                                          <span className="hidden truncate hover:text-[var(--team-color)] transition-colors cursor-pointer hover:drop-shadow-[0_0_2px_var(--shadow-color)] sm:block">
                                             {getTranslatedTeamName(match.awayTeam)}
                                           </span>
                                         </span>
@@ -543,8 +550,9 @@ export function MatchFixtures({
                                       </button>
                                     ) : (
                                       <div className="flex min-w-0 items-center justify-end gap-1 sm:gap-2">
-                                        <span className="min-w-0 truncate text-right text-[10px] font-semibold text-muted-foreground sm:text-xs">
-                                          {getTranslatedTeamName(match.awayTeam)}
+                                        <span className="min-w-0 truncate text-right text-[9px] font-semibold text-muted-foreground sm:text-xs">
+                                          <span className="sm:hidden">{getFifaAbbreviation(match.awayTeam)}</span>
+                                          <span className="hidden sm:inline">{getTranslatedTeamName(match.awayTeam)}</span>
                                         </span>
                                         <NationFlag
                                           className="h-4 w-6 shrink-0 sm:h-5 sm:w-7"
@@ -559,7 +567,7 @@ export function MatchFixtures({
                                 </div>
 
                                 {/* Stadium */}
-                                <div className="flex items-center gap-1 border-t border-border/20 pt-1.5 text-[9px] text-muted-foreground sm:pt-2 sm:text-xs">
+                                <div className="flex items-center gap-1 border-t border-border/20 pt-1.5 text-[8px] text-muted-foreground sm:pt-2 sm:text-xs">
                                   <MapPin className="h-2.5 w-2.5 shrink-0 sm:h-3 sm:w-3" />
                                   <span className="truncate">{getTranslatedStadium(match.stadium)}</span>
                                 </div>
@@ -652,8 +660,11 @@ export function MatchFixtures({
                                     label={match.homeTeam}
                                     nationId={homeNationId}
                                   />
-                                  <span className="min-w-0 truncate text-[10px] font-semibold text-foreground sm:text-xs">
-                                    <span className="block truncate hover:text-[var(--team-color)] transition-colors cursor-pointer hover:drop-shadow-[0_0_2px_var(--shadow-color)]">
+                                  <span className="min-w-0 truncate text-[9px] font-semibold text-foreground sm:text-xs">
+                                    <span className="block truncate hover:text-[var(--team-color)] transition-colors cursor-pointer hover:drop-shadow-[0_0_2px_var(--shadow-color)] sm:hidden">
+                                      {getFifaAbbreviation(match.homeTeam)}
+                                    </span>
+                                    <span className="hidden truncate hover:text-[var(--team-color)] transition-colors cursor-pointer hover:drop-shadow-[0_0_2px_var(--shadow-color)] sm:block">
                                       {getTranslatedTeamName(match.homeTeam)}
                                     </span>
                                   </span>
@@ -667,8 +678,9 @@ export function MatchFixtures({
                                     label={match.homeTeam}
                                     nationId={homeNationId}
                                   />
-                                  <span className="min-w-0 truncate text-[10px] font-semibold text-muted-foreground sm:text-xs">
-                                    {getTranslatedTeamName(match.homeTeam)}
+                                  <span className="min-w-0 truncate text-[9px] font-semibold text-muted-foreground sm:text-xs">
+                                    <span className="sm:hidden">{getFifaAbbreviation(match.homeTeam)}</span>
+                                    <span className="hidden sm:inline">{getTranslatedTeamName(match.homeTeam)}</span>
                                   </span>
                                 </div>
                               )}
@@ -693,8 +705,11 @@ export function MatchFixtures({
                                   className="flex w-full min-w-0 items-center justify-end gap-1 sm:gap-2"
                                   style={{ "--team-color": awayColor, "--shadow-color": getTextShadowColor() } as TeamAccentStyle}
                                 >
-                                  <span className="min-w-0 truncate text-right text-[10px] font-semibold text-foreground sm:text-xs">
-                                    <span className="block truncate hover:text-[var(--team-color)] transition-colors cursor-pointer hover:drop-shadow-[0_0_2px_var(--shadow-color)]">
+                                  <span className="min-w-0 truncate text-right text-[9px] font-semibold text-foreground sm:text-xs">
+                                    <span className="block truncate hover:text-[var(--team-color)] transition-colors cursor-pointer hover:drop-shadow-[0_0_2px_var(--shadow-color)] sm:hidden">
+                                      {getFifaAbbreviation(match.awayTeam)}
+                                    </span>
+                                    <span className="hidden truncate hover:text-[var(--team-color)] transition-colors cursor-pointer hover:drop-shadow-[0_0_2px_var(--shadow-color)] sm:block">
                                       {getTranslatedTeamName(match.awayTeam)}
                                     </span>
                                   </span>
@@ -708,8 +723,9 @@ export function MatchFixtures({
                                 </button>
                               ) : (
                                 <div className="flex min-w-0 items-center justify-end gap-1 sm:gap-2">
-                                  <span className="min-w-0 truncate text-right text-[10px] font-semibold text-muted-foreground sm:text-xs">
-                                    {getTranslatedTeamName(match.awayTeam)}
+                                  <span className="min-w-0 truncate text-right text-[9px] font-semibold text-muted-foreground sm:text-xs">
+                                    <span className="sm:hidden">{getFifaAbbreviation(match.awayTeam)}</span>
+                                    <span className="hidden sm:inline">{getTranslatedTeamName(match.awayTeam)}</span>
                                   </span>
                                   <NationFlag
                                     className="h-4 w-6 shrink-0 sm:h-5 sm:w-7"
@@ -724,7 +740,7 @@ export function MatchFixtures({
                           </div>
 
                           {/* Stadium */}
-                          <div className="flex items-center gap-1 border-t border-border/20 pt-1.5 text-[9px] text-muted-foreground sm:pt-2 sm:text-xs">
+                          <div className="flex items-center gap-1 border-t border-border/20 pt-1.5 text-[8px] text-muted-foreground sm:pt-2 sm:text-xs">
                             <MapPin className="h-2.5 w-2.5 shrink-0 sm:h-3 sm:w-3" />
                             <span className="truncate">{getTranslatedStadium(match.stadium)}</span>
                           </div>
