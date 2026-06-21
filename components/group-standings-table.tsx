@@ -677,8 +677,8 @@ export function GroupStandingsTable() {
     <div className="container mx-auto px-0 py-4 sm:px-4 sm:py-6">
       <Tabs defaultValue="group-stage" className="w-full">
         <TabsList className="mx-auto mb-6">
-          <TabsTrigger value="group-stage">Group Stage</TabsTrigger>
-          <TabsTrigger value="knockout-stage">Knockout Stage</TabsTrigger>
+          <TabsTrigger value="group-stage">{t("groupStage")}</TabsTrigger>
+          <TabsTrigger value="knockout-stage">{t("knockoutStage")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="group-stage" className="mt-0">
@@ -698,10 +698,10 @@ export function GroupStandingsTable() {
             </div>
 
             {renderStandingsTable(
-              "Best Third-Place Teams",
+              t("bestThirdPlaceTeams"),
               thirdPlaceRows,
               8,
-              "Top 8 third-place teams advance to the knockout stage"
+              t("bestThirdPlaceDescription")
             )}
           </div>
         </TabsContent>
