@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { X } from "lucide-react";
+import { Play, X } from "lucide-react";
 import type { Match } from "@/lib/match-fixtures";
 import { normalizeCountryName } from "@/lib/country-utils";
 import { getCompletedMatch } from "@/lib/live-data/completed-matches";
@@ -26,7 +26,7 @@ export function LiveMatchCard({ match, children }: LiveMatchCardProps) {
   const { liveMatch } = useLiveMatch(match.id, { fallbackMatch: match });
   const completedMatch = getCompletedMatch(match.id);
   const scheduledLiveMatch = !liveMatch && !completedMatch ? createScheduledLiveMatch(match, now) : null;
-  const sourcedMatch = getBestMatchState({ completedMatch, liveMatch, scheduledLiveMatch });
+  const sourcedMatch = getBestMatchState({ completedMatch, liveMatch, scheduledLiveMatch, now });
   const displayMatch = sourcedMatch ? withDisplayClock(sourcedMatch, now, match) : null;
   const shouldRunTimer = Boolean(sourcedMatch && (isMatchInProgress(sourcedMatch) || scheduledLiveMatch));
 
@@ -67,6 +67,7 @@ export function LiveMatchCard({ match, children }: LiveMatchCardProps) {
       >
         {children}
         <CompactScoreOverlay liveMatch={displayMatch} />
+        <CompactHighlightsLink liveMatch={displayMatch} />
       </div>
 
       {isExpanded && (
@@ -93,6 +94,7 @@ export function LiveMatchCard({ match, children }: LiveMatchCardProps) {
               <ExpandedScoreboard liveMatch={displayMatch} />
               <TeamEventSummary liveMatch={displayMatch} />
               <LiveStatsPanel statistics={displayMatch.statistics} />
+              <MatchHighlightsLink liveMatch={displayMatch} />
 
               <div className="flex items-center justify-between gap-2 border-t border-border/40 pt-3 text-xs text-muted-foreground">
                 <span className="truncate">
@@ -104,6 +106,40 @@ export function LiveMatchCard({ match, children }: LiveMatchCardProps) {
         </div>
       )}
     </>
+  );
+}
+
+function CompactHighlightsLink({ liveMatch }: { liveMatch: LiveMatch }) {
+  if (!liveMatch.highlightsUrl) return null;
+
+  return (
+    <a
+      href={liveMatch.highlightsUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="pointer-events-auto absolute bottom-2 right-2 z-30 rounded-full border border-red-500/40 bg-red-500/15 px-2 py-0.5 text-[7px] font-black uppercase tracking-[0.16em] text-red-500 shadow-md backdrop-blur-sm transition-colors hover:border-red-500/70 hover:bg-red-500/25 sm:px-2.5 sm:text-[9px]"
+      aria-label={liveMatch.highlightsTitle ?? "Open match highlights"}
+      onClick={(event) => event.stopPropagation()}
+    >
+      MATCH HIGHLIGHTS
+    </a>
+  );
+}
+
+function MatchHighlightsLink({ liveMatch }: { liveMatch: LiveMatch }) {
+  if (!liveMatch.highlightsUrl) return null;
+
+  return (
+    <a
+      href={liveMatch.highlightsUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="flex items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-black uppercase tracking-[0.22em] text-red-500 transition-colors hover:border-red-500/60 hover:bg-red-500/15 sm:px-4 sm:py-3 sm:text-sm"
+      aria-label={liveMatch.highlightsTitle ?? "Open match highlights"}
+    >
+      <span>MATCH HIGHLIGHTS</span>
+      <Play className="h-4 w-4 shrink-0 fill-current" />
+    </a>
   );
 }
 
@@ -123,7 +159,7 @@ function CompactScoreOverlay({ liveMatch }: { liveMatch: LiveMatch }) {
         {getPlayPeriodLabel(liveMatch)}
       </span>
       <div className="absolute left-1/2 top-[53%] flex -translate-x-1/2 flex-col items-center gap-0.5">
-        <span className="min-w-[58px] -translate-y-1/2 rounded-lg border border-zinc-200 bg-white px-2 py-0.5 text-center text-xs font-black tabular-nums leading-tight text-zinc-950 shadow-lg dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:min-w-[68px] sm:px-3 sm:py-1 sm:text-sm">
+        <span className="min-w-[50px] -translate-y-1/2 rounded-lg border border-zinc-200 bg-white px-1.5 py-0.5 text-center text-[11px] font-black tabular-nums leading-tight text-zinc-950 shadow-lg dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:min-w-[68px] sm:px-3 sm:py-1 sm:text-sm">
           {liveMatch.homeScore} - {liveMatch.awayScore}
         </span>
         {timerLabel && (
@@ -140,34 +176,51 @@ function getBestMatchState({
   completedMatch,
   liveMatch,
   scheduledLiveMatch,
+  now,
 }: {
   completedMatch: LiveMatch | null;
   liveMatch: LiveMatch | null;
   scheduledLiveMatch: LiveMatch | null;
+  now: number;
 }) {
-  if (completedMatch && liveMatch) {
-    return mergeCompletedAndLiveMatch(completedMatch, liveMatch);
+  // If the match is finished in completedMatch data AND there's no live match,
+  // use completedMatch (past match with confirmed score).
+  if (!liveMatch && completedMatch) {
+    return completedMatch;
   }
 
-  if (completedMatch) return completedMatch;
-  return liveMatch ?? scheduledLiveMatch;
+  // If we have live match data, prefer it for all state including scores.
+  // For finished matches, the liveMatch will have the same final score.
+  // For in-progress matches, liveMatch has the real-time scores.
+  if (liveMatch) {
+    // Merge completed match static data (statistics, events) with live match scores
+    if (completedMatch) {
+      return mergeCompletedAndLiveMatch(completedMatch, liveMatch);
+    }
+    return liveMatch;
+  }
+
+  // No live or completed data - check if we can create a scheduled shell
+  return scheduledLiveMatch;
 }
 
 function mergeCompletedAndLiveMatch(completedMatch: LiveMatch, liveMatch: LiveMatch): LiveMatch {
-  const liveIsConfirmedFinal = Boolean(
-    liveMatch.finalScoreConfirmedAt ||
-      liveMatch.status === "finished" ||
-      liveMatch.phase === "full_time"
-  );
-
-  const scoreSource = liveIsConfirmedFinal ? liveMatch : completedMatch;
-
+  // Always prefer liveMatch scores - they represent the current real-time state.
+  // If the match is finished, liveMatch will have the final confirmed score.
+  // If the match is in progress, liveMatch has the real-time score.
   return {
     ...completedMatch,
-    homeScore: scoreSource.homeScore,
-    awayScore: scoreSource.awayScore,
+    homeScore: liveMatch.homeScore,
+    awayScore: liveMatch.awayScore,
+    status: liveMatch.status,
+    phase: liveMatch.phase,
+    minute: liveMatch.minute,
+    stoppageMinute: liveMatch.stoppageMinute,
     startedAt: liveMatch.startedAt ?? completedMatch.startedAt,
     finalScoreConfirmedAt: liveMatch.finalScoreConfirmedAt ?? completedMatch.finalScoreConfirmedAt,
+    highlightsUrl: liveMatch.highlightsUrl ?? completedMatch.highlightsUrl,
+    highlightsTitle: liveMatch.highlightsTitle ?? completedMatch.highlightsTitle,
+    highlightsPublishedAt: liveMatch.highlightsPublishedAt ?? completedMatch.highlightsPublishedAt,
     updatedAt: liveMatch.updatedAt ?? completedMatch.updatedAt,
     statistics: hasMatchStatistics(liveMatch.statistics)
       ? { ...completedMatch.statistics, ...liveMatch.statistics }

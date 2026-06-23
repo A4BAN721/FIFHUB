@@ -44,7 +44,13 @@ export function useLiveMatch(
 
     try {
       const nextMatch = await activeProvider.getLiveMatch(matchId);
-      setLiveMatch(nextMatch);
+      // Only update liveMatch from polling if we got actual data back.
+      // Never overwrite with null — realtime might have already populated
+      // the state with current scores, and nulling it would cause the
+      // component to fall back to stale completedMatch data.
+      if (nextMatch !== null) {
+        setLiveMatch(nextMatch);
+      }
       setError(null);
       setLastUpdated(new Date());
     } catch (caughtError) {

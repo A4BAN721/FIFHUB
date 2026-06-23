@@ -10,6 +10,7 @@ import { nations as fallbackNations } from "@/lib/world-cup-data";
 import { normalizeCountryName } from "@/lib/country-utils";
 import { getFifaAbbreviation, getTeamDisplayName } from "@/lib/team-display";
 import { getMatchFixtures, getNations } from "@/lib/supabase/data";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useLanguage } from "./language-provider";
 import { useTheme } from "next-themes";
 import { Card } from "@/components/ui/card";
@@ -37,6 +38,8 @@ export function MatchFixtures({
 }: MatchFixturesProps) {
   const { t, language } = useLanguage();
   const { resolvedTheme } = useTheme();
+  const isMobile = useIsMobile();
+  const shouldAnimate = !isMobile;
   const [search, setSearch] = useState(initialSearch);
   const [selectedStage, setSelectedStage] = useState<string>(initialSelectedStage);
   const [matchFixtures, setMatchFixtures] = useState<Match[]>(fallbackMatchFixtures);
@@ -398,9 +401,9 @@ export function MatchFixtures({
             return (
               <motion.div
                 key={stage}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: stageIndex * 0.02, duration: 0.3 }}
+                initial={shouldAnimate ? { opacity: 0, y: 10 } : false}
+                animate={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
+                transition={shouldAnimate ? { delay: stageIndex * 0.02, duration: 0.3 } : undefined}
               >
                 <div className="flex items-center gap-2 mb-4">
                   <Calendar className="h-4 w-4 text-primary" />
@@ -435,9 +438,9 @@ export function MatchFixtures({
                         return (
                           <motion.div
                             key={match.id}
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: stageIndex * 0.02 + mdIndex * 0.01 + matchIndex * 0.005, duration: 0.2 }}
+                            initial={shouldAnimate ? { opacity: 0, scale: 0.95 } : false}
+                            animate={shouldAnimate ? { opacity: 1, scale: 1 } : undefined}
+                            transition={shouldAnimate ? { delay: stageIndex * 0.02 + mdIndex * 0.01 + matchIndex * 0.005, duration: 0.2 } : undefined}
                           >
                             <LiveMatchCard match={match}>
                               <Card 
@@ -465,7 +468,7 @@ export function MatchFixtures({
                                 </div>
 
                                 {/* Teams - Horizontal Layout */}
-                                <div className="grid grid-cols-[minmax(0,1fr)_58px_minmax(0,1fr)] items-center gap-1 py-1 sm:grid-cols-[minmax(0,1fr)_68px_minmax(0,1fr)] sm:gap-2 sm:py-2">
+                                <div className="grid grid-cols-[minmax(0,1fr)_50px_minmax(0,1fr)] items-center gap-1 py-1 sm:grid-cols-[minmax(0,1fr)_68px_minmax(0,1fr)] sm:gap-2 sm:py-2">
                                   {/* Home Team */}
                                   <div className="min-w-0 flex-1">
                                     {homeNationId ? (
@@ -481,9 +484,9 @@ export function MatchFixtures({
                                         style={{ "--team-color": homeColor, "--shadow-color": getTextShadowColor() } as TeamAccentStyle}
                                       >
                                         <NationFlag
-                                          className="h-4 w-6 shrink-0 sm:h-5 sm:w-7"
+                                          className="h-3.5 w-5 shrink-0 sm:h-5 sm:w-7"
                                           emoji={getNationFlag(match.homeTeam)}
-                                          fallbackClassName="text-base sm:text-xl"
+                                          fallbackClassName="text-sm sm:text-xl"
                                           label={match.homeTeam}
                                           nationId={homeNationId}
                                         />
@@ -499,9 +502,9 @@ export function MatchFixtures({
                                     ) : (
                                       <div className="flex min-w-0 items-center gap-1 sm:gap-2">
                                         <NationFlag
-                                          className="h-4 w-6 shrink-0 sm:h-5 sm:w-7"
+                                          className="h-3.5 w-5 shrink-0 sm:h-5 sm:w-7"
                                           emoji={getNationFlag(match.homeTeam)}
-                                          fallbackClassName="text-base sm:text-xl"
+                                          fallbackClassName="text-sm sm:text-xl"
                                           label={match.homeTeam}
                                           nationId={homeNationId}
                                         />
@@ -541,9 +544,9 @@ export function MatchFixtures({
                                           </span>
                                         </span>
                                         <NationFlag
-                                          className="h-4 w-6 shrink-0 sm:h-5 sm:w-7"
+                                          className="h-3.5 w-5 shrink-0 sm:h-5 sm:w-7"
                                           emoji={getNationFlag(match.awayTeam)}
-                                          fallbackClassName="text-base sm:text-xl"
+                                          fallbackClassName="text-sm sm:text-xl"
                                           label={match.awayTeam}
                                           nationId={awayNationId}
                                         />
@@ -555,9 +558,9 @@ export function MatchFixtures({
                                           <span className="hidden sm:inline">{getTranslatedTeamName(match.awayTeam)}</span>
                                         </span>
                                         <NationFlag
-                                          className="h-4 w-6 shrink-0 sm:h-5 sm:w-7"
+                                          className="h-3.5 w-5 shrink-0 sm:h-5 sm:w-7"
                                           emoji={getNationFlag(match.awayTeam)}
-                                          fallbackClassName="text-base sm:text-xl"
+                                          fallbackClassName="text-sm sm:text-xl"
                                           label={match.awayTeam}
                                           nationId={awayNationId}
                                         />
@@ -587,9 +590,9 @@ export function MatchFixtures({
           return (
             <motion.div
               key={stage}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: stageIndex * 0.02, duration: 0.3 }}
+              initial={shouldAnimate ? { opacity: 0, y: 10 } : false}
+              animate={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
+              transition={shouldAnimate ? { delay: stageIndex * 0.02, duration: 0.3 } : undefined}
             >
               <div className="flex items-center gap-2 mb-3">
                 <Calendar className="h-4 w-4 text-primary" />
@@ -614,9 +617,9 @@ export function MatchFixtures({
                   return (
                     <motion.div
                       key={match.id}
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: stageIndex * 0.02 + matchIndex * 0.01, duration: 0.2 }}
+                      initial={shouldAnimate ? { opacity: 0, scale: 0.95 } : false}
+                      animate={shouldAnimate ? { opacity: 1, scale: 1 } : undefined}
+                      transition={shouldAnimate ? { delay: stageIndex * 0.02 + matchIndex * 0.01, duration: 0.2 } : undefined}
                     >
                       <LiveMatchCard match={match}>
                         <Card 
@@ -638,7 +641,7 @@ export function MatchFixtures({
                           </div>
 
                           {/* Teams - Horizontal Layout */}
-                          <div className="grid grid-cols-[minmax(0,1fr)_58px_minmax(0,1fr)] items-center gap-1 py-1 sm:grid-cols-[minmax(0,1fr)_68px_minmax(0,1fr)] sm:gap-2 sm:py-2">
+                          <div className="grid grid-cols-[minmax(0,1fr)_50px_minmax(0,1fr)] items-center gap-1 py-1 sm:grid-cols-[minmax(0,1fr)_68px_minmax(0,1fr)] sm:gap-2 sm:py-2">
                             {/* Home Team */}
                             <div className="min-w-0 flex-1">
                               {homeNationId ? (
@@ -654,9 +657,9 @@ export function MatchFixtures({
                                   style={{ "--team-color": homeColor, "--shadow-color": getTextShadowColor() } as TeamAccentStyle}
                                 >
                                   <NationFlag
-                                    className="h-4 w-6 shrink-0 sm:h-5 sm:w-7"
+                                    className="h-3.5 w-5 shrink-0 sm:h-5 sm:w-7"
                                     emoji={getNationFlag(match.homeTeam)}
-                                    fallbackClassName="text-base sm:text-xl"
+                                    fallbackClassName="text-sm sm:text-xl"
                                     label={match.homeTeam}
                                     nationId={homeNationId}
                                   />
@@ -672,9 +675,9 @@ export function MatchFixtures({
                               ) : (
                                 <div className="flex min-w-0 items-center gap-1 sm:gap-2">
                                   <NationFlag
-                                    className="h-4 w-6 shrink-0 sm:h-5 sm:w-7"
+                                    className="h-3.5 w-5 shrink-0 sm:h-5 sm:w-7"
                                     emoji={getNationFlag(match.homeTeam)}
-                                    fallbackClassName="text-base sm:text-xl"
+                                    fallbackClassName="text-sm sm:text-xl"
                                     label={match.homeTeam}
                                     nationId={homeNationId}
                                   />
@@ -714,9 +717,9 @@ export function MatchFixtures({
                                     </span>
                                   </span>
                                   <NationFlag
-                                    className="h-4 w-6 shrink-0 sm:h-5 sm:w-7"
+                                    className="h-3.5 w-5 shrink-0 sm:h-5 sm:w-7"
                                     emoji={getNationFlag(match.awayTeam)}
-                                    fallbackClassName="text-base sm:text-xl"
+                                    fallbackClassName="text-sm sm:text-xl"
                                     label={match.awayTeam}
                                     nationId={awayNationId}
                                   />
@@ -728,9 +731,9 @@ export function MatchFixtures({
                                     <span className="hidden sm:inline">{getTranslatedTeamName(match.awayTeam)}</span>
                                   </span>
                                   <NationFlag
-                                    className="h-4 w-6 shrink-0 sm:h-5 sm:w-7"
+                                    className="h-3.5 w-5 shrink-0 sm:h-5 sm:w-7"
                                     emoji={getNationFlag(match.awayTeam)}
-                                    fallbackClassName="text-base sm:text-xl"
+                                    fallbackClassName="text-sm sm:text-xl"
                                     label={match.awayTeam}
                                     nationId={awayNationId}
                                   />

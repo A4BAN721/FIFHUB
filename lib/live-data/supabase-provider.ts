@@ -17,6 +17,9 @@ type LiveMatchStateRow = {
   stoppage_time?: number | null;
   started_at: string | null;
   final_score_confirmed_at?: string | null;
+  highlights_url?: string | null;
+  highlights_title?: string | null;
+  highlights_published_at?: string | null;
   home_possession?: number | null;
   away_possession?: number | null;
   home_shots?: number | null;
@@ -138,6 +141,9 @@ function mapLiveMatch(state: LiveMatchStateRow, eventRows: MatchEventRow[]): Liv
     stoppageMinute: state.stoppage_minute ?? state.stoppage_time,
     startedAt: state.started_at,
     finalScoreConfirmedAt: state.final_score_confirmed_at,
+    highlightsUrl: state.highlights_url,
+    highlightsTitle: state.highlights_title,
+    highlightsPublishedAt: state.highlights_published_at,
     updatedAt: state.updated_at,
     statistics: mapStatistics(state),
     events,

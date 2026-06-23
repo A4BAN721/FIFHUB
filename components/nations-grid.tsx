@@ -172,7 +172,7 @@ export function NationsGrid({ initialSelectedNationId, onNationBack }: NationsGr
               </h3>
               <div className="flex-1 h-px bg-border/50" />
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
               {section.nations.map((nation, index) => (
                 <NationCard
                   key={nation.id}

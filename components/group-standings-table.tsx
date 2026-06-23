@@ -577,7 +577,7 @@ export function GroupStandingsTable() {
         </div>
       </div>
 
-      <Table className="table-fixed text-[8px] sm:text-sm">
+      <Table className="table-fixed text-[9px] sm:text-sm">
         <colgroup>
           <col className="w-[42%] sm:w-[42%]" />
           <col className="w-[7.25%] sm:w-auto" />
@@ -591,15 +591,15 @@ export function GroupStandingsTable() {
         </colgroup>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className="h-6 px-0.5 text-[7px] leading-none sm:h-10 sm:px-2 sm:text-sm">{t("nation")}</TableHead>
-            <TableHead className="h-6 px-0 text-center text-[7px] leading-none sm:h-10 sm:px-2 sm:text-sm">{t("playedShort")}</TableHead>
-            <TableHead className="h-6 px-0 text-center text-[7px] leading-none sm:h-10 sm:px-2 sm:text-sm">{t("winsShort")}</TableHead>
-            <TableHead className="h-6 px-0 text-center text-[7px] leading-none sm:h-10 sm:px-2 sm:text-sm">{t("drawsShort")}</TableHead>
-            <TableHead className="h-6 px-0 text-center text-[7px] leading-none sm:h-10 sm:px-2 sm:text-sm">{t("lossesShort")}</TableHead>
-            <TableHead className="h-6 px-0 text-center text-[7px] leading-none sm:h-10 sm:px-2 sm:text-sm">{t("goalsForShort")}</TableHead>
-            <TableHead className="h-6 px-0 text-center text-[7px] leading-none sm:h-10 sm:px-2 sm:text-sm">{t("goalsAgainstShort")}</TableHead>
-            <TableHead className="h-6 px-0 text-center text-[7px] leading-none sm:h-10 sm:px-2 sm:text-sm">{t("goalDifferenceShort")}</TableHead>
-            <TableHead className="h-6 px-0 text-center text-[7px] font-semibold leading-none sm:h-10 sm:px-2 sm:text-sm">{t("pointsShort")}</TableHead>
+            <TableHead className="h-6 px-0.5 text-[8px] leading-none sm:h-10 sm:px-2 sm:text-sm">{t("nation")}</TableHead>
+            <TableHead className="h-6 px-0 text-center text-[8px] leading-none sm:h-10 sm:px-2 sm:text-sm">{t("playedShort")}</TableHead>
+            <TableHead className="h-6 px-0 text-center text-[8px] leading-none sm:h-10 sm:px-2 sm:text-sm">{t("winsShort")}</TableHead>
+            <TableHead className="h-6 px-0 text-center text-[8px] leading-none sm:h-10 sm:px-2 sm:text-sm">{t("drawsShort")}</TableHead>
+            <TableHead className="h-6 px-0 text-center text-[8px] leading-none sm:h-10 sm:px-2 sm:text-sm">{t("lossesShort")}</TableHead>
+            <TableHead className="h-6 px-0 text-center text-[8px] leading-none sm:h-10 sm:px-2 sm:text-sm">{t("goalsForShort")}</TableHead>
+            <TableHead className="h-6 px-0 text-center text-[8px] leading-none sm:h-10 sm:px-2 sm:text-sm">{t("goalsAgainstShort")}</TableHead>
+            <TableHead className="h-6 px-0 text-center text-[8px] leading-none sm:h-10 sm:px-2 sm:text-sm">{t("goalDifferenceShort")}</TableHead>
+            <TableHead className="h-6 px-0 text-center text-[8px] font-semibold leading-none sm:h-10 sm:px-2 sm:text-sm">{t("pointsShort")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -621,17 +621,17 @@ export function GroupStandingsTable() {
                     className="flex min-w-0 items-center gap-0.5 text-left sm:gap-2"
                     onClick={() => openNation(row.nation.id)}
                   >
-                    <span className="w-2.5 shrink-0 text-[7px] font-semibold text-muted-foreground sm:w-5 sm:text-xs">
+                    <span className="w-2.5 shrink-0 text-[8px] font-semibold text-muted-foreground sm:w-5 sm:text-xs">
                       {formatNumber(index + 1)}
                     </span>
                     <NationFlag
-                      className="h-2.5 w-3.5 shrink-0 sm:h-4 sm:w-6"
+                      className="h-3 w-4 shrink-0 sm:h-4 sm:w-6"
                       emoji={row.nation.flag}
-                      fallbackClassName="text-[10px] sm:text-base"
+                      fallbackClassName="text-xs sm:text-base"
                       label={row.nation.name}
                       nationId={row.nation.id}
                     />
-                    <span className="min-w-0 whitespace-normal break-words text-[7.5px] font-semibold leading-tight text-foreground sm:hidden">
+                    <span className="min-w-0 whitespace-normal break-words text-[8.5px] font-semibold leading-tight text-foreground sm:hidden">
                       {getTranslatedTeamName(row.nation)}
                     </span>
                     <span className="hidden min-w-0 truncate text-sm font-medium text-foreground sm:inline">

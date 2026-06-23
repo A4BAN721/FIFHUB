@@ -84,6 +84,9 @@ export interface LiveMatch {
   stoppageMinute?: number | null;
   startedAt?: string | null;
   finalScoreConfirmedAt?: string | null;
+  highlightsUrl?: string | null;
+  highlightsTitle?: string | null;
+  highlightsPublishedAt?: string | null;
   updatedAt: string;
   statistics: MatchStatistics;
   events: MatchEvent[];

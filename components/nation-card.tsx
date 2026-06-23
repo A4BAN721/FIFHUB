@@ -6,6 +6,7 @@ import { useLanguage } from "./language-provider";
 import { Card } from "@/components/ui/card";
 import { NationFlag } from "./nation-flag";
 import { motion } from "framer-motion";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface NationCardProps {
   nation: Nation;
@@ -19,8 +20,9 @@ type NationCardStyle = React.CSSProperties & {
 
 export function NationCard({ nation, onClick, index }: NationCardProps) {
   const { t, language } = useLanguage();
+  const isMobile = useIsMobile();
+  const shouldAnimate = !isMobile;
   const labelSpacingClass = language === "bn" ? "" : "uppercase tracking-[0.35em]";
-  const mutedPillSpacingClass = language === "bn" ? "" : "uppercase tracking-[0.3em]";
 
   const formatSquadValue = (value: string): string => {
     if (language !== "bn") return value;
@@ -88,14 +90,15 @@ export function NationCard({ nation, onClick, index }: NationCardProps) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.03, duration: 0.4 }}
+      className="[content-visibility:auto] [contain-intrinsic-size:150px]"
+      initial={shouldAnimate ? { opacity: 0, y: 20 } : false}
+      animate={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
+      transition={shouldAnimate ? { delay: index * 0.03, duration: 0.4 } : undefined}
     >
       <Card
         onClick={onClick}
         style={cardStyle}
-        className="group relative cursor-pointer overflow-hidden rounded-xl border border-border/20 bg-card/20 py-0 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-[var(--tab-color)] hover:shadow-[0_24px_90px_-40px_rgba(0,0,0,0.25)] sm:rounded-[1.75rem]"
+        className="group relative cursor-pointer overflow-hidden rounded-xl border border-border/20 bg-card/20 py-0 backdrop-blur-xl transition-all duration-300 hover:border-[var(--tab-color)] sm:rounded-[1.75rem] sm:hover:-translate-y-1 sm:hover:shadow-[0_24px_90px_-40px_rgba(0,0,0,0.25)]"
       >
         <div className="absolute inset-0 opacity-40 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.14),transparent_28%),radial-gradient(circle_at_bottom_right,_rgba(0,0,0,0.08),transparent_40%)]" />
 
@@ -110,11 +113,11 @@ export function NationCard({ nation, onClick, index }: NationCardProps) {
                 label={nation.name}
                 nationId={nation.id}
               />
-              <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-2">
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <h3 className="min-w-0 truncate text-[10px] font-semibold leading-tight text-foreground transition-colors group-hover:text-[var(--tab-color)] sm:text-lg">
                   {getTranslatedCountryName(nation.id)}
                 </h3>
-                <p className={`shrink-0 text-[8px] leading-none text-muted-foreground sm:text-xs ${language === "bn" ? "" : "uppercase tracking-[0.08em] sm:tracking-[0.24em]"}`}>
+                <p className={`min-w-0 truncate text-[8px] leading-none text-muted-foreground sm:text-xs ${language === "bn" ? "" : "uppercase tracking-[0.08em] sm:tracking-[0.24em]"}`}>
                   {getTranslatedConfederation(nation.confederation)}
                 </p>
               </div>
@@ -122,19 +125,17 @@ export function NationCard({ nation, onClick, index }: NationCardProps) {
           </div>
 
           <div style={lowerPanelStyle} className="-mx-2.5 -mb-2.5 mt-3 space-y-2 p-2.5 sm:-mx-5 sm:-mb-5 sm:mt-6 sm:space-y-3 sm:p-5">
-            <div className="flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/75 p-2 shadow-[0_16px_45px_-28px_rgba(0,0,0,0.9)] sm:gap-3 sm:rounded-[1.5rem] sm:p-4">
-              <div className="min-w-0">
-                <div className="hidden">
-                  <span className="text-foreground">⚽</span>
+            <div className="rounded-lg border border-white/10 bg-black/75 p-2 shadow-[0_16px_45px_-28px_rgba(0,0,0,0.9)] sm:rounded-[1.5rem] sm:p-4">
+              <div className="min-w-0 space-y-1.5">
+                <div>
+                  <p className={`truncate text-[6px] leading-none text-white/70 sm:text-[10px] ${labelSpacingClass}`}>{t("players")}</p>
+                  <p className="truncate text-[9px] font-semibold text-white sm:text-sm">{nation.players.length}</p>
                 </div>
                 <div>
                   <p className={`truncate text-[6px] leading-none text-white/70 sm:text-[10px] ${labelSpacingClass}`}>{t("squadValue")}</p>
                   <p className="truncate text-[9px] font-semibold text-white sm:text-sm">{formatSquadValue(nation.totalSquadValue)}</p>
                 </div>
               </div>
-              <span className={`shrink-0 rounded-full bg-white/10 px-1.5 py-0.5 text-[7px] text-white sm:px-3 sm:py-1 sm:text-[11px] ${mutedPillSpacingClass}`}>
-                {nation.players.length} {t("players").toLowerCase()}
-              </span>
             </div>
           </div>
         </div>
