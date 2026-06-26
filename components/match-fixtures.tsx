@@ -24,6 +24,8 @@ interface MatchFixturesProps {
   initialSearch?: string;
   initialSelectedStage?: string;
   onViewChange?: (view: { search: string; selectedStage: string }) => void;
+  mountFloatingControls?: boolean;
+  showFloatingControls?: boolean;
 }
 
 type TeamAccentStyle = CSSProperties & {
@@ -35,6 +37,8 @@ export function MatchFixtures({
   initialSearch = "",
   initialSelectedStage = "ALL",
   onViewChange,
+  mountFloatingControls = false,
+  showFloatingControls = false,
 }: MatchFixturesProps) {
   const { t, language } = useLanguage();
   const { resolvedTheme } = useTheme();
@@ -139,7 +143,7 @@ export function MatchFixtures({
     if (!Number.isFinite(kickoffTime)) return false;
 
     const hoursFromKickoff = (kickoffTime - fixtureNow) / 3_600_000;
-    return hoursFromKickoff <= 48 && hoursFromKickoff >= -96;
+    return hoursFromKickoff <= 48;
   };
 
   const getGroupStageMatchdays = (matches: Match[]) => {
@@ -383,27 +387,33 @@ export function MatchFixtures({
     return activeTheme === "dark" ? "rgba(0, 0, 0, 0.8)" : "rgba(255, 255, 255, 0.9)";
   };
 
-  return (
-    <div className="container mx-auto px-2 py-4 sm:px-4 sm:py-6">
-      {/* Search and Stage Filter */}
-      <div className="sticky top-12 z-20 mb-4 space-y-3 rounded-b-xl bg-background/90 py-3 backdrop-blur-xl">
-        <div className="relative max-w-md mx-auto">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+  const renderControls = (floating = false) => (
+    <div
+      className={
+        floating
+          ? `fixed left-0 right-0 top-0 z-[80] border-b border-border/40 bg-background/95 px-3 pb-4 pt-16 shadow-2xl backdrop-blur-xl transition-all duration-200 ease-out sm:pt-20 ${
+              showFloatingControls ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0"
+            }`
+          : "mb-4 space-y-3"
+      }
+    >
+      <div className="mx-auto max-w-5xl space-y-3">
+        <div className="relative mx-auto max-w-md">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder={t("searchMatches")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-10 bg-card/80 backdrop-blur-sm border-border/50"
+            className="border-border/50 bg-card/80 pl-10 backdrop-blur-sm"
           />
         </div>
 
-        {/* Stage Filter */}
-        <div className="flex flex-wrap gap-2 justify-center">
+        <div className="flex flex-wrap justify-center gap-2">
           {stages.map((stage) => (
             <button
               key={stage}
               onClick={() => setSelectedStage(stage)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
                 selectedStage === stage
                   ? "bg-primary text-primary-foreground"
                   : "bg-card/80 text-muted-foreground hover:bg-card"
@@ -417,6 +427,13 @@ export function MatchFixtures({
           {t("clickNationToViewSquad")}
         </p>
       </div>
+    </div>
+  );
+
+  return (
+    <div className="container mx-auto px-2 py-4 sm:px-4 sm:py-6">
+      {renderControls()}
+      {mountFloatingControls && renderControls(true)}
 
       {/* Matches by Stage */}
       <div className="space-y-5 sm:space-y-6">
@@ -485,14 +502,14 @@ export function MatchFixtures({
                               
                               <div className="relative flex min-h-[122px] flex-col justify-between p-2 sm:min-h-[136px] sm:p-3">
                                 {/* Group name at top right for Group Stage */}
-                                <div className="absolute right-1.5 top-1.5 sm:right-2 sm:top-2">
+                                <div className="absolute right-1.5 top-5 sm:right-2 sm:top-2">
                                   <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[8px] text-primary sm:px-2 sm:text-[9px]">
                                     {getTranslatedGroup(match.group || "")}
                                   </span>
                                 </div>
 
                                 {/* Date and Time for Group Stage */}
-                                <div className="flex items-center justify-center pt-5 sm:pt-6">
+                                <div className="flex items-center justify-center pt-9 sm:pt-6">
                                   <span className="flex max-w-[calc(100%-4.5rem)] flex-col items-center gap-0.5 text-[8px] leading-tight text-muted-foreground sm:block sm:text-[10px]">
                                     <span className="font-semibold sm:hidden">{getTranslatedTime(match.time)}</span>
                                     <span className="truncate sm:hidden">{getTranslatedDate(match.date)}</span>

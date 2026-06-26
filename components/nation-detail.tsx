@@ -344,7 +344,7 @@ function PlayerCard({ player, nationColors, index, t, onSelect }: PlayerCardProp
         <div className="p-3">
           <div className="flex items-center gap-3">
             <div
-              className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-md border-2 bg-muted/70 text-2xl font-black leading-none text-foreground tabular-nums tracking-tight"
+              className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-md border-2 bg-muted/70 text-[2.35rem] font-black leading-none text-foreground tabular-nums tracking-tighter"
               style={{
                 borderColor: `${nationColors.primary}30`,
                 backgroundColor: `${nationColors.secondary}15`,

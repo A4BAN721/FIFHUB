@@ -148,6 +148,12 @@ function mergeDefinedStatistics(
       awayShots: state.awayShots,
       homeShotsOnTarget: state.homeShotsOnTarget,
       awayShotsOnTarget: state.awayShotsOnTarget,
+      homeExpectedGoals: state.homeExpectedGoals,
+      awayExpectedGoals: state.awayExpectedGoals,
+      homePasses: state.homePasses,
+      awayPasses: state.awayPasses,
+      homePassingAccuracy: state.homePassingAccuracy,
+      awayPassingAccuracy: state.awayPassingAccuracy,
       homeYellowCards: state.homeYellowCards,
       awayYellowCards: state.awayYellowCards,
       homeRedCards: state.homeRedCards,
@@ -156,6 +162,8 @@ function mergeDefinedStatistics(
       awayCorners: state.awayCorners,
       homeFouls: state.homeFouls,
       awayFouls: state.awayFouls,
+      homeOffsides: state.homeOffsides,
+      awayOffsides: state.awayOffsides,
     }),
   };
 }

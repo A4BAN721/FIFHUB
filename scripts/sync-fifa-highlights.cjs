@@ -233,11 +233,15 @@ function buildHighlightSearchQueries(fixture) {
 
   for (const homeAlias of homeNames.slice(0, 4)) {
     for (const awayAlias of awayNames.slice(0, 4)) {
+      queries.push(`${homeAlias} v ${awayAlias} FIFA World Cup 26 highlights`);
       queries.push(`FIFA ${homeAlias} vs ${awayAlias} highlights World Cup 2026`);
       queries.push(`FIFA ${homeAlias} ${awayAlias} highlights`);
     }
   }
 
+  queries.push(`${fixture.home_team} v ${fixture.away_team} FIFA World Cup 26 highlights`);
+  queries.push(`${fixture.home_team} vs ${fixture.away_team} FIFA World Cup 2026 highlights`);
+  queries.push(`${fixture.home_team} ${fixture.away_team} FIFA highlights`);
   queries.push(`FIFA ${fixture.home_team} ${fixture.away_team} highlights`);
   queries.push(`FIFA ${fixture.away_team} ${fixture.home_team} highlights`);
   queries.push(`World Cup 2026 ${fixture.home_team} vs ${fixture.away_team} highlights`);
@@ -421,7 +425,7 @@ async function loadFinishedStatesMissingHighlights() {
     .select("match_id, status, final_score_confirmed_at, highlights_url, highlights_title")
     .not("final_score_confirmed_at", "is", null)
     .order("final_score_confirmed_at", { ascending: false })
-    .limit(Number(process.env.HIGHLIGHTS_MATCH_LIMIT ?? 40));
+    .limit(Number(process.env.HIGHLIGHTS_MATCH_LIMIT ?? 120));
 
   if (!shouldRecheckExisting) {
     query = query.is("highlights_url", null);
@@ -451,10 +455,11 @@ async function updateHighlightCheck(matchId, { url, title, publishedAt, checkedA
 function findHighlightVideo(videos, fixture) {
   const home = normalizeTeamName(fixture.home_team);
   const away = normalizeTeamName(fixture.away_team);
+  const minimumScore = Number(process.env.HIGHLIGHTS_MIN_SCORE ?? 5);
 
   return videos
     .map((video) => ({ video, score: scoreHighlightVideo(video, home, away) }))
-    .filter((candidate) => candidate.score >= 6)
+    .filter((candidate) => candidate.score >= minimumScore)
     .sort((a, b) => b.score - a.score)[0]?.video ?? null;
 }
 
@@ -488,7 +493,14 @@ function scoreHighlightVideo(video, home, away) {
   let score = 0;
   if (title.includes("highlight")) score += 4;
   if (title.includes("match recap")) score += 3;
-  if (title.includes("fifa world cup 2026") || title.includes("world cup 2026")) score += 2;
+  if (
+    title.includes("fifa world cup 2026") ||
+    title.includes("world cup 2026") ||
+    title.includes("fifa world cup 26") ||
+    title.includes("world cup 26")
+  ) {
+    score += 2;
+  }
   if (title.includes("fifa")) score += 1;
   if (/\b(v|vs)\b/.test(title)) score += 1;
   if (video.channelTitle && normalizeText(video.channelTitle) === "fifa") score += 2;

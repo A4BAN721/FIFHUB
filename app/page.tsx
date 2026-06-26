@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Header } from "@/components/header";
 import { NationsGrid } from "@/components/nations-grid";
 import { TriondaBackground } from "@/components/trionda-background";
@@ -18,7 +18,10 @@ export default function Home() {
   const [returnTab, setReturnTab] = useState<string | null>(null);
   const [returnScrollY, setReturnScrollY] = useState<number | null>(null);
   const [fixturesView, setFixturesView] = useState({ search: "", selectedStage: "ALL" });
-  const [showTopShell, setShowTopShell] = useState(true);
+  const [showFloatingChrome, setShowFloatingChrome] = useState(false);
+  const [hasScrolledAway, setHasScrolledAway] = useState(false);
+  const [matchDetailsOpen, setMatchDetailsOpen] = useState(false);
+  const tabsStartRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const handleNationSelection = (event: CustomEvent) => {
@@ -44,14 +47,22 @@ export default function Home() {
     let previousY = window.scrollY;
 
     const handleScroll = () => {
-      const nextY = window.scrollY;
-      const isScrollingUp = nextY < previousY - 8;
-      const isNearTop = nextY < 80;
+      if (matchDetailsOpen) {
+        setShowFloatingChrome(false);
+        previousY = window.scrollY;
+        return;
+      }
 
-      if (isScrollingUp || isNearTop) {
-        setShowTopShell(true);
-      } else if (nextY > previousY + 8 && nextY > 120) {
-        setShowTopShell(false);
+      const nextY = window.scrollY;
+      const isAwayFromTop = nextY > 160;
+      setHasScrolledAway(isAwayFromTop);
+
+      if (!isAwayFromTop) {
+        setShowFloatingChrome(false);
+      } else if (nextY < previousY - 8) {
+        setShowFloatingChrome(true);
+      } else if (nextY > previousY + 8) {
+        setShowFloatingChrome(false);
       }
 
       previousY = nextY;
@@ -59,12 +70,35 @@ export default function Home() {
 
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
+  }, [matchDetailsOpen]);
+
+  useEffect(() => {
+    const handleMatchDetailsVisibility = (event: CustomEvent<{ open: boolean }>) => {
+      setMatchDetailsOpen(Boolean(event.detail?.open));
+      if (event.detail?.open) {
+        setShowFloatingChrome(false);
+      }
+    };
+
+    window.addEventListener("matchDetailsVisibilityChange", handleMatchDetailsVisibility as EventListener);
+    return () => {
+      window.removeEventListener("matchDetailsVisibilityChange", handleMatchDetailsVisibility as EventListener);
+    };
   }, []);
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
     setReturnTab(null);
     setReturnScrollY(null);
+    setShowFloatingChrome(false);
+    window.requestAnimationFrame(() => {
+      const tabsStartTop = tabsStartRef.current?.getBoundingClientRect().top ?? 0;
+      window.scrollTo({
+        top: window.scrollY + tabsStartTop,
+        left: 0,
+        behavior: "auto",
+      });
+    });
     if (value === "squads") {
       setSelectedNationId(null);
     }
@@ -83,22 +117,26 @@ export default function Home() {
     }
   };
 
+  const mountFloatingFixturesChrome = activeTab === "fixtures" && hasScrolledAway && !matchDetailsOpen;
+  const showFloatingFixturesChrome = mountFloatingFixturesChrome && showFloatingChrome;
+
   return (
     <main className="min-h-screen relative">
       <TriondaBackground />
       <div className="relative z-10">
-        <div
-          className={`sticky top-0 z-40 border-b border-border/30 bg-background/90 shadow-sm backdrop-blur-xl transition-transform duration-200 ${
-            showTopShell ? "translate-y-0" : "-translate-y-full"
-          }`}
-        >
-          <Header />
-        </div>
+        <Header />
         <div className="container mx-auto px-4 py-6">
+          <div ref={tabsStartRef} />
           <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
             <TabsList
-              className={`sticky top-0 z-30 mx-auto mb-6 transition-transform duration-200 ${
-                showTopShell ? "translate-y-0" : "-translate-y-full"
+              className={`mx-auto mb-6 transition-all duration-200 ${
+                mountFloatingFixturesChrome
+                  ? `fixed left-1/2 top-3 z-[90] border border-border/50 bg-background/95 shadow-2xl backdrop-blur-xl ${
+                      showFloatingFixturesChrome
+                        ? "-translate-x-1/2 translate-y-0 opacity-100"
+                        : "-translate-x-1/2 -translate-y-24 opacity-0"
+                    }`
+                  : ""
               }`}
             >
               <TabsTrigger value="squads">{t("groups")}</TabsTrigger>
@@ -114,6 +152,8 @@ export default function Home() {
                 initialSearch={fixturesView.search}
                 initialSelectedStage={fixturesView.selectedStage}
                 onViewChange={setFixturesView}
+                mountFloatingControls={mountFloatingFixturesChrome}
+                showFloatingControls={showFloatingFixturesChrome}
               />
             </TabsContent>
             <TabsContent value="table" className="mt-0">

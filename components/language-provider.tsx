@@ -11,7 +11,7 @@ const translationOverrides: Record<Language, Record<string, string>> = {
     title: "FIFHUB",
     subtitle: "World Cup 2026",
     allNationsSubtitle: "12 Groups, 48 Nations",
-    groups: "Nations",
+    groups: "Squads",
     hostNations: "Host Nations",
     allOtherNations: "Qualified Nations",
     fixtures: "Fixtures",

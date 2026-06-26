@@ -36,6 +36,12 @@ export interface LiveRealtimeState {
   awayShots?: number;
   homeShotsOnTarget?: number;
   awayShotsOnTarget?: number;
+  homeExpectedGoals?: number;
+  awayExpectedGoals?: number;
+  homePasses?: number;
+  awayPasses?: number;
+  homePassingAccuracy?: number;
+  awayPassingAccuracy?: number;
   homeYellowCards?: number;
   awayYellowCards?: number;
   homeRedCards?: number;
@@ -44,6 +50,8 @@ export interface LiveRealtimeState {
   awayCorners?: number;
   homeFouls?: number;
   awayFouls?: number;
+  homeOffsides?: number;
+  awayOffsides?: number;
 }
 
 /**
@@ -91,6 +99,12 @@ type LiveMatchStateRow = {
   away_shots?: number | null;
   home_shots_on_target?: number | null;
   away_shots_on_target?: number | null;
+  home_expected_goals?: number | null;
+  away_expected_goals?: number | null;
+  home_passes?: number | null;
+  away_passes?: number | null;
+  home_passing_accuracy?: number | null;
+  away_passing_accuracy?: number | null;
   home_yellow_cards?: number | null;
   away_yellow_cards?: number | null;
   home_red_cards?: number | null;
@@ -99,6 +113,8 @@ type LiveMatchStateRow = {
   away_corners?: number | null;
   home_fouls?: number | null;
   away_fouls?: number | null;
+  home_offsides?: number | null;
+  away_offsides?: number | null;
 };
 
 type MatchEventRow = {
@@ -205,6 +221,12 @@ export function useLiveMatchRealtime({
               awayShots: data.away_shots ?? undefined,
               homeShotsOnTarget: data.home_shots_on_target ?? undefined,
               awayShotsOnTarget: data.away_shots_on_target ?? undefined,
+              homeExpectedGoals: data.home_expected_goals ?? undefined,
+              awayExpectedGoals: data.away_expected_goals ?? undefined,
+              homePasses: data.home_passes ?? undefined,
+              awayPasses: data.away_passes ?? undefined,
+              homePassingAccuracy: data.home_passing_accuracy ?? undefined,
+              awayPassingAccuracy: data.away_passing_accuracy ?? undefined,
               homeYellowCards: data.home_yellow_cards ?? undefined,
               awayYellowCards: data.away_yellow_cards ?? undefined,
               homeRedCards: data.home_red_cards ?? undefined,
@@ -213,6 +235,8 @@ export function useLiveMatchRealtime({
               awayCorners: data.away_corners ?? undefined,
               homeFouls: data.home_fouls ?? undefined,
               awayFouls: data.away_fouls ?? undefined,
+              homeOffsides: data.home_offsides ?? undefined,
+              awayOffsides: data.away_offsides ?? undefined,
             };
 
             setLiveState(newState);
@@ -258,6 +282,12 @@ export function useLiveMatchRealtime({
               awayShots: data.awayShots,
               homeShotsOnTarget: data.homeShotsOnTarget,
               awayShotsOnTarget: data.awayShotsOnTarget,
+              homeExpectedGoals: data.homeExpectedGoals,
+              awayExpectedGoals: data.awayExpectedGoals,
+              homePasses: data.homePasses,
+              awayPasses: data.awayPasses,
+              homePassingAccuracy: data.homePassingAccuracy,
+              awayPassingAccuracy: data.awayPassingAccuracy,
               homeYellowCards: data.homeYellowCards,
               awayYellowCards: data.awayYellowCards,
               homeRedCards: data.homeRedCards,
@@ -266,6 +296,8 @@ export function useLiveMatchRealtime({
               awayCorners: data.awayCorners,
               homeFouls: data.homeFouls,
               awayFouls: data.awayFouls,
+              homeOffsides: data.homeOffsides,
+              awayOffsides: data.awayOffsides,
             };
 
             setLiveState(newState);

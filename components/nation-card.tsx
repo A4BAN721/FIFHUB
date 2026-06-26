@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { NationFlag } from "./nation-flag";
 import { motion } from "framer-motion";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { getFifaWorldRanking } from "@/lib/fifa-rankings";
 
 interface NationCardProps {
   nation: Nation;
@@ -23,6 +24,7 @@ export function NationCard({ nation, onClick, index }: NationCardProps) {
   const isMobile = useIsMobile();
   const shouldAnimate = !isMobile;
   const labelSpacingClass = language === "bn" ? "" : "uppercase tracking-[0.35em]";
+  const fifaRanking = getFifaWorldRanking(nation.id);
 
   const formatSquadValue = (value: string): string => {
     if (language !== "bn") return value;
@@ -125,7 +127,12 @@ export function NationCard({ nation, onClick, index }: NationCardProps) {
           </div>
 
           <div style={lowerPanelStyle} className="-mx-2.5 -mb-2.5 mt-3 space-y-2 p-2.5 sm:-mx-5 sm:-mb-5 sm:mt-6 sm:space-y-3 sm:p-5">
-            <div className="rounded-lg border border-white/10 bg-black/75 p-2 shadow-[0_16px_45px_-28px_rgba(0,0,0,0.9)] sm:rounded-[1.5rem] sm:p-4">
+            <div className="relative rounded-lg border border-white/10 bg-black/75 p-2 shadow-[0_16px_45px_-28px_rgba(0,0,0,0.9)] sm:rounded-[1.5rem] sm:p-4">
+              {fifaRanking && (
+                <div className="absolute right-2 top-2 rounded-full border border-white/10 bg-white/10 px-2 py-0.5 text-[9px] font-black leading-none text-white shadow-sm backdrop-blur-sm sm:right-3 sm:top-3 sm:text-xs">
+                  #{fifaRanking}
+                </div>
+              )}
               <div className="min-w-0 space-y-1.5">
                 <div>
                   <p className={`truncate text-[6px] leading-none text-white/70 sm:text-[10px] ${labelSpacingClass}`}>{t("players")}</p>

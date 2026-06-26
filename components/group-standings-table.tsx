@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import type { Match } from "@/lib/match-fixtures";
 import type { Nation } from "@/lib/world-cup-data";
 import { matchFixtures as fallbackMatchFixtures } from "@/lib/match-fixtures";
@@ -44,6 +45,10 @@ type MatchWithOptionalScore = Match &
     finalScoreConfirmedAt: string | null;
     updatedAt: string | null;
   }>;
+
+type NationHoverStyle = CSSProperties & {
+  "--nation-primary": string;
+};
 
 type ScoreboardApiMatch = {
   id: string;
@@ -562,6 +567,10 @@ export function GroupStandingsTable() {
     );
   };
 
+  const getNationHoverStyle = (nation: Nation): NationHoverStyle => ({
+    "--nation-primary": nation.jerseyColors?.primary ?? "hsl(var(--primary))",
+  });
+
   const renderStandingsTable = (
     title: string,
     rows: StandingRow[],
@@ -618,7 +627,8 @@ export function GroupStandingsTable() {
               >
                 <TableCell className="p-0.5 sm:p-2">
                   <button
-                    className="flex min-w-0 items-center gap-0.5 text-left sm:gap-2"
+                    className="group flex min-w-0 cursor-pointer items-center gap-0.5 text-left sm:gap-2"
+                    style={getNationHoverStyle(row.nation)}
                     onClick={() => openNation(row.nation.id)}
                   >
                     <span className="w-2.5 shrink-0 text-[8px] font-semibold text-muted-foreground sm:w-5 sm:text-xs">
@@ -631,10 +641,10 @@ export function GroupStandingsTable() {
                       label={row.nation.name}
                       nationId={row.nation.id}
                     />
-                    <span className="min-w-0 whitespace-normal break-words text-[8.5px] font-semibold leading-tight text-foreground sm:hidden">
+                    <span className="min-w-0 whitespace-normal break-words text-[8.5px] font-semibold leading-tight text-foreground transition-colors group-hover:text-[var(--nation-primary)] sm:hidden">
                       {getTranslatedTeamName(row.nation)}
                     </span>
-                    <span className="hidden min-w-0 truncate text-sm font-medium text-foreground sm:inline">
+                    <span className="hidden min-w-0 truncate text-sm font-medium text-foreground transition-colors group-hover:text-[var(--nation-primary)] sm:inline">
                       {getTranslatedTeamName(row.nation)}
                     </span>
                     {liveNationIds.has(row.nation.id) && (
@@ -672,9 +682,19 @@ export function GroupStandingsTable() {
   return (
     <div className="container mx-auto px-0 py-4 sm:px-4 sm:py-6">
       <Tabs defaultValue="group-stage" className="w-full">
-        <TabsList className="mx-auto mb-6">
-          <TabsTrigger value="group-stage">{t("groupStage")}</TabsTrigger>
-          <TabsTrigger value="knockout-stage">{t("knockoutStage")}</TabsTrigger>
+        <TabsList className="mb-4 h-auto w-full justify-start overflow-x-auto rounded-none border-b border-border/50 bg-transparent p-0">
+          <TabsTrigger
+            value="group-stage"
+            className="rounded-none border-b-2 border-transparent bg-transparent px-4 py-3 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+          >
+            {t("groupStage")}
+          </TabsTrigger>
+          <TabsTrigger
+            value="knockout-stage"
+            className="rounded-none border-b-2 border-transparent bg-transparent px-4 py-3 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+          >
+            {t("knockoutStage")}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="group-stage" className="mt-0">

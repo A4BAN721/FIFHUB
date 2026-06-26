@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { ReactNode, RefObject } from "react";
 import { Play, X } from "lucide-react";
 import type { Match } from "@/lib/match-fixtures";
 import { normalizeCountryName } from "@/lib/country-utils";
@@ -26,6 +26,7 @@ type LiveMatchCardProps = {
 export function LiveMatchCard({ match, children, enableLiveData = true }: LiveMatchCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const detailsScrollRef = useRef<HTMLDivElement | null>(null);
   const { liveMatch } = useLiveMatch(match.id, {
     enabled: enableLiveData,
     fallbackMatch: match,
@@ -39,6 +40,18 @@ export function LiveMatchCard({ match, children, enableLiveData = true }: LiveMa
   const sourcedMatch = getBestMatchState({ completedMatch, liveMatch, scheduledLiveMatch });
   const displayMatch = sourcedMatch ? withDisplayClock(sourcedMatch, now, match) : null;
   const shouldRunTimer = Boolean(sourcedMatch && (isMatchInProgress(sourcedMatch) || scheduledLiveMatch));
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("matchDetailsVisibilityChange", { detail: { open: isExpanded } }));
+    document.body.toggleAttribute("data-match-details-open", isExpanded);
+
+    return () => {
+      if (isExpanded) {
+        window.dispatchEvent(new CustomEvent("matchDetailsVisibilityChange", { detail: { open: false } }));
+        document.body.removeAttribute("data-match-details-open");
+      }
+    };
+  }, [isExpanded]);
 
   useEffect(() => {
     if (!shouldRunTimer) return;
@@ -76,7 +89,7 @@ export function LiveMatchCard({ match, children, enableLiveData = true }: LiveMa
         aria-label={`Open ${displayMatch.homeTeam} versus ${displayMatch.awayTeam} match details`}
       >
         {children}
-        <CompactScoreOverlay liveMatch={displayMatch} />
+        <CompactScoreOverlay liveMatch={displayMatch} fixtureStage={match.stage} />
         <CompactHighlightsLink liveMatch={displayMatch} />
       </div>
 
@@ -88,7 +101,10 @@ export function LiveMatchCard({ match, children, enableLiveData = true }: LiveMa
             onClick={() => setIsExpanded(false)}
             aria-label="Close match details"
           />
-          <Card className="relative max-h-[88vh] w-full max-w-4xl overflow-y-auto rounded-2xl border-white/15 bg-card/95 p-4 shadow-2xl shadow-black/50 sm:p-6">
+          <Card
+            ref={detailsScrollRef}
+            className="relative max-h-[88vh] w-full max-w-4xl overflow-y-auto rounded-2xl border-white/15 bg-card/95 p-4 shadow-2xl shadow-black/50 sm:p-6"
+          >
             <Button
               variant="ghost"
               size="icon"
@@ -103,7 +119,7 @@ export function LiveMatchCard({ match, children, enableLiveData = true }: LiveMa
               <ExpandedMatchHeader liveMatch={displayMatch} stadium={match.stadium} />
               <ExpandedScoreboard liveMatch={displayMatch} />
               <TeamEventSummary liveMatch={displayMatch} />
-              <MatchDetailsTabs liveMatch={displayMatch} />
+              <MatchDetailsTabs liveMatch={displayMatch} scrollContainerRef={detailsScrollRef} />
               <MatchHighlightsLink liveMatch={displayMatch} />
 
               <div className="flex items-center justify-between gap-2 border-t border-border/40 pt-3 text-xs text-muted-foreground">
@@ -153,9 +169,10 @@ function MatchHighlightsLink({ liveMatch }: { liveMatch: LiveMatch }) {
   );
 }
 
-function CompactScoreOverlay({ liveMatch }: { liveMatch: LiveMatch }) {
+function CompactScoreOverlay({ liveMatch, fixtureStage }: { liveMatch: LiveMatch; fixtureStage: string }) {
   const timerLabel = getTimerLabel(liveMatch);
   const showLiveIndicator = shouldShowLiveIndicator(liveMatch);
+  const isGroupStage = fixtureStage === "GROUP STAGE";
 
   return (
     <div className="pointer-events-none absolute inset-0 z-20">
@@ -165,10 +182,14 @@ function CompactScoreOverlay({ liveMatch }: { liveMatch: LiveMatch }) {
           aria-hidden="true"
         />
       )}
-      <span className="absolute left-2 top-2 rounded-full border border-zinc-200 bg-white px-1.5 py-0.5 text-[8px] font-black text-zinc-950 shadow-md dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:px-2 sm:text-[10px]">
+      <span
+        className={`absolute left-2 rounded-full border border-zinc-200 bg-white px-1.5 py-0.5 text-[8px] font-black text-zinc-950 shadow-md dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:px-2 sm:text-[10px] ${
+          isGroupStage ? "top-5 sm:top-2" : "top-2"
+        }`}
+      >
         {getPlayPeriodLabel(liveMatch)}
       </span>
-      <div className="absolute left-1/2 top-[53%] flex -translate-x-1/2 flex-col items-center gap-0.5">
+      <div className="absolute left-1/2 top-[55%] flex -translate-x-1/2 flex-col items-center gap-0.5 sm:top-[53%]">
         <span className="min-w-[50px] -translate-y-1/2 rounded-lg border border-zinc-200 bg-white px-1.5 py-0.5 text-center text-[11px] font-black tabular-nums leading-tight text-zinc-950 shadow-lg dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:min-w-[68px] sm:px-3 sm:py-1 sm:text-sm">
           {liveMatch.homeScore} - {liveMatch.awayScore}
         </span>
@@ -263,9 +284,35 @@ function ExpandedMatchHeader({ liveMatch, stadium }: { liveMatch: LiveMatch; sta
   );
 }
 
-function MatchDetailsTabs({ liveMatch }: { liveMatch: LiveMatch }) {
+function MatchDetailsTabs({
+  liveMatch,
+  scrollContainerRef,
+}: {
+  liveMatch: LiveMatch;
+  scrollContainerRef: RefObject<HTMLDivElement | null>;
+}) {
+  const [activeDetailsTab, setActiveDetailsTab] = useState("stats");
+  const tabPanelStartRef = useRef<HTMLDivElement | null>(null);
+
+  const handleDetailsTabChange = (value: string) => {
+    setActiveDetailsTab(value);
+    window.requestAnimationFrame(() => {
+      const scrollContainer = scrollContainerRef.current;
+      const tabPanelStart = tabPanelStartRef.current;
+      if (!scrollContainer || !tabPanelStart) return;
+
+      const containerTop = scrollContainer.getBoundingClientRect().top;
+      const panelTop = tabPanelStart.getBoundingClientRect().top;
+      scrollContainer.scrollTo({
+        top: scrollContainer.scrollTop + panelTop - containerTop,
+        left: 0,
+        behavior: "auto",
+      });
+    });
+  };
+
   return (
-    <Tabs defaultValue="stats" className="border-t border-border/40 pt-3">
+    <Tabs value={activeDetailsTab} onValueChange={handleDetailsTabChange} className="border-t border-border/40 pt-3">
       <TabsList className="grid h-9 w-full grid-cols-2">
         <TabsTrigger value="stats" className="text-xs font-black uppercase">
           Match Stats
@@ -274,6 +321,7 @@ function MatchDetailsTabs({ liveMatch }: { liveMatch: LiveMatch }) {
           Line-ups
         </TabsTrigger>
       </TabsList>
+      <div ref={tabPanelStartRef} />
       <TabsContent value="stats" className="mt-3">
         <LiveStatsPanel statistics={liveMatch.statistics} />
       </TabsContent>

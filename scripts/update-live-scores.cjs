@@ -1,5 +1,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const { execFileSync } = require("node:child_process");
 const { createClient } = require("@supabase/supabase-js");
 
 loadEnvFile(process.env.ENV_FILE_PATH ?? path.join(process.cwd(), ".env.local"));
@@ -8,6 +9,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const apiFootballKey = process.env.API_FOOTBALL_KEY;
 const footballDataKey = process.env.FOOTBALL_DATA_KEY;
+const fotmobApiBaseUrl = process.env.FOTMOB_API_BASE_URL ?? "https://www.fotmob.com/api/data";
 const isDryRun = process.argv.includes("--dry-run") || process.env.DRY_RUN === "1";
 
 if (!supabaseUrl || !serviceRoleKey) {
@@ -60,6 +62,8 @@ async function main() {
       console.log(`- ${item.fixtureId}: ${item.label} ${item.score}; goals=${item.goalCount}`);
     }
   }
+
+  runHighlightsSyncAfterScores();
 }
 
 async function syncMatches(matches, fixtureMap, options) {
@@ -79,7 +83,23 @@ async function syncMatches(matches, fixtureMap, options) {
       continue;
     }
 
-    const { fixture, scoreMatch } = resolved;
+    const { fixture } = resolved;
+    let { scoreMatch } = resolved;
+    if (match.provider === "fotmob" && shouldFetchFotmobDetails(match)) {
+      const fotmobDetails = await loadFotmobDetails(match);
+      const orientedStatistics = scoreMatch === match ? fotmobDetails.statistics : swapMatchStatistics(fotmobDetails.statistics);
+      const orientedLineups = scoreMatch === match ? fotmobDetails.lineups : swapMatchLineups(fotmobDetails.lineups);
+      const orientedEvents = scoreMatch === match ? fotmobDetails.events : swapMatchEvents(fotmobDetails.events);
+      scoreMatch = {
+        ...scoreMatch,
+        lineups: orientedLineups ?? scoreMatch.lineups ?? null,
+        events: chooseBestEvents(orientedEvents, scoreMatch.events),
+        statistics: {
+          ...(scoreMatch.statistics ?? {}),
+          ...orientedStatistics,
+        },
+      };
+    }
     const current = bestMatchByFixtureId.get(fixture.id);
     if (!current || isBetterScoreMatch(scoreMatch, current.scoreMatch)) {
       bestMatchByFixtureId.set(fixture.id, {
@@ -136,13 +156,39 @@ async function syncMatches(matches, fixtureMap, options) {
 }
 
 function chooseBestEvents(primaryEvents = [], fallbackEvents = []) {
+  if (hasProviderEvents(primaryEvents, "fotmob")) return primaryEvents;
+  if (hasProviderEvents(fallbackEvents, "fotmob")) return fallbackEvents;
   if (hasAssistData(primaryEvents)) return primaryEvents;
   if (hasAssistData(fallbackEvents)) return fallbackEvents;
   return primaryEvents.length > 0 ? primaryEvents : fallbackEvents;
 }
 
+function hasProviderEvents(events, provider) {
+  return events.some((event) => event.provider === provider);
+}
+
 function hasAssistData(events) {
   return events.some((event) => event.assistPlayerName);
+}
+
+function runHighlightsSyncAfterScores() {
+  if (process.env.RUN_HIGHLIGHTS_SYNC_AFTER_SCORES === "0") return;
+
+  const args = [path.join("scripts", "sync-fifa-highlights.cjs")];
+  if (isDryRun) args.push("--dry-run");
+
+  try {
+    execFileSync(process.execPath, args, {
+      cwd: process.cwd(),
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        HIGHLIGHTS_MATCH_LIMIT: process.env.HIGHLIGHTS_MATCH_LIMIT ?? "120",
+      },
+    });
+  } catch (error) {
+    console.warn(`FIFA highlights sync after scores failed: ${error.message}`);
+  }
 }
 
 function resolveFixtureMatch(match, fixtureMap) {
@@ -166,6 +212,37 @@ function resolveFixtureMatch(match, fixtureMap) {
   return { fixture, scoreMatch };
 }
 
+function swapMatchStatistics(statistics = {}) {
+  const swapped = {};
+  for (const [key, value] of Object.entries(statistics)) {
+    if (key.startsWith("home")) {
+      swapped[`away${key.slice(4)}`] = value;
+    } else if (key.startsWith("away")) {
+      swapped[`home${key.slice(4)}`] = value;
+    } else {
+      swapped[key] = value;
+    }
+  }
+  return swapped;
+}
+
+function swapMatchLineups(lineups) {
+  if (!lineups?.home || !lineups?.away) return lineups ?? null;
+  return {
+    ...lineups,
+    home: lineups.away,
+    away: lineups.home,
+  };
+}
+
+function swapMatchEvents(events = []) {
+  return events.map((event) => ({
+    ...event,
+    teamName: event.teamSide === "home" ? event.awayTeamName : event.teamSide === "away" ? event.homeTeamName : event.teamName,
+    teamSide: event.teamSide === "home" ? "away" : event.teamSide === "away" ? "home" : event.teamSide,
+  }));
+}
+
 async function loadFixtures() {
   const { data, error } = await supabase
     .from("match_fixtures")
@@ -179,6 +256,10 @@ async function loadProviderMatches() {
   const providerMatches = [];
 
   providerMatches.push(...await loadEspnLiveMatches());
+
+  if (process.env.FOTMOB_ENABLED === "1" || process.env.FOTMOB_API_BASE_URL) {
+    providerMatches.push(...await loadFotmobMatches());
+  }
 
   if (footballDataKey) {
     providerMatches.push(...await loadFootballDataMatches());
@@ -205,6 +286,356 @@ async function loadEspnLiveMatches() {
   }
 
   return matches;
+}
+
+async function loadFotmobMatches() {
+  const dateFrom = process.env.FOTMOB_DATE_FROM ?? process.env.ESPN_LIVE_DATE_FROM ?? "2026-06-11";
+  const dateTo = process.env.FOTMOB_DATE_TO ?? process.env.ESPN_LIVE_DATE_TO ?? offsetIsoDate(todayIsoDate(), 1);
+  const matches = [];
+
+  for (const date of enumerateIsoDates(dateFrom, dateTo)) {
+    try {
+      const json = await fotmobRequest("matches", { date: compactIsoDate(date) });
+      for (const league of json.leagues ?? []) {
+        for (const match of league.matches ?? []) {
+          const mapped = mapFotmobMatch(match, league);
+          if (mapped) matches.push(mapped);
+        }
+      }
+    } catch (error) {
+      console.warn(`FotMob matches unavailable for ${date}: ${error.message}`);
+    }
+  }
+
+  return matches;
+}
+
+function mapFotmobMatch(match, league) {
+  const homeTeam = match.home?.name ?? match.homeName;
+  const awayTeam = match.away?.name ?? match.awayName;
+  if (!match.id || !homeTeam || !awayTeam) return null;
+
+  const score = parseFotmobScore(match);
+
+  return {
+    provider: "fotmob",
+    providerMatchId: String(match.id),
+    homeTeam,
+    awayTeam,
+    homeScore: score.home,
+    awayScore: score.away,
+    minute: parseFotmobMinute(match.status?.liveTime?.short ?? match.status?.liveTime?.long),
+    stoppageMinute: null,
+    status: mapFotmobStatus(match.status),
+    phase: mapFotmobPhase(match.status),
+    kickoffTime: match.status?.utcTime ?? match.timeTS ?? match.time ?? null,
+    providerUpdatedAt: new Date().toISOString(),
+    competition: league.name,
+    events: [],
+    statistics: {},
+  };
+}
+
+function parseFotmobScore(match) {
+  const homeScore = Number(match.home?.score);
+  const awayScore = Number(match.away?.score);
+  if (Number.isFinite(homeScore) && Number.isFinite(awayScore)) {
+    return { home: homeScore, away: awayScore };
+  }
+
+  const scoreMatch = String(match.status?.scoreStr ?? "").match(/(\d+)\s*-\s*(\d+)/);
+  return {
+    home: scoreMatch ? Number(scoreMatch[1]) : 0,
+    away: scoreMatch ? Number(scoreMatch[2]) : 0,
+  };
+}
+
+function parseFotmobMinute(value) {
+  const match = String(value ?? "").match(/\d+/);
+  return match ? Number(match[0]) : null;
+}
+
+function mapFotmobStatus(status) {
+  const reason = String(status?.reason?.short ?? status?.reason?.long ?? "").toUpperCase();
+  if (status?.finished || ["FT", "AET", "PEN"].includes(reason)) return "finished";
+  if (reason === "HT") return "half_time";
+  if (status?.started || ["1H", "2H", "ET", "LIVE"].includes(reason)) return "live";
+  if (status?.cancelled) return "cancelled";
+  return "scheduled";
+}
+
+function mapFotmobPhase(status) {
+  const reason = String(status?.reason?.short ?? status?.reason?.long ?? "").toUpperCase();
+  if (["FT", "AET", "PEN"].includes(reason) || status?.finished) return "full_time";
+  if (reason === "HT") return "half_time";
+  if (reason === "1H") return "first_half";
+  if (reason === "2H") return "second_half";
+  if (reason === "ET") return "extra_time";
+  return status?.started ? "second_half" : "pre_match";
+}
+
+function shouldFetchFotmobDetails(match) {
+  return Boolean(match.providerMatchId);
+}
+
+async function loadFotmobDetails(match) {
+  try {
+    const json = await fotmobRequest("matchDetails", { matchId: match.providerMatchId });
+    return {
+      statistics: mapFotmobStatistics(json),
+      lineups: mapFotmobLineups(json, match),
+      events: mapFotmobEvents(json, match),
+    };
+  } catch (error) {
+    console.warn(`FotMob details unavailable for ${match.homeTeam} vs ${match.awayTeam}: ${error.message}`);
+    return { statistics: {}, lineups: null, events: [] };
+  }
+}
+
+async function fotmobRequest(endpoint, params) {
+  const baseUrl = fotmobApiBaseUrl.endsWith("/") ? fotmobApiBaseUrl : `${fotmobApiBaseUrl}/`;
+  const url = new URL(endpoint, baseUrl);
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, String(value));
+  }
+
+  const response = await fetchWithRetry(url, {
+    headers: {
+      accept: "application/json",
+      "user-agent": "fifhub-live-score-updater/1.0",
+    },
+  }, `FotMob ${endpoint}`);
+
+  if (!response.ok) {
+    throw new Error(`FotMob returned ${response.status}`);
+  }
+
+  return response.json();
+}
+
+function mapFotmobStatistics(details) {
+  const rows = collectFotmobStatRows(details?.content?.stats);
+
+  return compactObject({
+    homeExpectedGoals: fotmobStat(rows, ["expectedgoalsxg", "expectedgoals", "xg"]),
+    awayExpectedGoals: fotmobStat(rows, ["expectedgoalsxg", "expectedgoals", "xg"], "away"),
+    homeShots: fotmobStat(rows, ["totalshots", "shots"]),
+    awayShots: fotmobStat(rows, ["totalshots", "shots"], "away"),
+    homeShotsOnTarget: fotmobStat(rows, ["shotsontarget"]),
+    awayShotsOnTarget: fotmobStat(rows, ["shotsontarget"], "away"),
+    homePasses: fotmobPassCount(rows),
+    awayPasses: fotmobPassCount(rows, "away"),
+    homePassingAccuracy: fotmobPassAccuracy(rows),
+    awayPassingAccuracy: fotmobPassAccuracy(rows, "away"),
+    homePossession: fotmobStat(rows, ["ballpossession", "possession"]),
+    awayPossession: fotmobStat(rows, ["ballpossession", "possession"], "away"),
+    homeYellowCards: fotmobStat(rows, ["yellowcards"]),
+    awayYellowCards: fotmobStat(rows, ["yellowcards"], "away"),
+    homeRedCards: fotmobStat(rows, ["redcards"]),
+    awayRedCards: fotmobStat(rows, ["redcards"], "away"),
+    homeCorners: fotmobStat(rows, ["corners", "cornerkicks"]),
+    awayCorners: fotmobStat(rows, ["corners", "cornerkicks"], "away"),
+    homeFouls: fotmobStat(rows, ["foulscommitted", "fouls"]),
+    awayFouls: fotmobStat(rows, ["foulscommitted", "fouls"], "away"),
+    homeOffsides: fotmobStat(rows, ["offsides"]),
+    awayOffsides: fotmobStat(rows, ["offsides"], "away"),
+  });
+}
+
+function mapFotmobLineups(details, match) {
+  const lineup = details?.content?.lineup;
+  if (!lineup?.homeTeam || !lineup?.awayTeam) return null;
+
+  const home = mapFotmobTeamLineup(lineup.homeTeam, match.homeTeam);
+  const away = mapFotmobTeamLineup(lineup.awayTeam, match.awayTeam);
+  if (!hasLineupPlayers(home) && !hasLineupPlayers(away)) return null;
+
+  return {
+    provider: "fotmob",
+    lastUpdated: new Date().toISOString(),
+    home,
+    away,
+  };
+}
+
+function mapFotmobEvents(details, match) {
+  const events = details?.content?.matchFacts?.events?.events ?? [];
+  return events
+    .map((event, index) => {
+      const eventType = mapFotmobEventType(event);
+      if (!eventType) return null;
+
+      const playerName = event.fullName ?? event.nameStr ?? event.player?.name ?? null;
+      const teamName = event.isHome === true ? match.homeTeam : event.isHome === false ? match.awayTeam : null;
+
+      return {
+        externalEventId: `fotmob:${match.providerMatchId}:${event.eventId ?? event.reactKey ?? index}:${event.type ?? ""}`,
+        provider: "fotmob",
+        minute: Number(event.time) || 0,
+        stoppageMinute: Number.isFinite(Number(event.overloadTime)) ? Number(event.overloadTime) || null : null,
+        sequenceNumber: index + 1,
+        eventType,
+        teamName,
+        teamSide: event.isHome === true ? "home" : event.isHome === false ? "away" : null,
+        homeTeamName: match.homeTeam,
+        awayTeamName: match.awayTeam,
+        playerName,
+        assistPlayerName: event.assistInput ?? parseFotmobAssist(event.assistStr),
+        description: event.goalDescription ?? event.card ?? event.type ?? null,
+        createdAt: match.kickoffTime ?? new Date().toISOString(),
+      };
+    })
+    .filter(Boolean);
+}
+
+function mapFotmobEventType(event) {
+  const type = String(event.type ?? "").toLowerCase();
+  const card = String(event.card ?? "").toLowerCase();
+  const goalDescription = String(event.goalDescription ?? event.suffix ?? "").toLowerCase();
+
+  if (type === "goal") {
+    if (event.ownGoal) return "own_goal";
+    if (goalDescription.includes("pen") || goalDescription.includes("penalty")) return "penalty_goal";
+    return "goal";
+  }
+  if (type === "card") {
+    if (card.includes("second")) return "second_yellow";
+    if (card.includes("red")) return "red_card";
+    if (card.includes("yellow")) return "yellow_card";
+  }
+  if (type === "substitution") return "substitution";
+  if (type === "var") return "var";
+  return null;
+}
+
+function parseFotmobAssist(value) {
+  const match = String(value ?? "").match(/assist\s+by\s+(.+)$/i);
+  return match?.[1]?.trim() ?? null;
+}
+
+function mapFotmobTeamLineup(team, fallbackTeamName) {
+  return {
+    teamName: team.name ?? fallbackTeamName,
+    formation: team.formation ?? null,
+    coach: team.coach?.name ?? team.coach ?? null,
+    starters: (team.starters ?? []).map((player) => mapFotmobLineupPlayer(player, "starter")).filter(Boolean),
+    substitutes: (team.subs ?? team.substitutes ?? []).map((player) => mapFotmobLineupPlayer(player, "substitute")).filter(Boolean),
+  };
+}
+
+function mapFotmobLineupPlayer(player, status) {
+  const name = player?.name ?? [player?.firstName, player?.lastName].filter(Boolean).join(" ");
+  if (!name) return null;
+
+  const shirtNumber = Number(player.shirtNumber);
+  const rating = Number(player.performance?.rating ?? player.rating);
+
+  return {
+    id: player.id != null ? String(player.id) : null,
+    name,
+    position: fotmobPosition(player.positionId ?? player.usualPlayingPositionId),
+    shirtNumber: Number.isFinite(shirtNumber) ? shirtNumber : null,
+    status,
+    rating: Number.isFinite(rating) ? rating : null,
+    grid: fotmobGrid(player),
+    captain: player.isCaptain === true,
+  };
+}
+
+function fotmobPosition(positionId) {
+  const value = Number(positionId);
+  if (!Number.isFinite(value)) return null;
+  if (value === 0 || value === 11) return "G";
+  if (value === 1 || value === 32 || value === 34 || value === 36) return "D";
+  if (value === 2 || value === 22 || value === 24 || value === 26) return "M";
+  if (value === 3 || value === 13 || value === 23 || value === 33) return "F";
+  return null;
+}
+
+function fotmobGrid(player) {
+  const layout = player?.verticalLayout ?? player?.horizontalLayout;
+  if (!layout || layout.x == null || layout.y == null) return null;
+  return `${Number(layout.x).toFixed(3)}:${Number(layout.y).toFixed(3)}`;
+}
+
+function collectFotmobStatRows(value, rows = []) {
+  if (!value || typeof value !== "object") return rows;
+
+  if (Array.isArray(value)) {
+    for (const item of value) collectFotmobStatRows(item, rows);
+    return rows;
+  }
+
+  const title = value.title ?? value.name ?? value.key;
+  if (title && Array.isArray(value.stats) && value.stats.length >= 2 && !value.stats.some((item) => typeof item === "object")) {
+    rows.push(value);
+  }
+
+  for (const item of Object.values(value)) {
+    collectFotmobStatRows(item, rows);
+  }
+
+  return rows;
+}
+
+function fotmobStat(rows, keys, side = "home") {
+  const row = findFotmobRow(rows, keys);
+  if (!row) return null;
+  const index = side === "away" ? 1 : 0;
+  return parseFotmobStatValue(row.stats[index]);
+}
+
+function fotmobPassCount(rows, side = "home") {
+  const row = findFotmobRow(rows, ["passes", "totalpasses", "accuratepasses"]);
+  if (!row) return null;
+  const index = side === "away" ? 1 : 0;
+  return parseFotmobStatValue(row.stats[index]);
+}
+
+function fotmobPassAccuracy(rows, side = "home") {
+  const accuracyRow = findFotmobRow(rows, ["passingaccuracy", "passaccuracy", "accuratepasses"]);
+  if (!accuracyRow) return null;
+  const index = side === "away" ? 1 : 0;
+  return parseFotmobPercentage(accuracyRow.stats[index]);
+}
+
+function findFotmobRow(rows, keys) {
+  const normalizedKeys = new Set(keys);
+  return rows.find((row) => {
+    const rowKey = normalizeFotmobStatKey(row.key ?? row.title ?? row.name);
+    return normalizedKeys.has(rowKey);
+  });
+}
+
+function normalizeFotmobStatKey(value) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/xg/i, "xg")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function parseFotmobStatValue(value) {
+  if (value == null) return null;
+  const match = String(value).match(/-?\d+(?:\.\d+)?/);
+  if (!match) return null;
+  const parsed = Number.parseFloat(match[0]);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseFotmobPercentage(value) {
+  if (value == null) return null;
+  const percentMatch = String(value).match(/\((\d+(?:\.\d+)?)%\)|(\d+(?:\.\d+)?)%/);
+  if (percentMatch) {
+    const parsed = Number.parseFloat(percentMatch[1] ?? percentMatch[2]);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return parseFotmobStatValue(value);
+}
+
+function compactIsoDate(date) {
+  return String(date).replace(/-/g, "");
 }
 
 async function loadApiFootballMatches() {
@@ -761,7 +1192,7 @@ function mapEspnEvent(event, { completedOnly }) {
     kickoffTime: competition.date ?? event.date,
     providerUpdatedAt: new Date().toISOString(),
     statistics: mapEspnStatistics(home, away, competition.details ?? []),
-    events: mapEspnGoalEvents(competition, teamById),
+    events: mapEspnEvents(competition, teamById),
   };
 }
 
@@ -826,8 +1257,8 @@ function mapEspnStatistics(home, away, details) {
   };
 }
 
-function mapEspnGoalEvents(competition, teamById) {
-  return (competition.details ?? [])
+function mapEspnEvents(competition, teamById) {
+  const goalEvents = (competition.details ?? [])
     .filter((detail) => detail.scoringPlay && !detail.shootout)
     .map((detail, index) => {
       const timing = parseEspnClock(detail.clock?.displayValue);
@@ -850,10 +1281,60 @@ function mapEspnGoalEvents(competition, teamById) {
         createdAt: competition.date ?? new Date().toISOString(),
       };
     });
+
+  const cardEvents = (competition.details ?? [])
+    .filter((detail) => !detail.shootout)
+    .map((detail, index) => {
+      const eventType = mapEspnCardEventType(detail);
+      if (!eventType) return null;
+
+      const timing = parseEspnClock(detail.clock?.displayValue);
+      const player = detail.athletesInvolved?.[0]?.displayName ?? parsePlayerFromCardText(detail.text);
+      const teamName = teamById.get(String(detail.team?.id)) ?? detail.team?.displayName ?? null;
+
+      return {
+        externalEventId: `espn:${competition.id}:card:${index}:${detail.clock?.displayValue ?? "0"}:${detail.type?.id ?? eventType}:${detail.athletesInvolved?.[0]?.id ?? player ?? "unknown"}`,
+        provider: "espn",
+        minute: timing.minute,
+        stoppageMinute: timing.stoppageMinute,
+        sequenceNumber: goalEvents.length + index + 1,
+        eventType,
+        teamName,
+        playerName: player,
+        assistPlayerName: null,
+        description: detail.text ?? null,
+        createdAt: competition.date ?? new Date().toISOString(),
+      };
+    })
+    .filter(Boolean);
+
+  return [...goalEvents, ...cardEvents].sort((a, b) => {
+    const minuteDiff = (a.minute ?? 0) - (b.minute ?? 0);
+    if (minuteDiff !== 0) return minuteDiff;
+    return (a.sequenceNumber ?? 0) - (b.sequenceNumber ?? 0);
+  });
 }
 
 function parseAssistFromText(text) {
-  const match = String(text ?? "").match(/\bassist(?:ed by)?:\s*([^.;]+)/i);
+  const match = String(text ?? "").match(/\bassist(?:ed by)?(?:\s*[:\-]\s*|\s+by\s+)([^.;,)]+)/i);
+  return match?.[1]?.trim() ?? null;
+}
+
+function mapEspnCardEventType(detail) {
+  const typeId = String(detail.type?.id ?? "").toLowerCase();
+  const typeText = String(detail.type?.text ?? detail.type?.description ?? detail.text ?? "").toLowerCase();
+  const combined = `${typeId} ${typeText}`;
+
+  if (!combined.includes("card")) return null;
+  if (combined.includes("second") && combined.includes("yellow")) return "second_yellow";
+  if (combined.includes("red")) return "red_card";
+  if (combined.includes("yellow")) return "yellow_card";
+  return null;
+}
+
+function parsePlayerFromCardText(text) {
+  const normalized = String(text ?? "").trim();
+  const match = normalized.match(/^(.+?)\s+(?:is\s+)?(?:shown\s+)?(?:a\s+)?(?:yellow|red|second yellow)\s+card/i);
   return match?.[1]?.trim() ?? null;
 }
 
@@ -963,7 +1444,15 @@ async function getExistingLiveState(matchId) {
 }
 
 function mapLineupColumns(lineups, existingState) {
-  const nextLineups = hasStoredLineups(lineups) ? lineups : existingState?.lineups;
+  const incomingLineups = hasStoredLineups(lineups) ? lineups : null;
+  const shouldKeepExistingProviderLineups =
+    incomingLineups?.provider === "manual-verified" &&
+    hasStoredLineups(existingState?.lineups) &&
+    existingState?.lineups_provider &&
+    existingState.lineups_provider !== "manual-verified";
+  const nextLineups = shouldKeepExistingProviderLineups
+    ? existingState.lineups
+    : incomingLineups ?? existingState?.lineups;
   if (!hasStoredLineups(nextLineups)) return {};
 
   return {
@@ -1093,11 +1582,12 @@ function compactObject(value) {
 async function replaceMatchEvents(fixture, match) {
   if (!match.events || match.events.length === 0) return;
 
+  const eventProviders = [...new Set(match.events.map((event) => event.provider ?? match.provider).filter(Boolean))];
   const { error: deleteError } = await supabase
     .from("match_events")
     .delete()
     .eq("match_id", fixture.id)
-    .eq("provider", match.provider);
+    .in("provider", eventProviders.length > 0 ? eventProviders : [match.provider]);
 
   if (deleteError) {
     throw new Error(`Failed to clear events for ${fixture.home_team} vs ${fixture.away_team}: ${deleteError.message}`);
