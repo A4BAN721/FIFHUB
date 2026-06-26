@@ -9,6 +9,7 @@ const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const isDryRun = process.argv.includes("--dry-run") || process.env.DRY_RUN === "1";
 const shouldRecheckExisting =
   process.argv.includes("--recheck-existing") || process.env.HIGHLIGHTS_RECHECK_EXISTING === "1";
+const OFFICIAL_FIFA_CHANNEL_ID = process.env.FIFA_YOUTUBE_CHANNEL_ID || "UCpcTrCXblq78GZrTUTLWeBw";
 
 if (!supabaseUrl || !serviceRoleKey) {
   throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.");
@@ -122,6 +123,8 @@ async function loadFifaVideos(feedUrl) {
       normalizedTitle: normalizeText(title),
       url: videoId ? `https://www.youtube.com/watch?v=${videoId}` : decodeXml(readXmlLink(entry)),
       publishedAt: readXmlValue(entry, "published") || null,
+      channelId: readXmlValue(entry, "yt:channelId") || OFFICIAL_FIFA_CHANNEL_ID,
+      channelTitle: "FIFA",
     };
   }).filter((video) => video.videoId && video.title);
 }
@@ -143,10 +146,7 @@ async function searchFifaHighlightVideosWithApi(fixture) {
   url.searchParams.set("q", query);
   url.searchParams.set("key", process.env.YOUTUBE_API_KEY);
 
-  const channelId = process.env.FIFA_YOUTUBE_CHANNEL_ID;
-  if (channelId) {
-    url.searchParams.set("channelId", channelId);
-  }
+  url.searchParams.set("channelId", OFFICIAL_FIFA_CHANNEL_ID);
 
   const response = await fetch(url, {
     headers: { "user-agent": "fifhub-fifa-highlights-sync/1.0" },
@@ -167,6 +167,7 @@ async function searchFifaHighlightVideosWithApi(fixture) {
       url: videoId ? `https://www.youtube.com/watch?v=${videoId}` : "",
       publishedAt: item.snippet?.publishedAt ?? null,
       channelTitle: item.snippet?.channelTitle ?? "",
+      channelId: item.snippet?.channelId ?? "",
     };
   }).filter(isOfficialFifaVideo);
 }
@@ -387,6 +388,9 @@ function mapVideoRenderer(video) {
   const videoId = video.videoId;
   const title = readRunsText(video.title) || video.title?.simpleText || "";
   const channelTitle = readRunsText(video.ownerText) || readRunsText(video.shortBylineText);
+  const channelId = video.ownerText?.runs?.[0]?.navigationEndpoint?.browseEndpoint?.browseId
+    ?? video.shortBylineText?.runs?.[0]?.navigationEndpoint?.browseEndpoint?.browseId
+    ?? "";
 
   return {
     videoId,
@@ -395,6 +399,7 @@ function mapVideoRenderer(video) {
     url: videoId ? `https://www.youtube.com/watch?v=${videoId}` : "",
     publishedAt: null,
     channelTitle,
+    channelId,
   };
 }
 
@@ -406,7 +411,7 @@ function readRunsText(value) {
 
 function isOfficialFifaVideo(video) {
   if (!video.videoId || !video.title) return false;
-  if (!video.channelTitle) return true;
+  if (video.channelId && video.channelId === OFFICIAL_FIFA_CHANNEL_ID) return true;
   return normalizeText(video.channelTitle) === "fifa";
 }
 
@@ -466,10 +471,12 @@ function findHighlightVideo(videos, fixture) {
 function isHighlightTitle(title) {
   if (!title) return false;
   if (isRejectedHighlightTitle(title)) return false;
-  return title.includes("highlight") || title.includes("match recap") || title.includes("all goals");
+  return title.includes("highlight") && title.includes("fifa world cup 2026");
 }
 
 function isRejectedHighlightTitle(title) {
+  if (/\bgoals?\b/.test(title)) return true;
+
   return [
     "alt cast",
     "watchalong",
@@ -487,23 +494,17 @@ function isRejectedHighlightTitle(title) {
 
 function scoreHighlightVideo(video, home, away) {
   const title = video.normalizedTitle;
+  if (!isOfficialFifaVideo(video)) return 0;
+  if (!isHighlightTitle(title)) return 0;
   if (!title || isRejectedHighlightTitle(title)) return 0;
   if (!titleHasTeam(title, home) || !titleHasTeam(title, away)) return 0;
 
   let score = 0;
-  if (title.includes("highlight")) score += 4;
-  if (title.includes("match recap")) score += 3;
-  if (
-    title.includes("fifa world cup 2026") ||
-    title.includes("world cup 2026") ||
-    title.includes("fifa world cup 26") ||
-    title.includes("world cup 26")
-  ) {
-    score += 2;
-  }
+  score += 6;
+  if (title.includes("fifa world cup 2026")) score += 3;
   if (title.includes("fifa")) score += 1;
   if (/\b(v|vs)\b/.test(title)) score += 1;
-  if (video.channelTitle && normalizeText(video.channelTitle) === "fifa") score += 2;
+  if (isOfficialFifaVideo(video)) score += 2;
 
   return score;
 }

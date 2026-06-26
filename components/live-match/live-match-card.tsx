@@ -184,13 +184,13 @@ function CompactScoreOverlay({ liveMatch, fixtureStage }: { liveMatch: LiveMatch
       )}
       <span
         className={`absolute left-2 rounded-full border border-zinc-200 bg-white px-1.5 py-0.5 text-[8px] font-black text-zinc-950 shadow-md dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:px-2 sm:text-[10px] ${
-          isGroupStage ? "top-[3.85rem] sm:top-2" : "top-2"
+          isGroupStage ? "top-5 sm:top-2" : "top-2"
         }`}
       >
         {getPlayPeriodLabel(liveMatch)}
       </span>
-      <div className="absolute left-1/2 top-[55%] flex -translate-x-1/2 flex-col items-center gap-0.5 sm:top-[53%]">
-        <span className="min-w-[50px] -translate-y-1/2 rounded-lg border border-zinc-200 bg-white px-1.5 py-0.5 text-center text-[11px] font-black tabular-nums leading-tight text-zinc-950 shadow-lg dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:min-w-[68px] sm:px-3 sm:py-1 sm:text-sm">
+      <div className="absolute left-1/2 top-[58%] flex -translate-x-1/2 flex-col items-center gap-0.5 sm:top-[53%]">
+        <span className="min-w-[44px] -translate-y-1/2 rounded-md border border-zinc-200 bg-white px-1 py-0.5 text-center text-[10px] font-black tabular-nums leading-tight text-zinc-950 shadow-lg dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:min-w-[68px] sm:rounded-lg sm:px-3 sm:py-1 sm:text-sm">
           {liveMatch.homeScore} - {liveMatch.awayScore}
         </span>
         {timerLabel && (

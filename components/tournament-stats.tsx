@@ -220,21 +220,22 @@ function buildLeaders(
   playerLookup: Map<string, number>
 ) {
   const totals = new Map<string, { playerName: string; teamName: string | null; value: number }>();
+  const countedEvents = new Set<string>();
 
   for (const event of events) {
     const type = event.event_type.toLowerCase();
     if (category === "ga") {
       if (["goal", "penalty_goal"].includes(type)) {
-        addLeaderValue(totals, event.player_name, event.team_name ?? null, 1);
+        addLeaderValueOnce(totals, countedEvents, event, "goal", event.player_name, event.team_name ?? null);
       }
-      addLeaderValue(totals, event.assist_player_name, event.team_name ?? null, 1);
+      addLeaderValueOnce(totals, countedEvents, event, "assist", event.assist_player_name, event.team_name ?? null);
       continue;
     }
 
     const playerName = statPlayerName(event, category, type);
     if (!playerName) continue;
 
-    addLeaderValue(totals, playerName, event.team_name ?? null, 1);
+    addLeaderValueOnce(totals, countedEvents, event, category, playerName, event.team_name ?? null);
   }
 
   let previousValue = -1;
@@ -283,6 +284,30 @@ function preferFotmobEventRows(rows: EventRow[]) {
   return rows.filter(
     (row) => !row.match_id || !matchesWithFotmobEvents.has(row.match_id) || row.provider === "fotmob"
   );
+}
+
+function addLeaderValueOnce(
+  totals: Map<string, { playerName: string; teamName: string | null; value: number }>,
+  countedEvents: Set<string>,
+  event: EventRow,
+  category: string,
+  playerName: string | null | undefined,
+  teamName: string | null
+) {
+  if (!playerName) return;
+
+  const key = [
+    category,
+    normalizeName(event.match_id ?? ""),
+    normalizeName(event.event_type),
+    normalizeName(teamName ?? ""),
+    normalizeName(playerName),
+    event.minute ?? "",
+  ].join("::");
+
+  if (countedEvents.has(key)) return;
+  countedEvents.add(key);
+  addLeaderValue(totals, playerName, teamName, 1);
 }
 
 function mergeEventRows(primaryRows: EventRow[], fallbackRows: EventRow[]) {

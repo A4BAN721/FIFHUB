@@ -500,7 +500,7 @@ export function MatchFixtures({
                               >
                               <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.08),transparent_15%),radial-gradient(circle_at_bottom_right,_rgba(0,0,0,0.03),transparent_20%)]" />
                               
-                              <div className="relative flex min-h-[122px] flex-col justify-between p-2 sm:min-h-[136px] sm:p-3">
+                              <div className="relative flex min-h-[112px] flex-col justify-between p-1.5 sm:min-h-[136px] sm:p-3">
                                 {/* Group name at top right for Group Stage */}
                                 <div className="absolute right-1.5 top-5 sm:right-2 sm:top-2">
                                   <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[8px] text-primary sm:px-2 sm:text-[9px]">
@@ -509,7 +509,7 @@ export function MatchFixtures({
                                 </div>
 
                                 {/* Date and Time for Group Stage */}
-                                <div className="flex items-center justify-center pt-9 sm:pt-6">
+                                <div className="flex items-center justify-center pt-6 sm:pt-6">
                                   <span className="flex max-w-[calc(100%-4.5rem)] flex-col items-center gap-0.5 text-[8px] leading-tight text-muted-foreground sm:block sm:text-[10px]">
                                     <span className="font-semibold sm:hidden">{getTranslatedTime(match.time)}</span>
                                     <span className="truncate sm:hidden">{getTranslatedDate(match.date)}</span>
@@ -520,7 +520,7 @@ export function MatchFixtures({
                                 </div>
 
                                 {/* Teams - Horizontal Layout */}
-                                <div className="grid grid-cols-[minmax(0,1fr)_50px_minmax(0,1fr)] items-center gap-1 py-1 sm:grid-cols-[minmax(0,1fr)_68px_minmax(0,1fr)] sm:gap-2 sm:py-2">
+                                <div className="grid grid-cols-[minmax(0,1fr)_50px_minmax(0,1fr)] items-center gap-1 py-0.5 sm:grid-cols-[minmax(0,1fr)_68px_minmax(0,1fr)] sm:gap-2 sm:py-2">
                                   {/* Home Team */}
                                   <div className="min-w-0 flex-1">
                                     {homeNationId ? (
@@ -686,7 +686,7 @@ export function MatchFixtures({
                         >
                         <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.08),transparent_15%),radial-gradient(circle_at_bottom_right,_rgba(0,0,0,0.03),transparent_20%)]" />
                         
-                        <div className="relative flex min-h-[122px] flex-col justify-between p-2 sm:min-h-[136px] sm:p-3">
+                        <div className="relative flex min-h-[112px] flex-col justify-between p-1.5 sm:min-h-[136px] sm:p-3">
                           {/* Header: Time and Info */}
                           <div className="flex -translate-y-0.5 flex-col items-center justify-center gap-0.5 border-b border-border/20 pb-1 text-center sm:flex-row sm:justify-between sm:gap-1 sm:pb-1.5 sm:text-left">
                             <span className="text-[10px] font-semibold text-muted-foreground sm:text-xs">{getTranslatedTime(match.time)}</span>
@@ -696,7 +696,7 @@ export function MatchFixtures({
                           </div>
 
                           {/* Teams - Horizontal Layout */}
-                          <div className="grid grid-cols-[minmax(0,1fr)_50px_minmax(0,1fr)] items-center gap-1 py-1 sm:grid-cols-[minmax(0,1fr)_68px_minmax(0,1fr)] sm:gap-2 sm:py-2">
+                          <div className="grid grid-cols-[minmax(0,1fr)_50px_minmax(0,1fr)] items-center gap-1 py-0.5 sm:grid-cols-[minmax(0,1fr)_68px_minmax(0,1fr)] sm:gap-2 sm:py-2">
                             {/* Home Team */}
                             <div className="min-w-0 flex-1">
                               {homeNationId ? (
