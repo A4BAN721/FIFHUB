@@ -333,7 +333,7 @@ function PlayerCard({ player, nationColors, index, t, onSelect }: PlayerCardProp
     >
       <Card className="gap-0 overflow-hidden border-border/50 bg-card/90 py-0 backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:shadow-lg">
         <button
-          className="block w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="block w-full cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           onClick={onSelect}
           type="button"
         >

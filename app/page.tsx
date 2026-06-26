@@ -6,6 +6,7 @@ import { NationsGrid } from "@/components/nations-grid";
 import { TriondaBackground } from "@/components/trionda-background";
 import { MatchFixtures } from "@/components/match-fixtures";
 import { GroupStandingsTable } from "@/components/group-standings-table";
+import { TournamentStats } from "@/components/tournament-stats";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useLanguage } from "@/components/language-provider";
 import { Instagram, Mail } from "lucide-react";
@@ -17,6 +18,7 @@ export default function Home() {
   const [returnTab, setReturnTab] = useState<string | null>(null);
   const [returnScrollY, setReturnScrollY] = useState<number | null>(null);
   const [fixturesView, setFixturesView] = useState({ search: "", selectedStage: "ALL" });
+  const [showTopShell, setShowTopShell] = useState(true);
 
   useEffect(() => {
     const handleNationSelection = (event: CustomEvent) => {
@@ -36,6 +38,27 @@ export default function Home() {
     return () => {
       window.removeEventListener("nationSelected", handleNationSelection as EventListener);
     };
+  }, []);
+
+  useEffect(() => {
+    let previousY = window.scrollY;
+
+    const handleScroll = () => {
+      const nextY = window.scrollY;
+      const isScrollingUp = nextY < previousY - 8;
+      const isNearTop = nextY < 80;
+
+      if (isScrollingUp || isNearTop) {
+        setShowTopShell(true);
+      } else if (nextY > previousY + 8 && nextY > 120) {
+        setShowTopShell(false);
+      }
+
+      previousY = nextY;
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   const handleTabChange = (value: string) => {
@@ -64,13 +87,24 @@ export default function Home() {
     <main className="min-h-screen relative">
       <TriondaBackground />
       <div className="relative z-10">
-        <Header />
+        <div
+          className={`sticky top-0 z-40 border-b border-border/30 bg-background/90 shadow-sm backdrop-blur-xl transition-transform duration-200 ${
+            showTopShell ? "translate-y-0" : "-translate-y-full"
+          }`}
+        >
+          <Header />
+        </div>
         <div className="container mx-auto px-4 py-6">
           <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-            <TabsList className="mx-auto mb-6">
+            <TabsList
+              className={`sticky top-0 z-30 mx-auto mb-6 transition-transform duration-200 ${
+                showTopShell ? "translate-y-0" : "-translate-y-full"
+              }`}
+            >
               <TabsTrigger value="squads">{t("groups")}</TabsTrigger>
               <TabsTrigger value="fixtures">{t("fixtures")}</TabsTrigger>
               <TabsTrigger value="table">{t("table")}</TabsTrigger>
+              <TabsTrigger value="stats">Stats</TabsTrigger>
             </TabsList>
             <TabsContent value="squads" className="mt-0">
               <NationsGrid initialSelectedNationId={selectedNationId} onNationBack={handleNationBack} />
@@ -84,6 +118,9 @@ export default function Home() {
             </TabsContent>
             <TabsContent value="table" className="mt-0">
               <GroupStandingsTable />
+            </TabsContent>
+            <TabsContent value="stats" className="mt-0">
+              <TournamentStats />
             </TabsContent>
           </Tabs>
         </div>

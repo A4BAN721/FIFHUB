@@ -82,7 +82,27 @@ async function syncMatches(matches, fixtureMap, options) {
     const { fixture, scoreMatch } = resolved;
     const current = bestMatchByFixtureId.get(fixture.id);
     if (!current || isBetterScoreMatch(scoreMatch, current.scoreMatch)) {
-      bestMatchByFixtureId.set(fixture.id, { fixture, scoreMatch });
+      bestMatchByFixtureId.set(fixture.id, {
+        fixture,
+        scoreMatch: {
+          ...scoreMatch,
+          lineups: scoreMatch.lineups ?? current?.scoreMatch.lineups ?? null,
+          events: chooseBestEvents(scoreMatch.events, current?.scoreMatch.events),
+          statistics: {
+            ...(current?.scoreMatch.statistics ?? {}),
+            ...(scoreMatch.statistics ?? {}),
+          },
+        },
+      });
+    } else {
+      if (scoreMatch.lineups && !current.scoreMatch.lineups) {
+        current.scoreMatch.lineups = scoreMatch.lineups;
+      }
+      current.scoreMatch.events = chooseBestEvents(current.scoreMatch.events, scoreMatch.events);
+      current.scoreMatch.statistics = {
+        ...(current.scoreMatch.statistics ?? {}),
+        ...(scoreMatch.statistics ?? {}),
+      };
     }
   }
 
@@ -113,6 +133,16 @@ async function syncMatches(matches, fixtureMap, options) {
   }
 
   return { updated, skipped, unmatched, matched, eventErrors };
+}
+
+function chooseBestEvents(primaryEvents = [], fallbackEvents = []) {
+  if (hasAssistData(primaryEvents)) return primaryEvents;
+  if (hasAssistData(fallbackEvents)) return fallbackEvents;
+  return primaryEvents.length > 0 ? primaryEvents : fallbackEvents;
+}
+
+function hasAssistData(events) {
+  return events.some((event) => event.assistPlayerName);
 }
 
 function resolveFixtureMatch(match, fixtureMap) {
@@ -162,7 +192,7 @@ async function loadProviderMatches() {
 }
 
 async function loadEspnLiveMatches() {
-  const dateFrom = process.env.ESPN_LIVE_DATE_FROM ?? offsetIsoDate(todayIsoDate(), -1);
+  const dateFrom = process.env.ESPN_LIVE_DATE_FROM ?? offsetIsoDate(todayIsoDate(), -2);
   const dateTo = process.env.ESPN_LIVE_DATE_TO ?? offsetIsoDate(todayIsoDate(), 1);
   const matches = [];
 
@@ -178,7 +208,10 @@ async function loadEspnLiveMatches() {
 }
 
 async function loadApiFootballMatches() {
-  const dates = enumerateIsoDates(offsetIsoDate(todayIsoDate(), -1), offsetIsoDate(todayIsoDate(), 1));
+  const dates = enumerateIsoDates(
+    process.env.API_FOOTBALL_DATE_FROM ?? "2026-06-11",
+    process.env.API_FOOTBALL_DATE_TO ?? offsetIsoDate(todayIsoDate(), 1),
+  );
   const responses = await Promise.all([
     apiFootballRequest("fixtures", { live: "all" }),
     ...dates.map((date) => apiFootballRequest("fixtures", { date })),
@@ -188,7 +221,50 @@ async function loadApiFootballMatches() {
   for (const fixture of responses.flat()) {
     byId.set(String(fixture.fixture.id), mapApiFootballFixture(fixture));
   }
+
+  for (const match of byId.values()) {
+    if (shouldFetchApiFootballDetails(match)) {
+      const details = await loadApiFootballDetails(match);
+      match.lineups = details.lineups;
+      match.events = details.events;
+      match.statistics = details.statistics;
+    }
+  }
+
   return [...byId.values()];
+}
+
+function shouldFetchApiFootballDetails(match) {
+  if (["live", "half_time", "finished", "extra_time", "penalties"].includes(match.status)) return true;
+
+  const kickoffTime = Date.parse(match.kickoffTime ?? "");
+  if (!Number.isFinite(kickoffTime)) return false;
+
+  const hoursUntilKickoff = (kickoffTime - Date.now()) / 3_600_000;
+  const lookaheadHours = Number(process.env.LINEUPS_LOOKAHEAD_HOURS ?? 2);
+  const lookbackHours = Number(process.env.LINEUPS_LOOKBACK_HOURS ?? 8);
+
+  return hoursUntilKickoff <= lookaheadHours && hoursUntilKickoff >= -lookbackHours;
+}
+
+async function loadApiFootballDetails(match) {
+  try {
+    const [lineups, playerStats, events, statistics] = await Promise.all([
+      apiFootballRequest("fixtures/lineups", { fixture: match.providerMatchId }),
+      apiFootballRequest("fixtures/players", { fixture: match.providerMatchId }),
+      apiFootballRequest("fixtures/events", { fixture: match.providerMatchId }),
+      apiFootballRequest("fixtures/statistics", { fixture: match.providerMatchId }),
+    ]);
+
+    return {
+      lineups: mapApiFootballLineups(lineups, playerStats, match),
+      events: mapApiFootballEvents(events, match),
+      statistics: mapApiFootballStatistics(statistics),
+    };
+  } catch (error) {
+    console.warn(`API-Football match details unavailable for ${match.homeTeam} vs ${match.awayTeam}: ${error.message}`);
+    return { lineups: null, events: [], statistics: {} };
+  }
 }
 
 async function apiFootballRequest(endpoint, params) {
@@ -222,6 +298,8 @@ function mapApiFootballFixture(fixture) {
   return {
     provider: "api-football",
     providerMatchId: String(fixture.fixture.id),
+    homeTeamId: fixture.teams.home.id != null ? String(fixture.teams.home.id) : null,
+    awayTeamId: fixture.teams.away.id != null ? String(fixture.teams.away.id) : null,
     homeTeam: fixture.teams.home.name,
     awayTeam: fixture.teams.away.name,
     homeScore: fixture.goals.home ?? 0,
@@ -233,6 +311,163 @@ function mapApiFootballFixture(fixture) {
     kickoffTime: fixture.fixture.date,
     providerUpdatedAt: new Date().toISOString(),
   };
+}
+
+function mapApiFootballLineups(lineups, playerStats, match) {
+  if (!Array.isArray(lineups) || lineups.length === 0) return null;
+
+  const ratings = mapApiFootballRatings(playerStats);
+  const homeSource = lineups.find((lineup) => isSameProviderTeam(lineup.team, { id: match.homeTeamId, name: match.homeTeam })) ?? lineups[0];
+  const awaySource = lineups.find((lineup) => isSameProviderTeam(lineup.team, { id: match.awayTeamId, name: match.awayTeam })) ?? lineups[1];
+
+  if (!homeSource || !awaySource) return null;
+
+  const home = mapApiFootballTeamLineup(homeSource, match.homeTeam, ratings);
+  const away = mapApiFootballTeamLineup(awaySource, match.awayTeam, ratings);
+
+  if (!hasLineupPlayers(home) && !hasLineupPlayers(away)) return null;
+
+  return {
+    provider: "api-football",
+    lastUpdated: new Date().toISOString(),
+    home,
+    away,
+  };
+}
+
+function mapApiFootballTeamLineup(lineup, fallbackTeamName, ratings) {
+  return {
+    teamName: lineup.team?.name ?? fallbackTeamName,
+    formation: lineup.formation ?? null,
+    coach: lineup.coach?.name ?? null,
+    starters: (lineup.startXI ?? [])
+      .map((entry) => mapApiFootballLineupPlayer(entry, "starter", ratings))
+      .filter(Boolean),
+    substitutes: (lineup.substitutes ?? [])
+      .map((entry) => mapApiFootballLineupPlayer(entry, "substitute", ratings))
+      .filter(Boolean),
+  };
+}
+
+function mapApiFootballLineupPlayer(entry, status, ratings) {
+  const player = entry?.player ?? entry;
+  const id = player?.id != null ? String(player.id) : null;
+  const name = player?.name;
+  if (!name) return null;
+
+  const ratingEntry = id ? ratings.get(id) : null;
+  const shirtNumber = Number(player?.number ?? ratingEntry?.shirtNumber);
+  const rating = Number(ratingEntry?.rating);
+
+  return {
+    id,
+    name,
+    position: player?.pos ?? ratingEntry?.position ?? null,
+    shirtNumber: Number.isFinite(shirtNumber) ? shirtNumber : null,
+    status,
+    rating: Number.isFinite(rating) ? rating : null,
+    grid: player?.grid ?? null,
+    captain: Boolean(ratingEntry?.captain),
+  };
+}
+
+function mapApiFootballRatings(playerStats) {
+  const ratings = new Map();
+
+  for (const team of playerStats ?? []) {
+    for (const item of team.players ?? []) {
+      const id = item.player?.id != null ? String(item.player.id) : null;
+      if (!id) continue;
+
+      const games = item.statistics?.[0]?.games ?? {};
+      ratings.set(id, {
+        rating: games.rating,
+        shirtNumber: games.number,
+        position: games.position,
+        captain: games.captain,
+      });
+    }
+  }
+
+  return ratings;
+}
+
+function mapApiFootballEvents(events, match) {
+  return (events ?? [])
+    .map((event, index) => {
+      const eventType = mapApiFootballEventType(event);
+      if (!eventType) return null;
+
+      return {
+        externalEventId: `api-football:${match.providerMatchId}:${index}:${event.time?.elapsed ?? 0}:${event.type ?? ""}:${event.detail ?? ""}:${event.player?.id ?? "unknown"}`,
+        provider: "api-football",
+        minute: event.time?.elapsed ?? 0,
+        stoppageMinute: event.time?.extra ?? null,
+        sequenceNumber: index + 1,
+        eventType,
+        teamName: event.team?.name ?? null,
+        playerName: event.player?.name ?? null,
+        assistPlayerName: event.assist?.name ?? null,
+        description: event.comments ?? event.detail ?? null,
+        createdAt: match.kickoffTime ?? new Date().toISOString(),
+      };
+    })
+    .filter(Boolean);
+}
+
+function mapApiFootballEventType(event) {
+  const type = String(event.type ?? "").toLowerCase();
+  const detail = String(event.detail ?? "").toLowerCase();
+
+  if (type === "goal") {
+    if (detail.includes("own")) return "own_goal";
+    if (detail.includes("penalty")) return "penalty_goal";
+    return "goal";
+  }
+  if (type === "card") {
+    if (detail.includes("red")) return "red_card";
+    if (detail.includes("second yellow")) return "second_yellow";
+    return "yellow_card";
+  }
+  if (type === "subst") return "substitution";
+  if (type === "var") return "var";
+  return null;
+}
+
+function mapApiFootballStatistics(statistics) {
+  const home = statistics?.[0]?.statistics ?? [];
+  const away = statistics?.[1]?.statistics ?? [];
+
+  return {
+    homePossession: apiFootballStat(home, "Ball Possession"),
+    awayPossession: apiFootballStat(away, "Ball Possession"),
+    homeExpectedGoals: apiFootballStat(home, "expected_goals") ?? apiFootballStat(home, "Expected Goals"),
+    awayExpectedGoals: apiFootballStat(away, "expected_goals") ?? apiFootballStat(away, "Expected Goals"),
+    homeShots: apiFootballStat(home, "Total Shots"),
+    awayShots: apiFootballStat(away, "Total Shots"),
+    homeShotsOnTarget: apiFootballStat(home, "Shots on Goal"),
+    awayShotsOnTarget: apiFootballStat(away, "Shots on Goal"),
+    homePasses: apiFootballStat(home, "Total passes"),
+    awayPasses: apiFootballStat(away, "Total passes"),
+    homePassingAccuracy: apiFootballStat(home, "Passes %"),
+    awayPassingAccuracy: apiFootballStat(away, "Passes %"),
+    homeOffsides: apiFootballStat(home, "Offsides"),
+    awayOffsides: apiFootballStat(away, "Offsides"),
+    homeFouls: apiFootballStat(home, "Fouls"),
+    awayFouls: apiFootballStat(away, "Fouls"),
+    homeYellowCards: apiFootballStat(home, "Yellow Cards"),
+    awayYellowCards: apiFootballStat(away, "Yellow Cards"),
+    homeRedCards: apiFootballStat(home, "Red Cards"),
+    awayRedCards: apiFootballStat(away, "Red Cards"),
+  };
+}
+
+function apiFootballStat(statistics, type) {
+  const stat = statistics.find((item) => String(item.type).toLowerCase() === type.toLowerCase());
+  if (!stat || stat.value == null) return null;
+
+  const value = Number.parseFloat(String(stat.value).replace("%", ""));
+  return Number.isFinite(value) ? value : null;
 }
 
 function mapApiFootballStatus(status) {
@@ -347,7 +582,89 @@ function mapFootballDataMatch(match) {
     phase: mapFootballDataPhase(match.status, minute),
     kickoffTime: match.utcDate,
     providerUpdatedAt: match.lastUpdated ?? new Date().toISOString(),
+    lineups: mapFootballDataLineups(match),
   };
+}
+
+function mapFootballDataLineups(match) {
+  const sourceLineups = Array.isArray(match.lineups) ? match.lineups : null;
+  const homeSource = sourceLineups?.find((lineup) => isSameProviderTeam(lineup.team, match.homeTeam)) ?? match.homeTeam;
+  const awaySource = sourceLineups?.find((lineup) => isSameProviderTeam(lineup.team, match.awayTeam)) ?? match.awayTeam;
+
+  const home = mapProviderTeamLineup(homeSource, match.homeTeam.name);
+  const away = mapProviderTeamLineup(awaySource, match.awayTeam.name);
+
+  if (!hasLineupPlayers(home) && !hasLineupPlayers(away)) return null;
+
+  return {
+    provider: "football-data",
+    lastUpdated: match.lastUpdated ?? new Date().toISOString(),
+    home,
+    away,
+  };
+}
+
+function mapProviderTeamLineup(source, fallbackTeamName) {
+  const starters = firstArray(
+    source?.startXI,
+    source?.startingXI,
+    source?.starters,
+    source?.lineup,
+    source?.players?.filter?.((player) => isStarterPlayer(player)),
+  );
+  const substitutes = firstArray(
+    source?.substitutes,
+    source?.subs,
+    source?.bench,
+    source?.players?.filter?.((player) => !isStarterPlayer(player)),
+  );
+
+  return {
+    teamName: source?.team?.name ?? source?.name ?? fallbackTeamName,
+    formation: source?.formation ?? source?.tactic?.formation ?? null,
+    coach: source?.coach?.name ?? source?.coach ?? null,
+    starters: starters.map((player) => mapLineupPlayer(player, "starter")).filter(Boolean),
+    substitutes: substitutes.map((player) => mapLineupPlayer(player, "substitute")).filter(Boolean),
+  };
+}
+
+function mapLineupPlayer(entry, status) {
+  const player = entry?.player ?? entry;
+  const name = player?.name ?? player?.displayName ?? player?.fullName ?? entry?.name;
+  if (!name) return null;
+
+  const shirtNumber = Number(player?.shirtNumber ?? player?.number ?? entry?.shirtNumber ?? entry?.number);
+  const rating = Number(player?.rating ?? entry?.rating ?? player?.fotmobRating ?? entry?.fotmobRating);
+
+  return {
+    id: player?.id != null ? String(player.id) : null,
+    name,
+    position: player?.position ?? player?.pos ?? entry?.position ?? null,
+    shirtNumber: Number.isFinite(shirtNumber) ? shirtNumber : null,
+    status,
+    rating: Number.isFinite(rating) ? rating : null,
+  };
+}
+
+function isStarterPlayer(entry) {
+  const playerStatus = String(entry?.status ?? entry?.role ?? entry?.type ?? "").toLowerCase();
+  if (playerStatus.includes("sub")) return false;
+  if (playerStatus.includes("start") || playerStatus.includes("lineup")) return true;
+  return entry?.substitute === false || entry?.isStarting === true || entry?.starter === true;
+}
+
+function firstArray(...values) {
+  return values.find((value) => Array.isArray(value)) ?? [];
+}
+
+function hasLineupPlayers(lineup) {
+  return lineup.starters.length > 0 || lineup.substitutes.length > 0;
+}
+
+function isSameProviderTeam(candidate, expected) {
+  if (!candidate || !expected) return false;
+  if (candidate.id != null && expected.id != null && String(candidate.id) === String(expected.id)) return true;
+  return normalizeTeamName(candidate.name ?? candidate.shortName ?? "") === normalizeTeamName(expected.name ?? expected.shortName ?? "");
 }
 
 function mapFootballDataStatus(status) {
@@ -486,10 +803,16 @@ function mapEspnStatistics(home, away, details) {
   return {
     homePossession: espnStat(home, "possessionPct"),
     awayPossession: espnStat(away, "possessionPct"),
+    homeExpectedGoals: espnStat(home, "expectedGoals") ?? espnStat(home, "xG"),
+    awayExpectedGoals: espnStat(away, "expectedGoals") ?? espnStat(away, "xG"),
     homeShots: espnStat(home, "totalShots") ?? 0,
     awayShots: espnStat(away, "totalShots") ?? 0,
     homeShotsOnTarget: espnStat(home, "shotsOnTarget") ?? 0,
     awayShotsOnTarget: espnStat(away, "shotsOnTarget") ?? 0,
+    homePasses: espnStat(home, "totalPasses") ?? espnStat(home, "passes"),
+    awayPasses: espnStat(away, "totalPasses") ?? espnStat(away, "passes"),
+    homePassingAccuracy: espnStat(home, "accuratePassesPct") ?? espnStat(home, "passAccuracy") ?? espnStat(home, "passingAccuracy"),
+    awayPassingAccuracy: espnStat(away, "accuratePassesPct") ?? espnStat(away, "passAccuracy") ?? espnStat(away, "passingAccuracy"),
     homeYellowCards: countEspnCard(details, home.id, "yellowCard"),
     awayYellowCards: countEspnCard(details, away.id, "yellowCard"),
     homeRedCards: countEspnCard(details, home.id, "redCard"),
@@ -509,6 +832,7 @@ function mapEspnGoalEvents(competition, teamById) {
     .map((detail, index) => {
       const timing = parseEspnClock(detail.clock?.displayValue);
       const scorer = detail.athletesInvolved?.[0]?.displayName ?? null;
+      const assist = detail.athletesInvolved?.[1]?.displayName ?? parseAssistFromText(detail.text);
       const eventType = detail.ownGoal ? "own_goal" : detail.penaltyKick ? "penalty_goal" : "goal";
       const teamName = teamById.get(String(detail.team?.id)) ?? detail.team?.displayName ?? null;
 
@@ -521,10 +845,16 @@ function mapEspnGoalEvents(competition, teamById) {
         eventType,
         teamName,
         playerName: scorer,
+        assistPlayerName: assist,
         description: detail.text ?? null,
         createdAt: competition.date ?? new Date().toISOString(),
       };
     });
+}
+
+function parseAssistFromText(text) {
+  const match = String(text ?? "").match(/\bassist(?:ed by)?:\s*([^.;]+)/i);
+  return match?.[1]?.trim() ?? null;
 }
 
 function espnStat(competitor, name) {
@@ -579,7 +909,7 @@ function offsetIsoDate(date, days) {
 async function upsertLiveState(fixture, match) {
   const existingState = await getExistingLiveState(fixture.id);
 
-  if (match.status !== "finished" && hasConfirmedFinalScore(existingState)) {
+  if (match.status === "scheduled" && hasConfirmedFinalScore(existingState)) {
     return;
   }
 
@@ -588,6 +918,7 @@ async function upsertLiveState(fixture, match) {
   const phase = normalizePhase(match.phase);
   const statistics = match.statistics ?? {};
   const statisticColumns = mapStatisticColumns(statistics, existingState);
+  const lineupColumns = mapLineupColumns(match.lineups ?? getKnownLineupsForFixture(fixture), existingState);
 
   const { error } = await supabase.from("live_match_state").upsert(
     {
@@ -605,6 +936,7 @@ async function upsertLiveState(fixture, match) {
       started_at: match.kickoffTime ?? null,
       final_score_confirmed_at: finalScoreConfirmedAt,
       ...statisticColumns,
+      ...lineupColumns,
       provider_updated_at: match.providerUpdatedAt ?? now,
       updated_at: now,
     },
@@ -619,7 +951,7 @@ async function upsertLiveState(fixture, match) {
 async function getExistingLiveState(matchId) {
   const { data, error } = await supabase
     .from("live_match_state")
-    .select("status, final_score_confirmed_at, home_possession, away_possession, home_shots, away_shots, home_shots_on_target, away_shots_on_target, home_yellow_cards, away_yellow_cards, home_red_cards, away_red_cards, home_corners, away_corners, home_fouls, away_fouls, home_offsides, away_offsides")
+    .select("status, final_score_confirmed_at, home_possession, away_possession, home_shots, away_shots, home_shots_on_target, away_shots_on_target, home_expected_goals, away_expected_goals, home_passes, away_passes, home_passing_accuracy, away_passing_accuracy, home_yellow_cards, away_yellow_cards, home_red_cards, away_red_cards, home_corners, away_corners, home_fouls, away_fouls, home_offsides, away_offsides, lineups, lineups_provider, lineups_updated_at")
     .eq("match_id", matchId)
     .maybeSingle();
 
@@ -628,6 +960,93 @@ async function getExistingLiveState(matchId) {
   }
 
   return data;
+}
+
+function mapLineupColumns(lineups, existingState) {
+  const nextLineups = hasStoredLineups(lineups) ? lineups : existingState?.lineups;
+  if (!hasStoredLineups(nextLineups)) return {};
+
+  return {
+    lineups: nextLineups,
+    lineups_provider: nextLineups.provider ?? existingState?.lineups_provider ?? null,
+    lineups_updated_at: nextLineups.lastUpdated ?? existingState?.lineups_updated_at ?? new Date().toISOString(),
+  };
+}
+
+function hasStoredLineups(lineups) {
+  return Boolean(lineups?.home && lineups?.away && (hasLineupPlayers(lineups.home) || hasLineupPlayers(lineups.away)));
+}
+
+function getKnownLineupsForFixture(fixture) {
+  const key = teamPairKey(fixture.home_team, fixture.away_team);
+  return knownLineupsByPair[key] ?? null;
+}
+
+const knownLineupsByPair = {
+  [teamPairKey("Türkiye", "USA")]: {
+    provider: "manual-verified",
+    lastUpdated: "2026-06-26T04:05:00.000Z",
+    home: {
+      teamName: "Türkiye",
+      formation: "3-4-2-1",
+      coach: null,
+      starters: [
+        lineupPlayer("Uğurcan Çakır", 23, "G", "starter", "1:1", 6.4),
+        lineupPlayer("Zeki Çelik", 2, "D", "starter", "2:3", 7.2, true),
+        lineupPlayer("Ozan Kabak", 15, "D", "starter", "2:2", 6.7),
+        lineupPlayer("Abdülkerim Bardakcı", 14, "D", "starter", "2:1", 7.0),
+        lineupPlayer("Oğuz Aydın", 24, "M", "starter", "3:4", 7.5),
+        lineupPlayer("Salih Özcan", 5, "M", "starter", "3:3", 7.3),
+        lineupPlayer("Orkun Kökçü", 6, "M", "starter", "3:2", 7.4),
+        lineupPlayer("Eren Elmalı", 13, "M", "starter", "3:1", 7.4),
+        lineupPlayer("Arda Güler", 8, "F", "starter", "4:2", 7.8),
+        lineupPlayer("Kenan Yıldız", 11, "F", "starter", "4:1", 6.4),
+        lineupPlayer("Barış Alper Yılmaz", 21, "F", "starter", "5:1", 8.1),
+      ],
+      substitutes: [
+        lineupPlayer("Can Uzun", null, "F", "substitute"),
+        lineupPlayer("Çağlar Söyüncü", null, "D", "substitute"),
+      ],
+    },
+    away: {
+      teamName: "USA",
+      formation: "4-3-3",
+      coach: null,
+      starters: [
+        lineupPlayer("Matt Turner", 1, "G", "starter", "1:1", 5.8),
+        lineupPlayer("Auston Trusty", 6, "D", "starter", "2:4", 7.9),
+        lineupPlayer("Mark McKenzie", 22, "D", "starter", "2:3", 6.4),
+        lineupPlayer("Miles Robinson", 12, "D", "starter", "2:2", 6.5),
+        lineupPlayer("Joe Scally", 23, "D", "starter", "2:1", 6.4),
+        lineupPlayer("Tim Weah", 21, "F", "starter", "4:3", 5.4),
+        lineupPlayer("Gio Reyna", 7, "M", "starter", "3:3", 6.2),
+        lineupPlayer("Sebastian Berhalter", 14, "M", "starter", "3:2", 9.0),
+        lineupPlayer("Weston McKennie", 8, "M", "starter", "3:1", 7.4, true),
+        lineupPlayer("Ricardo Pepi", 9, "F", "starter", "4:2", 6.2),
+        lineupPlayer("Brenden Aaronson", 11, "F", "starter", "4:1", 6.2),
+      ],
+      substitutes: [
+        lineupPlayer("Christian Pulisic", null, "F", "substitute"),
+        lineupPlayer("Sergiño Dest", null, "D", "substitute"),
+        lineupPlayer("Alex Zendejas", null, "F", "substitute"),
+        lineupPlayer("Alex Freeman", null, "D", "substitute"),
+        lineupPlayer("Malik Tillman", null, "M", "substitute"),
+      ],
+    },
+  },
+};
+
+function lineupPlayer(name, shirtNumber, position, status, grid = null, rating = null, captain = false) {
+  return {
+    id: null,
+    name,
+    position,
+    shirtNumber,
+    status,
+    rating,
+    grid,
+    captain,
+  };
 }
 
 function hasConfirmedFinalScore(state) {
@@ -642,6 +1061,12 @@ function mapStatisticColumns(statistics, existingState) {
     away_shots: firstDefined(statistics.awayShots, existingState?.away_shots),
     home_shots_on_target: firstDefined(statistics.homeShotsOnTarget, existingState?.home_shots_on_target),
     away_shots_on_target: firstDefined(statistics.awayShotsOnTarget, existingState?.away_shots_on_target),
+    home_expected_goals: firstDefined(statistics.homeExpectedGoals, existingState?.home_expected_goals),
+    away_expected_goals: firstDefined(statistics.awayExpectedGoals, existingState?.away_expected_goals),
+    home_passes: firstDefined(statistics.homePasses, existingState?.home_passes),
+    away_passes: firstDefined(statistics.awayPasses, existingState?.away_passes),
+    home_passing_accuracy: firstDefined(statistics.homePassingAccuracy, existingState?.home_passing_accuracy),
+    away_passing_accuracy: firstDefined(statistics.awayPassingAccuracy, existingState?.away_passing_accuracy),
     home_yellow_cards: firstDefined(statistics.homeYellowCards, existingState?.home_yellow_cards),
     away_yellow_cards: firstDefined(statistics.awayYellowCards, existingState?.away_yellow_cards),
     home_red_cards: firstDefined(statistics.homeRedCards, existingState?.home_red_cards),
@@ -688,7 +1113,7 @@ async function replaceMatchEvents(fixture, match) {
     event_type: event.eventType,
     team_name: getFixtureTeamNameForEvent(event.teamName, match, fixture),
     player_name: event.playerName,
-    assist_player_name: null,
+    assist_player_name: event.assistPlayerName ?? null,
     description: event.description,
     event_timestamp: event.createdAt,
     created_at: event.createdAt,

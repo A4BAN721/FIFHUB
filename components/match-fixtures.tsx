@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useRef, useState, useMemo } from "react";
 import { useEffect } from "react";
 import type { CSSProperties } from "react";
 import type { Match } from "@/lib/match-fixtures";
@@ -44,6 +44,9 @@ export function MatchFixtures({
   const [selectedStage, setSelectedStage] = useState<string>(initialSelectedStage);
   const [matchFixtures, setMatchFixtures] = useState<Match[]>(fallbackMatchFixtures);
   const [nations, setNations] = useState<Nation[]>(fallbackNations);
+  const [fixtureNow] = useState(() => Date.now());
+  const matchCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const hasAutoScrolled = useRef(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -113,6 +116,31 @@ export function MatchFixtures({
     });
     return grouped;
   }, [filteredMatches]);
+
+  useEffect(() => {
+    if (hasAutoScrolled.current || filteredMatches.length === 0) return;
+
+    const targetMatch = getAutoScrollTarget(filteredMatches);
+    if (!targetMatch) return;
+
+    hasAutoScrolled.current = true;
+    window.requestAnimationFrame(() => {
+      matchCardRefs.current[targetMatch.id]?.scrollIntoView({
+        block: "center",
+        behavior: "smooth",
+      });
+    });
+  }, [filteredMatches]);
+
+  const isLiveDataRelevant = (match: Match) => {
+    if (!isMobile) return true;
+
+    const kickoffTime = parseFixtureDateTime(match.date, match.time);
+    if (!Number.isFinite(kickoffTime)) return false;
+
+    const hoursFromKickoff = (kickoffTime - fixtureNow) / 3_600_000;
+    return hoursFromKickoff <= 48 && hoursFromKickoff >= -96;
+  };
 
   const getGroupStageMatchdays = (matches: Match[]) => {
     const matchday1 = matches.slice(0, 24);
@@ -358,7 +386,7 @@ export function MatchFixtures({
   return (
     <div className="container mx-auto px-2 py-4 sm:px-4 sm:py-6">
       {/* Search and Stage Filter */}
-      <div className="mb-4 space-y-3">
+      <div className="sticky top-12 z-20 mb-4 space-y-3 rounded-b-xl bg-background/90 py-3 backdrop-blur-xl">
         <div className="relative max-w-md mx-auto">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -438,11 +466,14 @@ export function MatchFixtures({
                         return (
                           <motion.div
                             key={match.id}
+                            ref={(node) => {
+                              matchCardRefs.current[match.id] = node;
+                            }}
                             initial={shouldAnimate ? { opacity: 0, scale: 0.95 } : false}
                             animate={shouldAnimate ? { opacity: 1, scale: 1 } : undefined}
                             transition={shouldAnimate ? { delay: stageIndex * 0.02 + mdIndex * 0.01 + matchIndex * 0.005, duration: 0.2 } : undefined}
                           >
-                            <LiveMatchCard match={match}>
+                            <LiveMatchCard match={match} enableLiveData={isLiveDataRelevant(match)}>
                               <Card 
                                 className="group relative overflow-hidden rounded-xl backdrop-blur-xl transition-all duration-300 hover:shadow-lg sm:rounded-2xl"
                                 style={{
@@ -462,8 +493,12 @@ export function MatchFixtures({
 
                                 {/* Date and Time for Group Stage */}
                                 <div className="flex items-center justify-center pt-5 sm:pt-6">
-                                  <span className="max-w-[calc(100%-4.5rem)] truncate text-[8px] text-muted-foreground sm:text-[10px]">
-                                    {getTranslatedDate(match.date)} • {getTranslatedTime(match.time)}
+                                  <span className="flex max-w-[calc(100%-4.5rem)] flex-col items-center gap-0.5 text-[8px] leading-tight text-muted-foreground sm:block sm:text-[10px]">
+                                    <span className="font-semibold sm:hidden">{getTranslatedTime(match.time)}</span>
+                                    <span className="truncate sm:hidden">{getTranslatedDate(match.date)}</span>
+                                    <span className="hidden truncate sm:inline">
+                                      {getTranslatedDate(match.date)} • {getTranslatedTime(match.time)}
+                                    </span>
                                   </span>
                                 </div>
 
@@ -617,11 +652,14 @@ export function MatchFixtures({
                   return (
                     <motion.div
                       key={match.id}
+                      ref={(node) => {
+                        matchCardRefs.current[match.id] = node;
+                      }}
                       initial={shouldAnimate ? { opacity: 0, scale: 0.95 } : false}
                       animate={shouldAnimate ? { opacity: 1, scale: 1 } : undefined}
                       transition={shouldAnimate ? { delay: stageIndex * 0.02 + matchIndex * 0.01, duration: 0.2 } : undefined}
                     >
-                      <LiveMatchCard match={match}>
+                      <LiveMatchCard match={match} enableLiveData={isLiveDataRelevant(match)}>
                         <Card 
                           className="group relative overflow-hidden rounded-xl backdrop-blur-xl transition-all duration-300 hover:shadow-lg sm:rounded-2xl"
                           style={{
@@ -633,7 +671,7 @@ export function MatchFixtures({
                         
                         <div className="relative flex min-h-[122px] flex-col justify-between p-2 sm:min-h-[136px] sm:p-3">
                           {/* Header: Time and Info */}
-                          <div className="flex -translate-y-0.5 items-center justify-between gap-1 border-b border-border/20 pb-1 sm:pb-1.5">
+                          <div className="flex -translate-y-0.5 flex-col items-center justify-center gap-0.5 border-b border-border/20 pb-1 text-center sm:flex-row sm:justify-between sm:gap-1 sm:pb-1.5 sm:text-left">
                             <span className="text-[10px] font-semibold text-muted-foreground sm:text-xs">{getTranslatedTime(match.time)}</span>
                             <span className="truncate rounded-full bg-primary/10 px-1.5 py-0.5 text-[8px] text-primary sm:px-2 sm:text-[10px]">
                               {getTranslatedDate(match.date)}
@@ -766,4 +804,20 @@ export function MatchFixtures({
       )}
     </div>
   );
+}
+
+function getAutoScrollTarget(matches: Match[]) {
+  const now = Date.now();
+  const startedMatches = matches.filter((match) => {
+    const kickoffTime = parseFixtureDateTime(match.date, match.time);
+    return Number.isFinite(kickoffTime) && kickoffTime <= now;
+  });
+
+  return startedMatches[startedMatches.length - 1] ?? matches[0] ?? null;
+}
+
+function parseFixtureDateTime(date: string, time: string) {
+  const withoutWeekday = date.includes(",") ? date.split(",").slice(1).join(",").trim() : date;
+  const parsed = Date.parse(`${withoutWeekday} ${time}`);
+  return Number.isFinite(parsed) ? parsed : NaN;
 }

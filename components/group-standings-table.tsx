@@ -262,15 +262,15 @@ function sortStandingRows(rows: StandingRow[]) {
 function KnockoutMatchCard({ label }: { label: string }) {
   return (
     <div className="w-full overflow-hidden rounded-md border border-border/50 bg-background/90 shadow-sm">
-      <div className="border-b border-border/40 px-1.5 py-1 text-[8px] font-semibold uppercase leading-none text-muted-foreground sm:text-[9px] lg:px-2 lg:text-[10px]">
+      <div className="border-b border-border/40 px-1.5 py-1.5 text-[8px] font-semibold uppercase leading-none text-muted-foreground sm:py-1 sm:text-[9px] lg:px-2 lg:text-[10px]">
         {label}
       </div>
       <div className="divide-y divide-border/40">
-        <div className="flex items-center justify-between gap-1 px-1.5 py-1 lg:px-2">
+        <div className="flex items-center justify-between gap-1 px-1.5 py-1.5 sm:py-1 lg:px-2">
           <span className="truncate text-[10px] font-medium text-foreground sm:text-xs">TBD</span>
           <span className="text-[10px] font-semibold text-muted-foreground">-</span>
         </div>
-        <div className="flex items-center justify-between gap-1 px-1.5 py-1 lg:px-2">
+        <div className="flex items-center justify-between gap-1 px-1.5 py-1.5 sm:py-1 lg:px-2">
           <span className="truncate text-[10px] font-medium text-foreground sm:text-xs">TBD</span>
           <span className="text-[10px] font-semibold text-muted-foreground">-</span>
         </div>
@@ -289,7 +289,7 @@ function KnockoutStageBracket() {
   return (
     <>
       <section className="overflow-x-auto rounded-lg border border-border/50 bg-card/75 p-2 backdrop-blur-xl sm:hidden">
-        <div className="relative grid h-[920px] min-w-[660px] grid-cols-5 grid-rows-[repeat(32,minmax(0,1fr))] gap-x-2">
+        <div className="relative grid h-[1120px] min-w-[660px] grid-cols-5 grid-rows-[repeat(32,minmax(0,1fr))] gap-x-2">
           {mobileKnockoutPlacements.map((match) => (
             <div
               key={match.label}

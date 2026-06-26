@@ -11,22 +11,32 @@ import type { LiveMatch, MatchEvent } from "@/lib/live-data/types";
 import { getFifaAbbreviation, getTeamDisplayName } from "@/lib/team-display";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NationFlag } from "@/components/nation-flag";
 import { useLiveMatch } from "@/hooks/use-live-match";
+import { LineupsPanel } from "./lineups-panel";
 import { LiveStatsPanel } from "./live-stats-panel";
 
 type LiveMatchCardProps = {
   match: Match;
   children: ReactNode;
+  enableLiveData?: boolean;
 };
 
-export function LiveMatchCard({ match, children }: LiveMatchCardProps) {
+export function LiveMatchCard({ match, children, enableLiveData = true }: LiveMatchCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [now, setNow] = useState(() => Date.now());
-  const { liveMatch } = useLiveMatch(match.id, { fallbackMatch: match });
+  const { liveMatch } = useLiveMatch(match.id, {
+    enabled: enableLiveData,
+    fallbackMatch: match,
+    intervalMs: enableLiveData ? 30000 : 120000,
+  });
   const completedMatch = getCompletedMatch(match.id);
-  const scheduledLiveMatch = !liveMatch && !completedMatch ? createScheduledLiveMatch(match, now) : null;
-  const sourcedMatch = getBestMatchState({ completedMatch, liveMatch, scheduledLiveMatch, now });
+  const scheduledLiveMatch =
+    (!liveMatch || liveMatch.status === "scheduled") && !completedMatch
+      ? createScheduledLiveMatch(match, now, liveMatch)
+      : null;
+  const sourcedMatch = getBestMatchState({ completedMatch, liveMatch, scheduledLiveMatch });
   const displayMatch = sourcedMatch ? withDisplayClock(sourcedMatch, now, match) : null;
   const shouldRunTimer = Boolean(sourcedMatch && (isMatchInProgress(sourcedMatch) || scheduledLiveMatch));
 
@@ -93,7 +103,7 @@ export function LiveMatchCard({ match, children }: LiveMatchCardProps) {
               <ExpandedMatchHeader liveMatch={displayMatch} stadium={match.stadium} />
               <ExpandedScoreboard liveMatch={displayMatch} />
               <TeamEventSummary liveMatch={displayMatch} />
-              <LiveStatsPanel statistics={displayMatch.statistics} />
+              <MatchDetailsTabs liveMatch={displayMatch} />
               <MatchHighlightsLink liveMatch={displayMatch} />
 
               <div className="flex items-center justify-between gap-2 border-t border-border/40 pt-3 text-xs text-muted-foreground">
@@ -176,12 +186,10 @@ function getBestMatchState({
   completedMatch,
   liveMatch,
   scheduledLiveMatch,
-  now,
 }: {
   completedMatch: LiveMatch | null;
   liveMatch: LiveMatch | null;
   scheduledLiveMatch: LiveMatch | null;
-  now: number;
 }) {
   // If the match is finished in completedMatch data AND there's no live match,
   // use completedMatch (past match with confirmed score).
@@ -193,6 +201,10 @@ function getBestMatchState({
   // For finished matches, the liveMatch will have the same final score.
   // For in-progress matches, liveMatch has the real-time scores.
   if (liveMatch) {
+    if (liveMatch.status === "scheduled" && scheduledLiveMatch) {
+      return scheduledLiveMatch;
+    }
+
     // Merge completed match static data (statistics, events) with live match scores
     if (completedMatch) {
       return mergeCompletedAndLiveMatch(completedMatch, liveMatch);
@@ -226,6 +238,7 @@ function mergeCompletedAndLiveMatch(completedMatch: LiveMatch, liveMatch: LiveMa
       ? { ...completedMatch.statistics, ...liveMatch.statistics }
       : completedMatch.statistics,
     events: liveMatch.events.length > 0 ? liveMatch.events : completedMatch.events,
+    lineups: liveMatch.lineups ?? completedMatch.lineups,
   };
 }
 
@@ -247,6 +260,27 @@ function ExpandedMatchHeader({ liveMatch, stadium }: { liveMatch: LiveMatch; sta
       </h3>
       <p className="mt-1 text-sm text-muted-foreground">{stadium}</p>
     </div>
+  );
+}
+
+function MatchDetailsTabs({ liveMatch }: { liveMatch: LiveMatch }) {
+  return (
+    <Tabs defaultValue="stats" className="border-t border-border/40 pt-3">
+      <TabsList className="grid h-9 w-full grid-cols-2">
+        <TabsTrigger value="stats" className="text-xs font-black uppercase">
+          Match Stats
+        </TabsTrigger>
+        <TabsTrigger value="lineups" className="text-xs font-black uppercase">
+          Line-ups
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="stats" className="mt-3">
+        <LiveStatsPanel statistics={liveMatch.statistics} />
+      </TabsContent>
+      <TabsContent value="lineups" className="mt-3">
+        <LineupsPanel lineups={liveMatch.lineups} homeTeam={liveMatch.homeTeam} awayTeam={liveMatch.awayTeam} />
+      </TabsContent>
+    </Tabs>
   );
 }
 
@@ -471,7 +505,7 @@ function parseFixtureDateTime(date: string, time: string) {
   return Number.isFinite(parsed) ? parsed : NaN;
 }
 
-function createScheduledLiveMatch(match: Match, now: number): LiveMatch | null {
+function createScheduledLiveMatch(match: Match, now: number, existingLiveMatch?: LiveMatch | null): LiveMatch | null {
   const kickoffTime = parseFixtureDateTime(match.date, match.time);
   if (!Number.isFinite(kickoffTime)) return null;
 
@@ -489,8 +523,9 @@ function createScheduledLiveMatch(match: Match, now: number): LiveMatch | null {
     minute: null,
     startedAt: new Date(kickoffTime).toISOString(),
     updatedAt: new Date(now).toISOString(),
-    statistics: {},
-    events: [],
+    statistics: existingLiveMatch?.statistics ?? {},
+    lineups: existingLiveMatch?.lineups ?? null,
+    events: existingLiveMatch?.events ?? [],
   };
 }
 

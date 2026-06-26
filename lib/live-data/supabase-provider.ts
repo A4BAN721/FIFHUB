@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { FootballDataProvider } from "./football-provider";
 import { normalizeMatchPhase, normalizeMatchStatus } from "./status";
-import type { LiveMatch, MatchEvent, MatchEventType, MatchStatistics } from "./types";
+import type { LiveMatch, MatchEvent, MatchEventType, MatchLineups, MatchStatistics } from "./types";
 
 type LiveMatchStateRow = {
   match_id: string;
@@ -20,12 +20,21 @@ type LiveMatchStateRow = {
   highlights_url?: string | null;
   highlights_title?: string | null;
   highlights_published_at?: string | null;
+  lineups?: MatchLineups | null;
+  lineups_provider?: string | null;
+  lineups_updated_at?: string | null;
   home_possession?: number | null;
   away_possession?: number | null;
   home_shots?: number | null;
   away_shots?: number | null;
   home_shots_on_target?: number | null;
   away_shots_on_target?: number | null;
+  home_expected_goals?: number | null;
+  away_expected_goals?: number | null;
+  home_passes?: number | null;
+  away_passes?: number | null;
+  home_passing_accuracy?: number | null;
+  away_passing_accuracy?: number | null;
   home_yellow_cards?: number | null;
   away_yellow_cards?: number | null;
   home_red_cards?: number | null;
@@ -146,7 +155,18 @@ function mapLiveMatch(state: LiveMatchStateRow, eventRows: MatchEventRow[]): Liv
     highlightsPublishedAt: state.highlights_published_at,
     updatedAt: state.updated_at,
     statistics: mapStatistics(state),
+    lineups: mapLineups(state),
     events,
+  };
+}
+
+function mapLineups(state: LiveMatchStateRow): MatchLineups | null {
+  if (!state.lineups?.home || !state.lineups?.away) return null;
+
+  return {
+    ...state.lineups,
+    provider: state.lineups.provider ?? state.lineups_provider ?? null,
+    lastUpdated: state.lineups.lastUpdated ?? state.lineups_updated_at ?? null,
   };
 }
 
@@ -158,6 +178,12 @@ function mapStatistics(state: LiveMatchStateRow): MatchStatistics {
     awayShots: state.away_shots,
     homeShotsOnTarget: state.home_shots_on_target,
     awayShotsOnTarget: state.away_shots_on_target,
+    homeExpectedGoals: state.home_expected_goals,
+    awayExpectedGoals: state.away_expected_goals,
+    homePasses: state.home_passes,
+    awayPasses: state.away_passes,
+    homePassingAccuracy: state.home_passing_accuracy,
+    awayPassingAccuracy: state.away_passing_accuracy,
     homeYellowCards: state.home_yellow_cards,
     awayYellowCards: state.away_yellow_cards,
     homeRedCards: state.home_red_cards,

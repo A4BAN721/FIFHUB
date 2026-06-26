@@ -60,6 +60,12 @@ export interface MatchStatistics {
   awayShots?: number | null;
   homeShotsOnTarget?: number | null;
   awayShotsOnTarget?: number | null;
+  homeExpectedGoals?: number | null;
+  awayExpectedGoals?: number | null;
+  homePasses?: number | null;
+  awayPasses?: number | null;
+  homePassingAccuracy?: number | null;
+  awayPassingAccuracy?: number | null;
   homeYellowCards?: number | null;
   awayYellowCards?: number | null;
   homeRedCards?: number | null;
@@ -70,6 +76,34 @@ export interface MatchStatistics {
   awayFouls?: number | null;
   homeOffsides?: number | null;
   awayOffsides?: number | null;
+}
+
+export type MatchLineupPlayerStatus = "starter" | "substitute";
+
+export interface MatchLineupPlayer {
+  id?: string | null;
+  name: string;
+  position?: string | null;
+  shirtNumber?: number | null;
+  status: MatchLineupPlayerStatus;
+  rating?: number | null;
+  grid?: string | null;
+  captain?: boolean | null;
+}
+
+export interface MatchTeamLineup {
+  teamName: string;
+  formation?: string | null;
+  coach?: string | null;
+  starters: MatchLineupPlayer[];
+  substitutes: MatchLineupPlayer[];
+}
+
+export interface MatchLineups {
+  provider?: string | null;
+  lastUpdated?: string | null;
+  home: MatchTeamLineup;
+  away: MatchTeamLineup;
 }
 
 export interface LiveMatch {
@@ -89,6 +123,7 @@ export interface LiveMatch {
   highlightsPublishedAt?: string | null;
   updatedAt: string;
   statistics: MatchStatistics;
+  lineups?: MatchLineups | null;
   events: MatchEvent[];
 }
 

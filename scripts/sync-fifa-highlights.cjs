@@ -7,6 +7,8 @@ loadEnvFile(process.env.ENV_FILE_PATH ?? path.join(process.cwd(), ".env.local"))
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const isDryRun = process.argv.includes("--dry-run") || process.env.DRY_RUN === "1";
+const shouldRecheckExisting =
+  process.argv.includes("--recheck-existing") || process.env.HIGHLIGHTS_RECHECK_EXISTING === "1";
 
 if (!supabaseUrl || !serviceRoleKey) {
   throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.");
@@ -51,9 +53,23 @@ async function main() {
     const checkedAt = new Date().toISOString();
 
     if (!video) {
+      if (state.highlights_url && isAcceptedExistingHighlight(state)) {
+        if (!isDryRun) {
+          await updateHighlightCheck(state.match_id, { checkedAt, keepExisting: true });
+        }
+        continue;
+      }
+
       unmatched++;
       if (!isDryRun) {
         await updateHighlightCheck(state.match_id, { checkedAt });
+      }
+      continue;
+    }
+
+    if (state.highlights_url && video.url === state.highlights_url && isAcceptedExistingHighlight(state)) {
+      if (!isDryRun) {
+        await updateHighlightCheck(state.match_id, { checkedAt, keepExisting: true });
       }
       continue;
     }
@@ -400,28 +416,34 @@ async function loadFixtures() {
 }
 
 async function loadFinishedStatesMissingHighlights() {
-  const { data, error } = await supabase
+  let query = supabase
     .from("live_match_state")
-    .select("match_id, status, final_score_confirmed_at, highlights_url")
-    .is("highlights_url", null)
+    .select("match_id, status, final_score_confirmed_at, highlights_url, highlights_title")
     .not("final_score_confirmed_at", "is", null)
     .order("final_score_confirmed_at", { ascending: false })
     .limit(Number(process.env.HIGHLIGHTS_MATCH_LIMIT ?? 40));
+
+  if (!shouldRecheckExisting) {
+    query = query.is("highlights_url", null);
+  }
+
+  const { data, error } = await query;
 
   if (error) throw new Error(`Failed to load completed matches missing highlights: ${error.message}`);
   return data ?? [];
 }
 
-async function updateHighlightCheck(matchId, { url, title, publishedAt, checkedAt }) {
-  const { error } = await supabase
-    .from("live_match_state")
-    .update({
-      highlights_url: url ?? null,
-      highlights_title: title ?? null,
-      highlights_published_at: publishedAt ?? null,
-      highlights_checked_at: checkedAt,
-    })
-    .eq("match_id", matchId);
+async function updateHighlightCheck(matchId, { url, title, publishedAt, checkedAt, keepExisting = false }) {
+  const update = keepExisting
+    ? { highlights_checked_at: checkedAt }
+    : {
+        highlights_url: url ?? null,
+        highlights_title: title ?? null,
+        highlights_published_at: publishedAt ?? null,
+        highlights_checked_at: checkedAt,
+      };
+
+  const { error } = await supabase.from("live_match_state").update(update).eq("match_id", matchId);
 
   if (error) throw new Error(`Failed to update highlights for match ${matchId}: ${error.message}`);
 }
@@ -430,36 +452,54 @@ function findHighlightVideo(videos, fixture) {
   const home = normalizeTeamName(fixture.home_team);
   const away = normalizeTeamName(fixture.away_team);
 
-  // Strategy 1: Find official highlights (title contains "highlight" keywords + both teams)
-  let match = videos.find((video) => {
-    if (!isHighlightTitle(video.normalizedTitle)) return false;
-    return titleHasTeam(video.normalizedTitle, home) && titleHasTeam(video.normalizedTitle, away);
-  });
-
-  // Strategy 2: Find match-score pattern like "france 3 0 iraq" (both team names + numbers separated)
-  // This catches goal clips and short highlights that still mention both teams and a score
-  if (!match) {
-    match = videos.find((video) => {
-      const t = video.normalizedTitle;
-      if (!t) return false;
-      return titleHasTeam(t, home) && titleHasTeam(t, away) && /\d+\s*-\s*\d+/.test(t);
-    });
-  }
-
-  // Strategy 3: Find any video with both team names (last resort for hard-to-match fixtures)
-  if (!match) {
-    match = videos.find((video) => {
-      const t = video.normalizedTitle;
-      if (!t) return false;
-      return titleHasTeam(t, home) && titleHasTeam(t, away);
-    });
-  }
-
-  return match;
+  return videos
+    .map((video) => ({ video, score: scoreHighlightVideo(video, home, away) }))
+    .filter((candidate) => candidate.score >= 6)
+    .sort((a, b) => b.score - a.score)[0]?.video ?? null;
 }
 
 function isHighlightTitle(title) {
-  return title.includes("highlights") || title.includes("extended") || title.includes("match recap") || title.includes("full match") || title.includes("all goals");
+  if (!title) return false;
+  if (isRejectedHighlightTitle(title)) return false;
+  return title.includes("highlight") || title.includes("match recap") || title.includes("all goals");
+}
+
+function isRejectedHighlightTitle(title) {
+  return [
+    "alt cast",
+    "watchalong",
+    "watch along",
+    "preview",
+    "prediction",
+    "simulated",
+    "simulation",
+    "lineups",
+    "press conference",
+    "full match",
+    "live",
+  ].some((phrase) => title.includes(phrase));
+}
+
+function scoreHighlightVideo(video, home, away) {
+  const title = video.normalizedTitle;
+  if (!title || isRejectedHighlightTitle(title)) return 0;
+  if (!titleHasTeam(title, home) || !titleHasTeam(title, away)) return 0;
+
+  let score = 0;
+  if (title.includes("highlight")) score += 4;
+  if (title.includes("match recap")) score += 3;
+  if (title.includes("fifa world cup 2026") || title.includes("world cup 2026")) score += 2;
+  if (title.includes("fifa")) score += 1;
+  if (/\b(v|vs)\b/.test(title)) score += 1;
+  if (video.channelTitle && normalizeText(video.channelTitle) === "fifa") score += 2;
+
+  return score;
+}
+
+function isAcceptedExistingHighlight(state) {
+  if (!state.highlights_url || !state.highlights_title) return false;
+  const title = normalizeText(state.highlights_title);
+  return isHighlightTitle(title);
 }
 
 function titleHasTeam(title, team) {

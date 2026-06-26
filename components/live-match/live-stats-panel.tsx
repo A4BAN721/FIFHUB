@@ -6,10 +6,15 @@ type LiveStatsPanelProps = {
 
 const stats = [
   ["Possession", "homePossession", "awayPossession", "%"],
+  ["Expected Goals (xG)", "homeExpectedGoals", "awayExpectedGoals", ""],
   ["Shots", "homeShots", "awayShots", ""],
-  ["On Target", "homeShotsOnTarget", "awayShotsOnTarget", ""],
-  ["Corners", "homeCorners", "awayCorners", ""],
+  ["Shots On Target", "homeShotsOnTarget", "awayShotsOnTarget", ""],
+  ["Passes", "homePasses", "awayPasses", ""],
+  ["Passing Accuracy", "homePassingAccuracy", "awayPassingAccuracy", "%"],
+  ["Offsides", "homeOffsides", "awayOffsides", ""],
   ["Fouls", "homeFouls", "awayFouls", ""],
+  ["Yellow Cards", "homeYellowCards", "awayYellowCards", ""],
+  ["Red Cards", "homeRedCards", "awayRedCards", ""],
 ] as const;
 
 export function LiveStatsPanel({ statistics }: LiveStatsPanelProps) {
@@ -18,10 +23,7 @@ export function LiveStatsPanel({ statistics }: LiveStatsPanelProps) {
   });
 
   return (
-    <div className="space-y-2 border-t border-border/40 pt-3">
-      <h4 className="text-[11px] font-bold uppercase tracking-normal text-muted-foreground">
-        Match Stats
-      </h4>
+    <div className="space-y-2">
       <div className="space-y-1 rounded-lg border border-border/40 bg-background/45 p-2">
         {stats.map(([label, homeKey, awayKey, suffix]) => (
           <div key={label} className="grid grid-cols-[2.75rem_1fr_2.75rem] items-center gap-2 text-[11px]">
@@ -46,5 +48,6 @@ export function LiveStatsPanel({ statistics }: LiveStatsPanelProps) {
 
 function formatStat(value: number | null | undefined, suffix: string) {
   if (value == null) return "N/A";
+  if (suffix === "" && !Number.isInteger(value)) return value.toFixed(2);
   return `${value}${suffix}`;
 }
