@@ -11,6 +11,7 @@ const stats = [
   ["Shots On Target", "homeShotsOnTarget", "awayShotsOnTarget", ""],
   ["Passes", "homePasses", "awayPasses", ""],
   ["Passing Accuracy", "homePassingAccuracy", "awayPassingAccuracy", "%"],
+  ["Corners", "homeCorners", "awayCorners", ""],
   ["Offsides", "homeOffsides", "awayOffsides", ""],
   ["Fouls", "homeFouls", "awayFouls", ""],
   ["Yellow Cards", "homeYellowCards", "awayYellowCards", ""],
@@ -48,6 +49,7 @@ export function LiveStatsPanel({ statistics }: LiveStatsPanelProps) {
 
 function formatStat(value: number | null | undefined, suffix: string) {
   if (value == null) return "N/A";
+  if (suffix === "%" && !Number.isInteger(value)) return `${value.toFixed(1)}${suffix}`;
   if (suffix === "" && !Number.isInteger(value)) return value.toFixed(2);
   return `${value}${suffix}`;
 }

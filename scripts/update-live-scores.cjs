@@ -11,6 +11,8 @@ const apiFootballKey = process.env.API_FOOTBALL_KEY;
 const footballDataKey = process.env.FOOTBALL_DATA_KEY;
 const fotmobApiBaseUrl = process.env.FOTMOB_API_BASE_URL ?? "https://www.fotmob.com/api/data";
 const isDryRun = process.argv.includes("--dry-run") || process.env.DRY_RUN === "1";
+const providerOrder = parseProviderOrder(process.env.LIVE_SCORE_PROVIDER_ORDER);
+const providerPriority = new Map(providerOrder.map((provider, index) => [provider, index]));
 
 if (!supabaseUrl || !serviceRoleKey) {
   throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.");
@@ -29,10 +31,11 @@ async function main() {
   const fixtures = await loadFixtures();
   const fixtureMap = new Map(fixtures.map((fixture) => [teamPairKey(fixture.home_team, fixture.away_team), fixture]));
 
+  console.log(`Live score provider order: ${providerOrder.join(" -> ")}`);
   const providerMatches = await loadProviderMatches();
   const primaryResult = await syncMatches(providerMatches, fixtureMap, { writeEvents: true });
   const completedMatches = await loadEspnCompletedMatches();
-  const completedResult = await syncMatches(completedMatches, fixtureMap, { writeEvents: true });
+  const completedResult = await syncMatches(completedMatches, fixtureMap, { preserveExistingStats: true, writeEvents: false });
 
   console.log(
     `Live score sync complete. Updated ${primaryResult.updated}; skipped ${primaryResult.skipped}; provider matches ${providerMatches.length}.`,
@@ -53,7 +56,7 @@ async function main() {
   if (isDryRun && primaryResult.matched.length > 0) {
     console.log("Dry run live/provider-match sample:");
     for (const item of primaryResult.matched.slice(0, 30)) {
-      console.log(`- ${item.fixtureId}: ${item.label} ${item.score}; status=${item.status}; phase=${item.phase}`);
+      console.log(`- ${item.fixtureId}: ${item.label} ${item.score}; provider=${item.provider}; status=${item.status}; phase=${item.phase}; stats=${item.statCount}; ratings=${item.ratingCount}`);
     }
   }
   if (isDryRun && completedResult.matched.length > 0) {
@@ -94,10 +97,7 @@ async function syncMatches(matches, fixtureMap, options) {
         ...scoreMatch,
         lineups: orientedLineups ?? scoreMatch.lineups ?? null,
         events: chooseBestEvents(orientedEvents, scoreMatch.events),
-        statistics: {
-          ...(scoreMatch.statistics ?? {}),
-          ...orientedStatistics,
-        },
+        statistics: mergeMatchStatistics(scoreMatch.statistics, orientedStatistics),
       };
     }
     const current = bestMatchByFixtureId.get(fixture.id);
@@ -108,10 +108,7 @@ async function syncMatches(matches, fixtureMap, options) {
           ...scoreMatch,
           lineups: scoreMatch.lineups ?? current?.scoreMatch.lineups ?? null,
           events: chooseBestEvents(scoreMatch.events, current?.scoreMatch.events),
-          statistics: {
-            ...(current?.scoreMatch.statistics ?? {}),
-            ...(scoreMatch.statistics ?? {}),
-          },
+          statistics: mergeMatchStatistics(current?.scoreMatch.statistics, scoreMatch.statistics),
         },
       });
     } else {
@@ -119,10 +116,7 @@ async function syncMatches(matches, fixtureMap, options) {
         current.scoreMatch.lineups = scoreMatch.lineups;
       }
       current.scoreMatch.events = chooseBestEvents(current.scoreMatch.events, scoreMatch.events);
-      current.scoreMatch.statistics = {
-        ...(current.scoreMatch.statistics ?? {}),
-        ...(scoreMatch.statistics ?? {}),
-      };
+      current.scoreMatch.statistics = mergeMatchStatistics(current.scoreMatch.statistics, scoreMatch.statistics);
     }
   }
 
@@ -133,6 +127,9 @@ async function syncMatches(matches, fixtureMap, options) {
       score: `${scoreMatch.homeScore}-${scoreMatch.awayScore}`,
       status: scoreMatch.status,
       phase: scoreMatch.phase,
+      provider: scoreMatch.provider,
+      statCount: Object.keys(scoreMatch.statistics ?? {}).length,
+      ratingCount: countLineupRatings(scoreMatch.lineups),
       goalCount: scoreMatch.events?.length ?? 0,
     });
 
@@ -141,7 +138,7 @@ async function syncMatches(matches, fixtureMap, options) {
       continue;
     }
 
-    await upsertLiveState(fixture, scoreMatch);
+    await upsertLiveState(fixture, scoreMatch, options);
     if (options.writeEvents) {
       try {
         await replaceMatchEvents(fixture, scoreMatch);
@@ -169,6 +166,13 @@ function hasProviderEvents(events, provider) {
 
 function hasAssistData(events) {
   return events.some((event) => event.assistPlayerName);
+}
+
+function mergeMatchStatistics(base = {}, incoming = {}) {
+  return {
+    ...compactObject(base),
+    ...compactObject(incoming),
+  };
 }
 
 function runHighlightsSyncAfterScores() {
@@ -255,21 +259,51 @@ async function loadFixtures() {
 async function loadProviderMatches() {
   const providerMatches = [];
 
-  providerMatches.push(...await loadEspnLiveMatches());
-
-  if (process.env.FOTMOB_ENABLED === "1" || process.env.FOTMOB_API_BASE_URL) {
-    providerMatches.push(...await loadFotmobMatches());
-  }
-
-  if (footballDataKey) {
-    providerMatches.push(...await loadFootballDataMatches());
-  }
-
-  if (apiFootballKey) {
-    providerMatches.push(...await loadApiFootballMatches());
+  for (const provider of providerOrder) {
+    providerMatches.push(...await loadProviderSource(provider));
   }
 
   return dedupeProviderMatches(providerMatches);
+}
+
+async function loadProviderSource(provider) {
+  try {
+    if (provider === "fotmob") {
+      if (process.env.FOTMOB_ENABLED === "0") return [];
+      return loadFotmobMatches();
+    }
+
+    if (provider === "espn") {
+      return loadEspnLiveMatches();
+    }
+
+    if (provider === "football-data") {
+      return footballDataKey ? loadFootballDataMatches() : [];
+    }
+
+    if (provider === "api-football") {
+      return apiFootballKey ? loadApiFootballMatches() : [];
+    }
+  } catch (error) {
+    console.warn(`${provider} live scores unavailable: ${error.message}`);
+  }
+
+  return [];
+}
+
+function parseProviderOrder(value) {
+  const supportedProviders = ["fotmob", "espn", "football-data", "api-football"];
+  const requestedProviders = String(value || "fotmob,espn,football-data,api-football")
+    .split(",")
+    .map((provider) => provider.trim().toLowerCase())
+    .filter(Boolean);
+  const orderedProviders = requestedProviders.filter((provider) => supportedProviders.includes(provider));
+
+  for (const provider of supportedProviders) {
+    if (!orderedProviders.includes(provider)) orderedProviders.push(provider);
+  }
+
+  return orderedProviders;
 }
 
 async function loadEspnLiveMatches() {
@@ -427,8 +461,8 @@ function mapFotmobStatistics(details) {
     awayPasses: fotmobPassCount(rows, "away"),
     homePassingAccuracy: fotmobPassAccuracy(rows),
     awayPassingAccuracy: fotmobPassAccuracy(rows, "away"),
-    homePossession: fotmobStat(rows, ["ballpossession", "possession"]),
-    awayPossession: fotmobStat(rows, ["ballpossession", "possession"], "away"),
+    homePossession: fotmobStat(rows, ["ballpossession", "ballpossesion", "possession"]),
+    awayPossession: fotmobStat(rows, ["ballpossession", "ballpossesion", "possession"], "away"),
     homeYellowCards: fotmobStat(rows, ["yellowcards"]),
     awayYellowCards: fotmobStat(rows, ["yellowcards"], "away"),
     homeRedCards: fotmobStat(rows, ["redcards"]),
@@ -446,8 +480,9 @@ function mapFotmobLineups(details, match) {
   const lineup = details?.content?.lineup;
   if (!lineup?.homeTeam || !lineup?.awayTeam) return null;
 
-  const home = mapFotmobTeamLineup(lineup.homeTeam, match.homeTeam);
-  const away = mapFotmobTeamLineup(lineup.awayTeam, match.awayTeam);
+  const ratings = mapFotmobPlayerRatings(details?.content?.playerStats);
+  const home = mapFotmobTeamLineup(lineup.homeTeam, match.homeTeam, ratings);
+  const away = mapFotmobTeamLineup(lineup.awayTeam, match.awayTeam, ratings);
   if (!hasLineupPlayers(home) && !hasLineupPlayers(away)) return null;
 
   return {
@@ -513,25 +548,26 @@ function parseFotmobAssist(value) {
   return match?.[1]?.trim() ?? null;
 }
 
-function mapFotmobTeamLineup(team, fallbackTeamName) {
+function mapFotmobTeamLineup(team, fallbackTeamName, ratings) {
   return {
     teamName: team.name ?? fallbackTeamName,
     formation: team.formation ?? null,
     coach: team.coach?.name ?? team.coach ?? null,
-    starters: (team.starters ?? []).map((player) => mapFotmobLineupPlayer(player, "starter")).filter(Boolean),
-    substitutes: (team.subs ?? team.substitutes ?? []).map((player) => mapFotmobLineupPlayer(player, "substitute")).filter(Boolean),
+    starters: (team.starters ?? []).map((player) => mapFotmobLineupPlayer(player, "starter", ratings)).filter(Boolean),
+    substitutes: (team.subs ?? team.substitutes ?? []).map((player) => mapFotmobLineupPlayer(player, "substitute", ratings)).filter(Boolean),
   };
 }
 
-function mapFotmobLineupPlayer(player, status) {
+function mapFotmobLineupPlayer(player, status, ratings) {
   const name = player?.name ?? [player?.firstName, player?.lastName].filter(Boolean).join(" ");
   if (!name) return null;
 
+  const id = player.id != null ? String(player.id) : null;
   const shirtNumber = Number(player.shirtNumber);
-  const rating = Number(player.performance?.rating ?? player.rating);
+  const rating = Number(player.performance?.rating ?? player.rating ?? ratings.get(id));
 
   return {
-    id: player.id != null ? String(player.id) : null,
+    id,
     name,
     position: fotmobPosition(player.positionId ?? player.usualPlayingPositionId),
     shirtNumber: Number.isFinite(shirtNumber) ? shirtNumber : null,
@@ -540,6 +576,32 @@ function mapFotmobLineupPlayer(player, status) {
     grid: fotmobGrid(player),
     captain: player.isCaptain === true,
   };
+}
+
+function mapFotmobPlayerRatings(playerStats) {
+  const ratings = new Map();
+  if (!playerStats || typeof playerStats !== "object") return ratings;
+
+  for (const [playerId, player] of Object.entries(playerStats)) {
+    const rating = extractFotmobPlayerRating(player);
+    if (rating != null) ratings.set(String(player?.id ?? playerId), rating);
+  }
+
+  return ratings;
+}
+
+function extractFotmobPlayerRating(player) {
+  for (const group of player?.stats ?? []) {
+    for (const stat of Object.values(group?.stats ?? {})) {
+      const key = normalizeFotmobStatKey(stat?.key ?? stat?.title ?? "");
+      if (key === "ratingtitle" || key === "fotmobrating") {
+        const rating = Number(stat?.stat?.value ?? stat?.value);
+        return Number.isFinite(rating) ? rating : null;
+      }
+    }
+  }
+
+  return null;
 }
 
 function fotmobPosition(positionId) {
@@ -567,7 +629,13 @@ function collectFotmobStatRows(value, rows = []) {
   }
 
   const title = value.title ?? value.name ?? value.key;
-  if (title && Array.isArray(value.stats) && value.stats.length >= 2 && !value.stats.some((item) => typeof item === "object")) {
+  if (
+    title &&
+    Array.isArray(value.stats) &&
+    value.stats.length >= 2 &&
+    value.stats.some((item) => item != null) &&
+    !value.stats.some((item) => item && typeof item === "object")
+  ) {
     rows.push(value);
   }
 
@@ -600,18 +668,18 @@ function fotmobPassAccuracy(rows, side = "home") {
 }
 
 function findFotmobRow(rows, keys) {
-  const normalizedKeys = new Set(keys);
-  return rows.find((row) => {
-    const rowKey = normalizeFotmobStatKey(row.key ?? row.title ?? row.name);
-    return normalizedKeys.has(rowKey);
-  });
+  for (const key of keys.map(normalizeFotmobStatKey)) {
+    const row = rows.find((item) => normalizeFotmobStatKey(item.key ?? item.title ?? item.name) === key);
+    if (row) return row;
+  }
+
+  return null;
 }
 
 function normalizeFotmobStatKey(value) {
   return String(value ?? "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/xg/i, "xg")
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
 }
@@ -949,6 +1017,9 @@ function dedupeProviderMatches(matches) {
 }
 
 function isBetterScoreMatch(candidate, current) {
+  const providerDelta = scoreProviderPriority(current.provider) - scoreProviderPriority(candidate.provider);
+  if (providerDelta !== 0) return providerDelta > 0;
+
   const priorityDelta = scoreMatchPriority(candidate) - scoreMatchPriority(current);
   if (priorityDelta !== 0) return priorityDelta > 0;
 
@@ -969,6 +1040,10 @@ function scoreMatchPriority(match) {
 
 function scoreValue(match) {
   return Number(match.homeScore ?? 0) + Number(match.awayScore ?? 0);
+}
+
+function scoreProviderPriority(provider) {
+  return providerPriority.get(provider) ?? providerOrder.length;
 }
 
 function parseComparableDate(value) {
@@ -1387,7 +1462,7 @@ function offsetIsoDate(date, days) {
   return value.toISOString().slice(0, 10);
 }
 
-async function upsertLiveState(fixture, match) {
+async function upsertLiveState(fixture, match, options = {}) {
   const existingState = await getExistingLiveState(fixture.id);
 
   if (match.status === "scheduled" && hasConfirmedFinalScore(existingState)) {
@@ -1398,7 +1473,7 @@ async function upsertLiveState(fixture, match) {
   const finalScoreConfirmedAt = match.status === "finished" ? match.providerUpdatedAt ?? now : null;
   const phase = normalizePhase(match.phase);
   const statistics = match.statistics ?? {};
-  const statisticColumns = mapStatisticColumns(statistics, existingState);
+  const statisticColumns = mapStatisticColumns(statistics, existingState, options);
   const lineupColumns = mapLineupColumns(match.lineups ?? getKnownLineupsForFixture(fixture), existingState);
 
   const { error } = await supabase.from("live_match_state").upsert(
@@ -1464,6 +1539,19 @@ function mapLineupColumns(lineups, existingState) {
 
 function hasStoredLineups(lineups) {
   return Boolean(lineups?.home && lineups?.away && (hasLineupPlayers(lineups.home) || hasLineupPlayers(lineups.away)));
+}
+
+function countLineupRatings(lineups) {
+  if (!lineups?.home || !lineups?.away) return 0;
+
+  const players = [
+    ...(lineups.home.starters ?? []),
+    ...(lineups.home.substitutes ?? []),
+    ...(lineups.away.starters ?? []),
+    ...(lineups.away.substitutes ?? []),
+  ];
+
+  return players.filter((player) => player.rating != null).length;
 }
 
 function getKnownLineupsForFixture(fixture) {
@@ -1542,31 +1630,57 @@ function hasConfirmedFinalScore(state) {
   return Boolean(state && state.status === "finished" && state.final_score_confirmed_at);
 }
 
-function mapStatisticColumns(statistics, existingState) {
+function mapStatisticColumns(statistics, existingState, options = {}) {
+  const preferExistingStats = options.preserveExistingStats && hasDetailedStatistics(existingState);
+  const mergeStat = (incoming, existing) => (
+    preferExistingStats ? firstDefined(existing, incoming) : firstDefined(incoming, existing)
+  );
+
   return compactObject({
-    home_possession: firstDefined(statistics.homePossession, existingState?.home_possession),
-    away_possession: firstDefined(statistics.awayPossession, existingState?.away_possession),
-    home_shots: firstDefined(statistics.homeShots, existingState?.home_shots),
-    away_shots: firstDefined(statistics.awayShots, existingState?.away_shots),
-    home_shots_on_target: firstDefined(statistics.homeShotsOnTarget, existingState?.home_shots_on_target),
-    away_shots_on_target: firstDefined(statistics.awayShotsOnTarget, existingState?.away_shots_on_target),
-    home_expected_goals: firstDefined(statistics.homeExpectedGoals, existingState?.home_expected_goals),
-    away_expected_goals: firstDefined(statistics.awayExpectedGoals, existingState?.away_expected_goals),
-    home_passes: firstDefined(statistics.homePasses, existingState?.home_passes),
-    away_passes: firstDefined(statistics.awayPasses, existingState?.away_passes),
-    home_passing_accuracy: firstDefined(statistics.homePassingAccuracy, existingState?.home_passing_accuracy),
-    away_passing_accuracy: firstDefined(statistics.awayPassingAccuracy, existingState?.away_passing_accuracy),
-    home_yellow_cards: firstDefined(statistics.homeYellowCards, existingState?.home_yellow_cards),
-    away_yellow_cards: firstDefined(statistics.awayYellowCards, existingState?.away_yellow_cards),
-    home_red_cards: firstDefined(statistics.homeRedCards, existingState?.home_red_cards),
-    away_red_cards: firstDefined(statistics.awayRedCards, existingState?.away_red_cards),
-    home_corners: firstDefined(statistics.homeCorners, existingState?.home_corners),
-    away_corners: firstDefined(statistics.awayCorners, existingState?.away_corners),
-    home_fouls: firstDefined(statistics.homeFouls, existingState?.home_fouls),
-    away_fouls: firstDefined(statistics.awayFouls, existingState?.away_fouls),
-    home_offsides: firstDefined(statistics.homeOffsides, existingState?.home_offsides),
-    away_offsides: firstDefined(statistics.awayOffsides, existingState?.away_offsides),
+    home_possession: mergeStat(statistics.homePossession, existingState?.home_possession),
+    away_possession: mergeStat(statistics.awayPossession, existingState?.away_possession),
+    home_shots: mergeStat(statistics.homeShots, existingState?.home_shots),
+    away_shots: mergeStat(statistics.awayShots, existingState?.away_shots),
+    home_shots_on_target: mergeStat(statistics.homeShotsOnTarget, existingState?.home_shots_on_target),
+    away_shots_on_target: mergeStat(statistics.awayShotsOnTarget, existingState?.away_shots_on_target),
+    home_expected_goals: mergeStat(statistics.homeExpectedGoals, existingState?.home_expected_goals),
+    away_expected_goals: mergeStat(statistics.awayExpectedGoals, existingState?.away_expected_goals),
+    home_passes: mergeStat(statistics.homePasses, existingState?.home_passes),
+    away_passes: mergeStat(statistics.awayPasses, existingState?.away_passes),
+    home_passing_accuracy: mergeStat(statistics.homePassingAccuracy, existingState?.home_passing_accuracy),
+    away_passing_accuracy: mergeStat(statistics.awayPassingAccuracy, existingState?.away_passing_accuracy),
+    home_yellow_cards: mergeStat(statistics.homeYellowCards, existingState?.home_yellow_cards),
+    away_yellow_cards: mergeStat(statistics.awayYellowCards, existingState?.away_yellow_cards),
+    home_red_cards: mergeStat(statistics.homeRedCards, existingState?.home_red_cards),
+    away_red_cards: mergeStat(statistics.awayRedCards, existingState?.away_red_cards),
+    home_corners: mergeStat(statistics.homeCorners, existingState?.home_corners),
+    away_corners: mergeStat(statistics.awayCorners, existingState?.away_corners),
+    home_fouls: mergeStat(statistics.homeFouls, existingState?.home_fouls),
+    away_fouls: mergeStat(statistics.awayFouls, existingState?.away_fouls),
+    home_offsides: mergeStat(statistics.homeOffsides, existingState?.home_offsides),
+    away_offsides: mergeStat(statistics.awayOffsides, existingState?.away_offsides),
   });
+}
+
+function hasDetailedStatistics(state) {
+  if (!state) return false;
+
+  return [
+    state.home_expected_goals,
+    state.away_expected_goals,
+    state.home_passes,
+    state.away_passes,
+    state.home_passing_accuracy,
+    state.away_passing_accuracy,
+    state.home_shots,
+    state.away_shots,
+    state.home_shots_on_target,
+    state.away_shots_on_target,
+    state.home_corners,
+    state.away_corners,
+    state.home_fouls,
+    state.away_fouls,
+  ].some((value) => value != null && value !== 0);
 }
 
 function firstDefined(...values) {
@@ -1582,12 +1696,12 @@ function compactObject(value) {
 async function replaceMatchEvents(fixture, match) {
   if (!match.events || match.events.length === 0) return;
 
-  const eventProviders = [...new Set(match.events.map((event) => event.provider ?? match.provider).filter(Boolean))];
+  const eventTypes = [...new Set(match.events.map((event) => event.eventType).filter(Boolean))];
   const { error: deleteError } = await supabase
     .from("match_events")
     .delete()
     .eq("match_id", fixture.id)
-    .in("provider", eventProviders.length > 0 ? eventProviders : [match.provider]);
+    .in("event_type", eventTypes);
 
   if (deleteError) {
     throw new Error(`Failed to clear events for ${fixture.home_team} vs ${fixture.away_team}: ${deleteError.message}`);

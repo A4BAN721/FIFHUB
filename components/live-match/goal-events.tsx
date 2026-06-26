@@ -44,7 +44,7 @@ function formatGoal(goal: MatchEvent) {
   }
 
   const scorer = goal.playerName ?? "Unknown scorer";
-  if (goal.eventType === "penalty_goal") return `${scorer} ${minute} (Penalty)`;
-  if (goal.assistPlayerName) return `${scorer} ${minute} (${goal.assistPlayerName})`;
-  return `${scorer} ${minute}`;
+  const penaltyMarker = goal.eventType === "penalty_goal" ? " (P)" : "";
+  const assist = goal.assistPlayerName ? `, assist: ${goal.assistPlayerName}` : "";
+  return `${scorer}${penaltyMarker} ${minute}${assist}`;
 }

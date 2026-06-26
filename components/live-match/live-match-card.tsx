@@ -179,12 +179,12 @@ function CompactScoreOverlay({ liveMatch, fixtureStage }: { liveMatch: LiveMatch
       {showLiveIndicator && (
         <span
           className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full border border-white/80 bg-red-600 shadow-lg shadow-red-600/60 live-dot-pulse sm:h-3 sm:w-3"
-          aria-hidden="true"
+        aria-hidden="true"
         />
       )}
       <span
         className={`absolute left-2 rounded-full border border-zinc-200 bg-white px-1.5 py-0.5 text-[8px] font-black text-zinc-950 shadow-md dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:px-2 sm:text-[10px] ${
-          isGroupStage ? "top-5 sm:top-2" : "top-2"
+          isGroupStage ? "top-[3.85rem] sm:top-2" : "top-2"
         }`}
       >
         {getPlayPeriodLabel(liveMatch)}
@@ -646,8 +646,10 @@ function ExpandedTeamName({ teamName, align }: { teamName: string; align: "left"
 }
 
 function TeamEventSummary({ liveMatch }: { liveMatch: LiveMatch }) {
-  const goals = liveMatch.events.filter((event) =>
-    ["goal", "penalty_goal", "own_goal"].includes(event.eventType),
+  const goals = sortEventsByMinute(
+    liveMatch.events.filter((event) =>
+      ["goal", "penalty_goal", "own_goal"].includes(event.eventType),
+    ),
   );
   const redCards = liveMatch.events.filter((event) =>
     ["red_card", "second_yellow"].includes(event.eventType),
@@ -657,13 +659,13 @@ function TeamEventSummary({ liveMatch }: { liveMatch: LiveMatch }) {
     <div className="grid gap-4 border-t border-border/40 pt-4 sm:grid-cols-2">
       <TeamEventColumn
         teamName={liveMatch.homeTeam}
-        goals={goals.filter((event) => isSameTeam(event.teamName, liveMatch.homeTeam))}
+        goals={sortEventsByMinute(goals.filter((event) => isSameTeam(event.teamName, liveMatch.homeTeam)))}
         redCards={redCards.filter((event) => isSameTeam(event.teamName, liveMatch.homeTeam))}
         align="left"
       />
       <TeamEventColumn
         teamName={liveMatch.awayTeam}
-        goals={goals.filter((event) => isSameTeam(event.teamName, liveMatch.awayTeam))}
+        goals={sortEventsByMinute(goals.filter((event) => isSameTeam(event.teamName, liveMatch.awayTeam)))}
         redCards={redCards.filter((event) => isSameTeam(event.teamName, liveMatch.awayTeam))}
         align="right"
       />
@@ -729,11 +731,27 @@ function RedCardRow({ card, align }: { card: MatchEvent; align: "left" | "right"
 }
 
 function formatGoalLine(goal: MatchEvent) {
-  const suffix = goal.eventType === "penalty_goal" ? " pen." : goal.eventType === "own_goal" ? " OG" : "";
+  if (goal.eventType === "own_goal") {
+    return `${goal.playerName ?? "Unknown player"} ${formatMinute(goal)} OG`;
+  }
+
+  const penaltyMarker = goal.eventType === "penalty_goal" ? " (P)" : "";
   const assist = goal.assistPlayerName ? `, assist: ${goal.assistPlayerName}` : "";
-  return `${goal.playerName ?? "Unknown scorer"} ${formatMinute(goal)}${suffix}${assist}`;
+  return `${goal.playerName ?? "Unknown scorer"}${penaltyMarker} ${formatMinute(goal)}${assist}`;
 }
 
 function formatMinute(event: MatchEvent) {
   return `${event.minute}${event.stoppageMinute ? `+${event.stoppageMinute}` : ""}'`;
+}
+
+function sortEventsByMinute(events: MatchEvent[]) {
+  return [...events].sort((a, b) => {
+    const minuteDiff = a.minute - b.minute;
+    if (minuteDiff !== 0) return minuteDiff;
+
+    const stoppageDiff = (a.stoppageMinute ?? 0) - (b.stoppageMinute ?? 0);
+    if (stoppageDiff !== 0) return stoppageDiff;
+
+    return (a.sequenceNumber ?? 0) - (b.sequenceNumber ?? 0);
+  });
 }

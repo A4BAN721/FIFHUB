@@ -58,6 +58,9 @@ export function NationCard({ nation, onClick, index }: NationCardProps) {
   };
 
   const getTranslatedCountryName = (nationId: string): string => {
+    if (language === "en" && nationId === "bosnia-herzegovina") return "Bosnia";
+    if (language === "bn" && nationId === "bosnia-herzegovina") return "বসনিয়া";
+
     const translationKey = nationId.replace(/-/g, "");
     const translated = t(translationKey);
     // If in English mode and no translation found, return the original nation.name
