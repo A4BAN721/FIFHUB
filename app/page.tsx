@@ -15,6 +15,7 @@ export default function Home() {
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState("squads");
   const [selectedNationId, setSelectedNationId] = useState<string | null>(null);
+  const [selectedPlayerName, setSelectedPlayerName] = useState<string | null>(null);
   const [returnTab, setReturnTab] = useState<string | null>(null);
   const [returnScrollY, setReturnScrollY] = useState<number | null>(null);
   const [fixturesView, setFixturesView] = useState({ search: "", selectedStage: "ALL" });
@@ -31,6 +32,7 @@ export default function Home() {
       if (!nationId) return;
 
       setSelectedNationId(nationId);
+      setSelectedPlayerName(typeof detail === "string" ? null : detail.playerName ?? null);
       setReturnTab(typeof detail === "string" ? null : detail.returnTab ?? null);
       setReturnScrollY(typeof detail === "string" ? null : detail.returnScrollY ?? null);
       setActiveTab("squads");
@@ -101,11 +103,13 @@ export default function Home() {
     });
     if (value === "squads") {
       setSelectedNationId(null);
+      setSelectedPlayerName(null);
     }
   };
 
   const handleNationBack = () => {
     setSelectedNationId(null);
+    setSelectedPlayerName(null);
     if (returnTab) {
       setActiveTab(returnTab);
       const scrollY = returnScrollY;
@@ -145,7 +149,11 @@ export default function Home() {
               <TabsTrigger value="stats">Stats</TabsTrigger>
             </TabsList>
             <TabsContent value="squads" className="mt-0">
-              <NationsGrid initialSelectedNationId={selectedNationId} onNationBack={handleNationBack} />
+              <NationsGrid
+                initialSelectedNationId={selectedNationId}
+                initialSelectedPlayerName={selectedPlayerName}
+                onNationBack={handleNationBack}
+              />
             </TabsContent>
             <TabsContent value="fixtures" className="mt-0">
               <MatchFixtures

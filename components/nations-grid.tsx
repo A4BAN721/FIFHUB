@@ -21,12 +21,14 @@ const localDataNations = new Map(
 
 interface NationsGridProps {
   initialSelectedNationId?: string | null;
+  initialSelectedPlayerName?: string | null;
   onNationBack?: () => void;
 }
 
-export function NationsGrid({ initialSelectedNationId, onNationBack }: NationsGridProps) {
+export function NationsGrid({ initialSelectedNationId, initialSelectedPlayerName, onNationBack }: NationsGridProps) {
   const { t } = useLanguage();
   const [selectedNationId, setSelectedNationId] = useState<string | null>(initialSelectedNationId || null);
+  const [selectedPlayerName, setSelectedPlayerName] = useState<string | null>(initialSelectedPlayerName || null);
   const [groupScrollY, setGroupScrollY] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [nations, setNations] = useState<Nation[]>(fallbackNations);
@@ -68,6 +70,7 @@ export function NationsGrid({ initialSelectedNationId, onNationBack }: NationsGr
 
       setGroupScrollY(null);
       setSelectedNationId(nationId);
+      setSelectedPlayerName(typeof detail === "string" ? null : detail.playerName ?? null);
     };
 
     window.addEventListener("nationSelected", handleNationSelection as EventListener);
@@ -121,12 +124,14 @@ export function NationsGrid({ initialSelectedNationId, onNationBack }: NationsGr
   const handleOpenNation = (nationId: string) => {
     setGroupScrollY(window.scrollY);
     setSelectedNationId(nationId);
+    setSelectedPlayerName(null);
   };
 
   const handleBackFromNation = () => {
     const scrollY = groupScrollY;
 
     setSelectedNationId(null);
+    setSelectedPlayerName(null);
     setGroupScrollY(null);
     onNationBack?.();
 
@@ -141,6 +146,7 @@ export function NationsGrid({ initialSelectedNationId, onNationBack }: NationsGr
     return (
       <NationDetail
         nation={selectedNation}
+        initialSelectedPlayerName={selectedPlayerName}
         onBack={handleBackFromNation}
       />
     );

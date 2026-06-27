@@ -11,10 +11,11 @@ import { useEffect, useMemo, useState } from "react";
 
 interface NationDetailProps {
   nation: Nation;
+  initialSelectedPlayerName?: string | null;
   onBack: () => void;
 }
 
-export function NationDetail({ nation, onBack }: NationDetailProps) {
+export function NationDetail({ nation, initialSelectedPlayerName, onBack }: NationDetailProps) {
   const { t, language } = useLanguage();
   const [filterPosition, setFilterPosition] = useState<string>("all");
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
@@ -106,6 +107,24 @@ export function NationDetail({ nation, onBack }: NationDetailProps) {
 
   // Determine if primary is light or dark for text contrast
   const isLightPrimary = isLightColor(primaryColor);
+
+  useEffect(() => {
+    if (!initialSelectedPlayerName) return;
+
+    const initialPlayer = nation.players.find((player) =>
+      isSamePlayerName(player.fullName, initialSelectedPlayerName)
+    );
+
+    if (!initialPlayer) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      setSelectedPlayer(initialPlayer);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [initialSelectedPlayerName, nation.players]);
 
   useEffect(() => {
     if (!selectedPlayer) return;
@@ -469,4 +488,39 @@ function isLightColor(color: string): boolean {
     return brightness > 155;
   }
   return false;
+}
+
+function isSamePlayerName(left: string, right: string) {
+  const leftKey = normalizePlayerName(left);
+  const rightKey = normalizePlayerName(right);
+  if (leftKey === rightKey) return true;
+
+  const leftTokens = tokenizePlayerName(left);
+  const rightTokens = tokenizePlayerName(right);
+  if (leftTokens.length === 0 || rightTokens.length === 0) return false;
+
+  const shorter = leftTokens.length <= rightTokens.length ? leftTokens : rightTokens;
+  const longer = leftTokens.length <= rightTokens.length ? rightTokens : leftTokens;
+
+  return shorter.every((token, index) => {
+    const target = longer[index] ?? longer[longer.length - shorter.length + index];
+    return target?.startsWith(token) || token.startsWith(target);
+  });
+}
+
+function normalizePlayerName(name: string) {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/gi, "")
+    .toLowerCase();
+}
+
+function tokenizePlayerName(name: string) {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
 }

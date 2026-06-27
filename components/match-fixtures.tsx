@@ -525,14 +525,15 @@ export function MatchFixtures({
                                   <div className="min-w-0 flex-1">
                                     {homeNationId ? (
                                       <button
-                                        onClick={() => {
+                                        onClick={(event) => {
+                                          event.stopPropagation();
                                           window.dispatchEvent(
                                             new CustomEvent("nationSelected", {
                                               detail: { nationId: homeNationId, returnTab: "fixtures", returnScrollY: window.scrollY },
                                             })
                                           );
                                         }}
-                                        className="flex w-full min-w-0 items-center gap-1 sm:gap-2"
+                                        className="flex max-w-full min-w-0 items-center gap-1 sm:gap-2"
                                         style={{ "--team-color": homeColor, "--shadow-color": getTextShadowColor() } as TeamAccentStyle}
                                       >
                                         <NationFlag
@@ -577,14 +578,15 @@ export function MatchFixtures({
                                   <div className="min-w-0 flex-1">
                                     {awayNationId ? (
                                       <button
-                                        onClick={() => {
+                                        onClick={(event) => {
+                                          event.stopPropagation();
                                           window.dispatchEvent(
                                             new CustomEvent("nationSelected", {
                                               detail: { nationId: awayNationId, returnTab: "fixtures", returnScrollY: window.scrollY },
                                             })
                                           );
                                         }}
-                                        className="flex w-full min-w-0 items-center justify-end gap-1 sm:gap-2"
+                                        className="ml-auto flex max-w-full min-w-0 items-center justify-end gap-1 sm:gap-2"
                                         style={{ "--team-color": awayColor, "--shadow-color": getTextShadowColor() } as TeamAccentStyle}
                                       >
                                         <span className="min-w-0 truncate text-right text-[9px] font-semibold text-foreground sm:text-xs">
@@ -701,14 +703,15 @@ export function MatchFixtures({
                             <div className="min-w-0 flex-1">
                               {homeNationId ? (
                                 <button
-                                  onClick={() => {
+                                  onClick={(event) => {
+                                    event.stopPropagation();
                                     window.dispatchEvent(
                                       new CustomEvent("nationSelected", {
                                         detail: { nationId: homeNationId, returnTab: "fixtures", returnScrollY: window.scrollY },
                                       })
                                     );
                                   }}
-                                  className="flex w-full min-w-0 items-center gap-1 sm:gap-2"
+                                  className="flex max-w-full min-w-0 items-center gap-1 sm:gap-2"
                                   style={{ "--team-color": homeColor, "--shadow-color": getTextShadowColor() } as TeamAccentStyle}
                                 >
                                   <NationFlag
@@ -753,14 +756,15 @@ export function MatchFixtures({
                             <div className="min-w-0 flex-1">
                               {awayNationId ? (
                                 <button
-                                  onClick={() => {
+                                  onClick={(event) => {
+                                    event.stopPropagation();
                                     window.dispatchEvent(
                                       new CustomEvent("nationSelected", {
                                         detail: { nationId: awayNationId, returnTab: "fixtures", returnScrollY: window.scrollY },
                                       })
                                     );
                                   }}
-                                  className="flex w-full min-w-0 items-center justify-end gap-1 sm:gap-2"
+                                  className="ml-auto flex max-w-full min-w-0 items-center justify-end gap-1 sm:gap-2"
                                   style={{ "--team-color": awayColor, "--shadow-color": getTextShadowColor() } as TeamAccentStyle}
                                 >
                                   <span className="min-w-0 truncate text-right text-[9px] font-semibold text-foreground sm:text-xs">

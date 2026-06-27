@@ -528,6 +528,7 @@ function mapFotmobEventType(event) {
   const card = String(event.card ?? "").toLowerCase();
   const goalDescription = String(event.goalDescription ?? event.suffix ?? "").toLowerCase();
 
+  if (type.includes("injur")) return "injury";
   if (type === "goal") {
     if (event.ownGoal) return "own_goal";
     if (goalDescription.includes("pen") || goalDescription.includes("penalty")) return "penalty_goal";
@@ -555,6 +556,9 @@ function mapFotmobTeamLineup(team, fallbackTeamName, ratings) {
     coach: team.coach?.name ?? team.coach ?? null,
     starters: (team.starters ?? []).map((player) => mapFotmobLineupPlayer(player, "starter", ratings)).filter(Boolean),
     substitutes: (team.subs ?? team.substitutes ?? []).map((player) => mapFotmobLineupPlayer(player, "substitute", ratings)).filter(Boolean),
+    unavailable: mapUnavailablePlayers(
+      firstArray(team.unavailable, team.unavailablePlayers, team.missingPlayers, team.absentPlayers, team.sidelined),
+    ),
   };
 }
 
@@ -748,15 +752,19 @@ function shouldFetchApiFootballDetails(match) {
 
 async function loadApiFootballDetails(match) {
   try {
-    const [lineups, playerStats, events, statistics] = await Promise.all([
+    const [lineups, playerStats, events, statistics, injuries] = await Promise.all([
       apiFootballRequest("fixtures/lineups", { fixture: match.providerMatchId }),
       apiFootballRequest("fixtures/players", { fixture: match.providerMatchId }),
       apiFootballRequest("fixtures/events", { fixture: match.providerMatchId }),
       apiFootballRequest("fixtures/statistics", { fixture: match.providerMatchId }),
+      apiFootballRequest("injuries", { fixture: match.providerMatchId }).catch((error) => {
+        console.warn(`API-Football injuries unavailable for ${match.homeTeam} vs ${match.awayTeam}: ${error.message}`);
+        return [];
+      }),
     ]);
 
     return {
-      lineups: mapApiFootballLineups(lineups, playerStats, match),
+      lineups: mapApiFootballLineups(lineups, playerStats, match, injuries),
       events: mapApiFootballEvents(events, match),
       statistics: mapApiFootballStatistics(statistics),
     };
@@ -812,17 +820,18 @@ function mapApiFootballFixture(fixture) {
   };
 }
 
-function mapApiFootballLineups(lineups, playerStats, match) {
+function mapApiFootballLineups(lineups, playerStats, match, injuries = []) {
   if (!Array.isArray(lineups) || lineups.length === 0) return null;
 
   const ratings = mapApiFootballRatings(playerStats);
+  const unavailableByTeam = mapApiFootballUnavailableByTeam(injuries, match);
   const homeSource = lineups.find((lineup) => isSameProviderTeam(lineup.team, { id: match.homeTeamId, name: match.homeTeam })) ?? lineups[0];
   const awaySource = lineups.find((lineup) => isSameProviderTeam(lineup.team, { id: match.awayTeamId, name: match.awayTeam })) ?? lineups[1];
 
   if (!homeSource || !awaySource) return null;
 
-  const home = mapApiFootballTeamLineup(homeSource, match.homeTeam, ratings);
-  const away = mapApiFootballTeamLineup(awaySource, match.awayTeam, ratings);
+  const home = mapApiFootballTeamLineup(homeSource, match.homeTeam, ratings, unavailableByTeam.home);
+  const away = mapApiFootballTeamLineup(awaySource, match.awayTeam, ratings, unavailableByTeam.away);
 
   if (!hasLineupPlayers(home) && !hasLineupPlayers(away)) return null;
 
@@ -834,7 +843,7 @@ function mapApiFootballLineups(lineups, playerStats, match) {
   };
 }
 
-function mapApiFootballTeamLineup(lineup, fallbackTeamName, ratings) {
+function mapApiFootballTeamLineup(lineup, fallbackTeamName, ratings, unavailable = []) {
   return {
     teamName: lineup.team?.name ?? fallbackTeamName,
     formation: lineup.formation ?? null,
@@ -845,6 +854,7 @@ function mapApiFootballTeamLineup(lineup, fallbackTeamName, ratings) {
     substitutes: (lineup.substitutes ?? [])
       .map((entry) => mapApiFootballLineupPlayer(entry, "substitute", ratings))
       .filter(Boolean),
+    unavailable,
   };
 }
 
@@ -918,6 +928,7 @@ function mapApiFootballEventType(event) {
   const type = String(event.type ?? "").toLowerCase();
   const detail = String(event.detail ?? "").toLowerCase();
 
+  if (type.includes("injur") || detail.includes("injur")) return "injury";
   if (type === "goal") {
     if (detail.includes("own")) return "own_goal";
     if (detail.includes("penalty")) return "penalty_goal";
@@ -1039,7 +1050,7 @@ function scoreMatchPriority(match) {
 }
 
 function scoreValue(match) {
-  return Number(match.homeScore ?? 0) + Number(match.awayScore ?? 0);
+  return Number(match.homeScore ?? match.home_score ?? 0) + Number(match.awayScore ?? match.away_score ?? 0);
 }
 
 function scoreProviderPriority(provider) {
@@ -1131,6 +1142,9 @@ function mapProviderTeamLineup(source, fallbackTeamName) {
     coach: source?.coach?.name ?? source?.coach ?? null,
     starters: starters.map((player) => mapLineupPlayer(player, "starter")).filter(Boolean),
     substitutes: substitutes.map((player) => mapLineupPlayer(player, "substitute")).filter(Boolean),
+    unavailable: mapUnavailablePlayers(
+      firstArray(source?.unavailable, source?.unavailablePlayers, source?.missingPlayers, source?.absentPlayers, source?.sidelined),
+    ),
   };
 }
 
@@ -1163,8 +1177,55 @@ function firstArray(...values) {
   return values.find((value) => Array.isArray(value)) ?? [];
 }
 
+function mapApiFootballUnavailableByTeam(injuries, match) {
+  const unavailableByTeam = { home: [], away: [] };
+
+  for (const injury of injuries ?? []) {
+    const player = mapUnavailablePlayer(injury, "injured");
+    if (!player) continue;
+
+    if (isSameProviderTeam(injury.team, { id: match.homeTeamId, name: match.homeTeam })) {
+      unavailableByTeam.home.push(player);
+    } else if (isSameProviderTeam(injury.team, { id: match.awayTeamId, name: match.awayTeam })) {
+      unavailableByTeam.away.push(player);
+    }
+  }
+
+  return unavailableByTeam;
+}
+
+function mapUnavailablePlayers(players) {
+  return players.map((player) => mapUnavailablePlayer(player)).filter(Boolean);
+}
+
+function mapUnavailablePlayer(entry, fallbackStatus = "unavailable") {
+  const player = entry?.player ?? entry;
+  const name = player?.name ?? player?.displayName ?? player?.fullName ?? entry?.name;
+  if (!name) return null;
+
+  const reason = player?.reason ?? entry?.reason ?? entry?.type ?? entry?.detail ?? entry?.status ?? null;
+  const status = unavailableStatus(reason, fallbackStatus);
+  const shirtNumber = Number(player?.number ?? player?.shirtNumber ?? entry?.number ?? entry?.shirtNumber);
+
+  return {
+    id: player?.id != null ? String(player.id) : null,
+    name,
+    position: player?.position ?? player?.pos ?? entry?.position ?? null,
+    shirtNumber: Number.isFinite(shirtNumber) ? shirtNumber : null,
+    reason,
+    status,
+  };
+}
+
+function unavailableStatus(reason, fallbackStatus = "unavailable") {
+  const normalized = String(reason ?? "").toLowerCase();
+  if (normalized.includes("susp")) return "suspended";
+  if (normalized.includes("injur") || normalized.includes("ill") || normalized.includes("knock")) return "injured";
+  return fallbackStatus;
+}
+
 function hasLineupPlayers(lineup) {
-  return lineup.starters.length > 0 || lineup.substitutes.length > 0;
+  return lineup.starters.length > 0 || lineup.substitutes.length > 0 || (lineup.unavailable ?? []).length > 0;
 }
 
 function isSameProviderTeam(candidate, expected) {
@@ -1465,12 +1526,14 @@ function offsetIsoDate(date, days) {
 async function upsertLiveState(fixture, match, options = {}) {
   const existingState = await getExistingLiveState(fixture.id);
 
-  if (match.status === "scheduled" && hasConfirmedFinalScore(existingState)) {
+  if (shouldSkipLiveStateUpdate(existingState, match)) {
     return;
   }
 
   const now = new Date().toISOString();
-  const finalScoreConfirmedAt = match.status === "finished" ? match.providerUpdatedAt ?? now : null;
+  const finalScoreConfirmedAt = match.status === "finished"
+    ? existingState?.final_score_confirmed_at ?? match.providerUpdatedAt ?? now
+    : null;
   const phase = normalizePhase(match.phase);
   const statistics = match.statistics ?? {};
   const statisticColumns = mapStatisticColumns(statistics, existingState, options);
@@ -1507,7 +1570,7 @@ async function upsertLiveState(fixture, match, options = {}) {
 async function getExistingLiveState(matchId) {
   const { data, error } = await supabase
     .from("live_match_state")
-    .select("status, final_score_confirmed_at, home_possession, away_possession, home_shots, away_shots, home_shots_on_target, away_shots_on_target, home_expected_goals, away_expected_goals, home_passes, away_passes, home_passing_accuracy, away_passing_accuracy, home_yellow_cards, away_yellow_cards, home_red_cards, away_red_cards, home_corners, away_corners, home_fouls, away_fouls, home_offsides, away_offsides, lineups, lineups_provider, lineups_updated_at")
+    .select("status, phase, period, home_score, away_score, minute, final_score_confirmed_at, provider_updated_at, updated_at, home_possession, away_possession, home_shots, away_shots, home_shots_on_target, away_shots_on_target, home_expected_goals, away_expected_goals, home_passes, away_passes, home_passing_accuracy, away_passing_accuracy, home_yellow_cards, away_yellow_cards, home_red_cards, away_red_cards, home_corners, away_corners, home_fouls, away_fouls, home_offsides, away_offsides, lineups, lineups_provider, lineups_updated_at")
     .eq("match_id", matchId)
     .maybeSingle();
 
@@ -1516,6 +1579,57 @@ async function getExistingLiveState(matchId) {
   }
 
   return data;
+}
+
+function shouldSkipLiveStateUpdate(existingState, incomingMatch) {
+  if (!existingState) return false;
+
+  const existingStatus = normalizeStatus(existingState.status);
+  const incomingStatus = normalizeStatus(incomingMatch.status);
+  const existingScore = scoreValue(existingState);
+  const incomingScore = scoreValue(incomingMatch);
+
+  if (hasConfirmedFinalScore(existingState) && incomingStatus !== "finished") {
+    return true;
+  }
+
+  if (incomingStatus === "scheduled" && existingStatus !== "scheduled") {
+    return true;
+  }
+
+  if (isActiveStatus(existingStatus) && incomingStatus === "scheduled") {
+    return true;
+  }
+
+  if (
+    isActiveStatus(existingStatus) &&
+    isActiveStatus(incomingStatus) &&
+    incomingScore < existingScore
+  ) {
+    return true;
+  }
+
+  if (
+    existingStatus === "finished" &&
+    existingScore > 0 &&
+    incomingStatus === "finished" &&
+    incomingScore < existingScore
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function normalizeStatus(status) {
+  if (status === "live" || status === "half_time" || status === "extra_time" || status === "penalties" || status === "finished") {
+    return status;
+  }
+  return "scheduled";
+}
+
+function isActiveStatus(status) {
+  return status === "live" || status === "half_time" || status === "extra_time" || status === "penalties";
 }
 
 function mapLineupColumns(lineups, existingState) {

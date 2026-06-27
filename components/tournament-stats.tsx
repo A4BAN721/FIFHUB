@@ -48,6 +48,8 @@ type Leader = {
   jerseyNumber: number | null;
 };
 
+type PlayerLookup = Map<string, number>;
+
 const categories: Array<{ value: StatCategory; label: string; heading: string }> = [
   { value: "goals", label: "Goals", heading: "Goals" },
   { value: "assists", label: "Assists", heading: "Assists" },
@@ -217,7 +219,7 @@ function LeaderRow({ leader }: { leader: Leader }) {
 function buildLeaders(
   events: EventRow[],
   category: StatCategory,
-  playerLookup: Map<string, number>
+  playerLookup: PlayerLookup
 ) {
   const totals = new Map<string, { playerName: string; teamName: string | null; value: number }>();
   const countedEvents = new Set<string>();
@@ -247,7 +249,7 @@ function buildLeaders(
       const rank = leader.value === previousValue ? previousRank : index + 1;
       previousValue = leader.value;
       previousRank = rank;
-      return { ...leader, rank, jerseyNumber: playerLookup.get(playerKey(leader.playerName, leader.teamName)) ?? null };
+      return { ...leader, rank, jerseyNumber: getJerseyNumber(leader.playerName, leader.teamName, playerLookup) };
     });
 }
 
@@ -299,8 +301,6 @@ function addLeaderValueOnce(
   const key = [
     category,
     normalizeName(event.match_id ?? ""),
-    normalizeName(event.event_type),
-    normalizeName(teamName ?? ""),
     normalizeName(playerName),
     event.minute ?? "",
   ].join("::");
@@ -362,6 +362,8 @@ function buildPlayerLookup(nations: Nation[], lineupRows: LineupRow[]) {
       lookup.set(playerKey(player.fullName, nation.name), player.jerseyNumber);
       lookup.set(playerKey(player.fullName, nation.id), player.jerseyNumber);
       lookup.set(playerKey(player.fullName, nation.code), player.jerseyNumber);
+      lookup.set(playerKey(player.fullName, normalizeCountryName(nation.name)), player.jerseyNumber);
+      lookup.set(playerKey(player.fullName, null), player.jerseyNumber);
     }
   }
 
@@ -371,11 +373,38 @@ function buildPlayerLookup(nations: Nation[], lineupRows: LineupRow[]) {
       for (const player of [...(team.starters ?? []), ...(team.substitutes ?? [])]) {
         if (!player.name || typeof player.shirtNumber !== "number") continue;
         lookup.set(playerKey(player.name, team.teamName), player.shirtNumber);
+        lookup.set(playerKey(player.name, normalizeCountryName(team.teamName)), player.shirtNumber);
+        lookup.set(playerKey(player.name, null), player.shirtNumber);
       }
     }
   }
 
   return lookup;
+}
+
+function getJerseyNumber(playerName: string, teamName: string | null, playerLookup: PlayerLookup) {
+  const direct =
+    playerLookup.get(playerKey(playerName, teamName)) ??
+    playerLookup.get(playerKey(playerName, teamName ? normalizeCountryName(teamName) : null)) ??
+    playerLookup.get(playerKey(playerName, null));
+
+  if (direct != null) return direct;
+
+  const playerTokens = tokenizeName(playerName);
+  const teamKey = normalizeName(teamName ?? "");
+
+  for (const [key, number] of playerLookup) {
+    const [candidatePlayer, candidateTeam] = key.split("::");
+    if (teamKey && candidateTeam && candidateTeam !== teamKey && candidateTeam !== normalizeName(normalizeCountryName(teamName ?? ""))) {
+      continue;
+    }
+
+    if (isSimilarTokenName(playerTokens, candidatePlayer.split(" "))) {
+      return number;
+    }
+  }
+
+  return null;
 }
 
 function playerKey(playerName: string, teamName: string | null) {
@@ -389,4 +418,20 @@ function normalizeName(value: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+}
+
+function tokenizeName(value: string) {
+  return normalizeName(value).split(" ").filter(Boolean);
+}
+
+function isSimilarTokenName(leftTokens: string[], rightTokens: string[]) {
+  if (leftTokens.length === 0 || rightTokens.length === 0) return false;
+
+  const shorter = leftTokens.length <= rightTokens.length ? leftTokens : rightTokens;
+  const longer = leftTokens.length <= rightTokens.length ? rightTokens : leftTokens;
+
+  return shorter.every((token, index) => {
+    const aligned = longer[index] ?? longer[longer.length - shorter.length + index];
+    return Boolean(aligned && (aligned.startsWith(token) || token.startsWith(aligned)));
+  });
 }

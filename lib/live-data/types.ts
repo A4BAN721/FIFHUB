@@ -23,6 +23,7 @@ export type MatchEventType =
   | "goal"
   | "penalty_goal"
   | "own_goal"
+  | "injury"
   | "missed_penalty"
   | "yellow_card"
   | "red_card"
@@ -91,12 +92,24 @@ export interface MatchLineupPlayer {
   captain?: boolean | null;
 }
 
+export type MatchUnavailablePlayerStatus = "injured" | "suspended" | "unavailable";
+
+export interface MatchUnavailablePlayer {
+  id?: string | null;
+  name: string;
+  position?: string | null;
+  shirtNumber?: number | null;
+  reason?: string | null;
+  status: MatchUnavailablePlayerStatus;
+}
+
 export interface MatchTeamLineup {
   teamName: string;
   formation?: string | null;
   coach?: string | null;
   starters: MatchLineupPlayer[];
   substitutes: MatchLineupPlayer[];
+  unavailable?: MatchUnavailablePlayer[];
 }
 
 export interface MatchLineups {

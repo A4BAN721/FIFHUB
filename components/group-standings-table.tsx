@@ -79,42 +79,42 @@ const localDataNations = new Map(
 
 const leftKnockoutPlacements = [
   ...Array.from({ length: 8 }, (_, index) => ({
-    label: `R32 ${index + 1}`,
+    label: `Round of 32 ${index + 1}`,
     column: 1,
     rowStart: index * 2 + 1,
     rowSpan: 2,
   })),
   ...Array.from({ length: 4 }, (_, index) => ({
-    label: `R16 ${index + 1}`,
+    label: `Round of 16 ${index + 1}`,
     column: 2,
     rowStart: index * 4 + 1,
     rowSpan: 4,
   })),
   ...Array.from({ length: 2 }, (_, index) => ({
-    label: `1/4 Finals ${index + 1}`,
+    label: `Quarter Finals ${index + 1}`,
     column: 3,
     rowStart: index * 8 + 1,
     rowSpan: 8,
   })),
-  { label: "1/2 Finals 1", column: 4, rowStart: 1, rowSpan: 16 },
+  { label: "Semi Finals 1", column: 4, rowStart: 1, rowSpan: 16 },
 ];
 
 const rightKnockoutPlacements = [
-  { label: "1/2 Finals 2", column: 6, rowStart: 1, rowSpan: 16 },
+  { label: "Semi Finals 2", column: 6, rowStart: 1, rowSpan: 16 },
   ...Array.from({ length: 2 }, (_, index) => ({
-    label: `1/4 Finals ${index + 3}`,
+    label: `Quarter Finals ${index + 3}`,
     column: 7,
     rowStart: index * 8 + 1,
     rowSpan: 8,
   })),
   ...Array.from({ length: 4 }, (_, index) => ({
-    label: `R16 ${index + 5}`,
+    label: `Round of 16 ${index + 5}`,
     column: 8,
     rowStart: index * 4 + 1,
     rowSpan: 4,
   })),
   ...Array.from({ length: 8 }, (_, index) => ({
-    label: `R32 ${index + 9}`,
+    label: `Round of 32 ${index + 9}`,
     column: 9,
     rowStart: index * 2 + 1,
     rowSpan: 2,
@@ -128,25 +128,25 @@ const centerKnockoutPlacements = [
 
 const mobileKnockoutPlacements = [
   ...Array.from({ length: 16 }, (_, index) => ({
-    label: `R32 ${index + 1}`,
+    label: `Round of 32 ${index + 1}`,
     column: 1,
     rowStart: index * 2 + 1,
     rowSpan: 2,
   })),
   ...Array.from({ length: 8 }, (_, index) => ({
-    label: `R16 ${index + 1}`,
+    label: `Round of 16 ${index + 1}`,
     column: 2,
     rowStart: index * 4 + 1,
     rowSpan: 4,
   })),
   ...Array.from({ length: 4 }, (_, index) => ({
-    label: `1/4 Finals ${index + 1}`,
+    label: `Quarter Finals ${index + 1}`,
     column: 3,
     rowStart: index * 8 + 1,
     rowSpan: 8,
   })),
   ...Array.from({ length: 2 }, (_, index) => ({
-    label: `1/2 Finals ${index + 1}`,
+    label: `Semi Finals ${index + 1}`,
     column: 4,
     rowStart: index * 16 + 1,
     rowSpan: 16,

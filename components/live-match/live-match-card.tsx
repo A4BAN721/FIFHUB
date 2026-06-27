@@ -323,10 +323,20 @@ function MatchDetailsTabs({
       </TabsList>
       <div ref={tabPanelStartRef} />
       <TabsContent value="stats" className="mt-3">
-        <LiveStatsPanel statistics={liveMatch.statistics} />
+        <LiveStatsPanel
+          statistics={liveMatch.statistics}
+          events={liveMatch.events}
+          homeTeam={liveMatch.homeTeam}
+          awayTeam={liveMatch.awayTeam}
+        />
       </TabsContent>
       <TabsContent value="lineups" className="mt-3">
-        <LineupsPanel lineups={liveMatch.lineups} homeTeam={liveMatch.homeTeam} awayTeam={liveMatch.awayTeam} />
+        <LineupsPanel
+          lineups={liveMatch.lineups}
+          events={liveMatch.events}
+          homeTeam={liveMatch.homeTeam}
+          awayTeam={liveMatch.awayTeam}
+        />
       </TabsContent>
     </Tabs>
   );
