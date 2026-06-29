@@ -34,6 +34,9 @@ async function main() {
   console.log(`Live score provider order: ${providerOrder.join(" -> ")}`);
   const providerMatches = await loadProviderMatches();
   const primaryResult = await syncMatches(providerMatches, fixtureMap, { writeEvents: true });
+  const storedFotmobMatches = await loadStoredFotmobCompletedMatches();
+  const storedFotmobResult = await syncMatches(storedFotmobMatches, fixtureMap, { writeEvents: false });
+  const storedFotmobRepairResult = await repairStoredFotmobCompletedStatistics(storedFotmobMatches);
   const completedMatches = await loadEspnCompletedMatches();
   const completedResult = await syncMatches(completedMatches, fixtureMap, { preserveExistingStats: true, writeEvents: false });
 
@@ -43,6 +46,16 @@ async function main() {
   if (primaryResult.unmatched.length > 0) {
     console.log(`Unmatched provider fixtures: ${primaryResult.unmatched.slice(0, 20).join("; ")}`);
   }
+
+  console.log(
+    `Stored FotMob completed stats sync complete. Updated ${storedFotmobResult.updated}; skipped ${storedFotmobResult.skipped}; stored matches ${storedFotmobMatches.length}.`,
+  );
+  if (storedFotmobResult.unmatched.length > 0) {
+    console.log(`Unmatched stored FotMob fixtures: ${storedFotmobResult.unmatched.slice(0, 20).join("; ")}`);
+  }
+  console.log(
+    `Stored FotMob stat repair complete. Updated ${storedFotmobRepairResult.updated}; skipped ${storedFotmobRepairResult.skipped}.`,
+  );
 
   console.log(
     `Completed match stats sync complete. Updated ${completedResult.updated}; skipped ${completedResult.skipped}; ESPN matches ${completedMatches.length}.`,
@@ -408,6 +421,106 @@ async function loadProviderMatches() {
   }
 
   return dedupeProviderMatches(providerMatches);
+}
+
+async function loadStoredFotmobCompletedMatches() {
+  const { data: states, error: statesError } = await supabase
+    .from("live_match_state")
+    .select("match_id,home_team,away_team,home_score,away_score,status,phase")
+    .eq("status", "finished");
+
+  if (statesError) {
+    console.warn(`Stored FotMob completed matches unavailable: ${statesError.message}`);
+    return [];
+  }
+
+  const matchIds = (states ?? []).map((state) => String(state.match_id));
+  if (matchIds.length === 0) return [];
+
+  const { data: events, error: eventsError } = await supabase
+    .from("match_events")
+    .select("match_id,external_event_id")
+    .eq("provider", "fotmob")
+    .in("match_id", matchIds);
+
+  if (eventsError) {
+    console.warn(`Stored FotMob event IDs unavailable: ${eventsError.message}`);
+    return [];
+  }
+
+  const providerIdByMatchId = new Map();
+  for (const event of events ?? []) {
+    const matchId = String(event.match_id);
+    if (providerIdByMatchId.has(matchId)) continue;
+
+    const providerMatchId = String(event.external_event_id ?? "").match(/^fotmob:(\d+):/)?.[1];
+    if (providerMatchId) providerIdByMatchId.set(matchId, providerMatchId);
+  }
+
+  return (states ?? [])
+    .map((state) => {
+      const providerMatchId = providerIdByMatchId.get(String(state.match_id));
+      if (!providerMatchId) return null;
+
+      return {
+        matchId: state.match_id,
+        provider: "fotmob",
+        providerMatchId,
+        homeTeam: state.home_team,
+        awayTeam: state.away_team,
+        homeScore: state.home_score,
+        awayScore: state.away_score,
+        status: "finished",
+        phase: state.phase ?? "full_time",
+        minute: null,
+        startTime: null,
+        statistics: {},
+        lineups: null,
+        events: [],
+      };
+    })
+    .filter(Boolean);
+}
+
+async function repairStoredFotmobCompletedStatistics(matches) {
+  let updated = 0;
+  let skipped = 0;
+
+  for (const match of matches) {
+    if (!match.matchId || !match.providerMatchId) {
+      skipped++;
+      continue;
+    }
+
+    const details = await loadFotmobDetails(match);
+    const existingState = await getExistingLiveState(match.matchId);
+    const statisticColumns = mapStatisticColumns(details.statistics, existingState);
+
+    if (Object.keys(statisticColumns).length === 0) {
+      skipped++;
+      continue;
+    }
+
+    if (!isDryRun) {
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from("live_match_state")
+        .update({
+          ...statisticColumns,
+          provider_updated_at: now,
+          updated_at: now,
+        })
+        .eq("match_id", match.matchId);
+
+      if (error) {
+        throw new Error(`Failed to repair stored FotMob stats for ${match.homeTeam} vs ${match.awayTeam}: ${error.message}`);
+      }
+    }
+
+    updated++;
+  }
+
+  return { updated, skipped };
 }
 
 async function loadProviderSource(provider) {
@@ -2029,6 +2142,8 @@ function mapStatisticColumns(statistics, existingState, options = {}) {
 
 function preferExistingStat(existing, incoming) {
   if (existing == null) return incoming;
+  if (incoming == null) return existing;
+  if (Number(existing) === 0 && Number(incoming) > 0) return incoming;
   return existing;
 }
 

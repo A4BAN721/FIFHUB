@@ -6,6 +6,17 @@ export const revalidate = 43_200;
 
 const FIFA_RANKINGS_URL = "https://inside.fifa.com/fifa-world-ranking/men";
 const FIFA_RANKINGS_API_URL = "https://api.fifa.com/api/v3/rankings/?gender=1&count=250";
+const fifaRankingAliases: Record<string, string> = {
+  "cabo-verde": "cape-verde",
+  "congo-dr": "dr-congo",
+  "cote-d-ivoire": "ivory-coast",
+  "cote-divoire": "ivory-coast",
+  "korea-republic": "south-korea",
+  "republic-of-korea": "south-korea",
+  "bosnia-and-herzegovina": "bosnia-herzegovina",
+  "united-states": "usa",
+  "united-states-of-america": "usa",
+};
 
 type RankingsResponse = {
   rankings: Record<string, number>;
@@ -76,7 +87,7 @@ function parseFifaApiRankings(payload: unknown) {
     const rank = toRank(record.Rank);
     const countryName = fifaTeamName(record.TeamName) ?? textValue(record.IdCountry);
     if (rank == null || !countryName) continue;
-    rankings[normalizeCountryName(countryName)] = rank;
+    rankings[rankingNationId(countryName)] = rank;
   }
 
   if (Object.keys(rankings).length < 40) {
@@ -134,7 +145,7 @@ function collectRankingRows(value: unknown, rows: Array<{ nationId: string; rank
   const rank = extractRank(record);
   const countryName = extractCountryName(record);
   if (rank != null && countryName) {
-    rows.push({ nationId: normalizeCountryName(countryName), rank });
+    rows.push({ nationId: rankingNationId(countryName), rank });
   }
 
   for (const child of Object.values(record)) {
@@ -192,4 +203,9 @@ function textValue(value: unknown) {
   }
 
   return null;
+}
+
+function rankingNationId(countryName: string) {
+  const normalized = normalizeCountryName(countryName);
+  return fifaRankingAliases[normalized] ?? normalized;
 }

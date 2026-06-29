@@ -82,56 +82,41 @@ export function TournamentStats() {
   }, []);
 
   useEffect(() => {
-    if (!getSupabaseConfig()) return;
-
     let isMounted = true;
-    const supabase = createClient();
-    const loadEvents = () => {
-      supabase
-        .from("match_events")
-        .select("match_id,provider,event_type,team_name,player_name,assist_player_name,minute")
-        .then(({ data, error }) => {
-          if (!isMounted) return;
-          if (error) {
-            console.warn("Failed to load tournament stats.", error);
-            return;
-          }
-          const databaseRows = preferFotmobEventRows((data ?? []) as EventRow[]);
-          setEvents(databaseRows.length > 0 ? databaseRows : getFallbackEventRows());
-        });
-    };
-    const loadLineups = () => {
-      supabase
-        .from("live_match_state")
-        .select("lineups")
-        .not("lineups", "is", null)
-        .then(({ data, error }) => {
-          if (!isMounted) return;
-          if (error) {
-            console.warn("Failed to load tournament stats lineup numbers.", error);
-            return;
-          }
-          setLineupRows((data ?? []) as LineupRow[]);
-        });
+
+    const loadTournamentStats = async () => {
+      try {
+        const response = await fetch("/api/tournament-stats?fresh=1", { cache: "no-store" });
+        if (!response.ok) throw new Error(`Tournament stats request failed with ${response.status}`);
+        const payload = (await response.json()) as { events?: EventRow[]; lineupRows?: LineupRow[] };
+        if (!isMounted) return;
+
+        const databaseRows = preferFotmobEventRows(payload.events ?? []);
+        setEvents(databaseRows.length > 0 ? databaseRows : getFallbackEventRows());
+        setLineupRows(payload.lineupRows ?? []);
+      } catch (error) {
+        if (!isMounted) return;
+        console.warn("Failed to load tournament stats.", error);
+      }
     };
 
-    loadEvents();
-    loadLineups();
+    loadTournamentStats();
     const refreshInterval = window.setInterval(() => {
-      loadEvents();
-      loadLineups();
-    }, 60_000);
+      loadTournamentStats();
+    }, 15_000);
+
+    const supabase = getSupabaseConfig() ? createClient() : null;
     const channel = supabase
-      .channel("tournament-stats-match-events")
-      .on("postgres_changes", { event: "*", schema: "public", table: "match_events" }, loadEvents)
-      .on("postgres_changes", { event: "*", schema: "public", table: "live_match_state" }, loadLineups)
+      ?.channel("tournament-stats-match-events")
+      .on("postgres_changes", { event: "*", schema: "public", table: "match_events" }, loadTournamentStats)
+      .on("postgres_changes", { event: "*", schema: "public", table: "live_match_state" }, loadTournamentStats)
       .subscribe();
 
 
     return () => {
       isMounted = false;
       window.clearInterval(refreshInterval);
-      supabase.removeChannel(channel);
+      if (channel) supabase?.removeChannel(channel);
     };
   }, []);
 
