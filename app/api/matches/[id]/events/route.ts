@@ -13,25 +13,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createApiClient } from '@/lib/supabase/api';
 import { RedisCache, CACHE_KEYS, CACHE_TTL } from '../../../../../services/cache/redis-cache';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-let supabase: ReturnType<typeof createClient> | null = null;
-
 const cache = RedisCache.getInstance();
-
-function getSupabase() {
-  if (!supabase) {
-    if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Missing required Supabase configuration. Check your environment variables.');
-    }
-    supabase = createClient(supabaseUrl, supabaseKey);
-  }
-  return supabase;
-}
 
 export async function GET(
   request: NextRequest,
@@ -44,7 +29,7 @@ export async function GET(
   const offset = parseInt(searchParams.get('offset') || '0', 10);
 
   try {
-    const db = getSupabase();
+    const db = createApiClient();
 
     // Build cache key
     const cacheKey = `${CACHE_KEYS.matchEventList(id)}:${eventType || 'all'}:${limit}:${offset}`;

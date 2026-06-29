@@ -23,7 +23,7 @@ const translationOverrides: Record<Language, Record<string, string>> = {
     age: "Age",
     height: "Height",
     weight: "Weight",
-    strongFoot: "Strong Foot",
+    strongFoot: "Preferred Foot",
     marketValue: "Market Value",
     squadValue: "Squad Value",
     back: "Back",

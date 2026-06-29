@@ -12,25 +12,29 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createApiClient } from '@/lib/supabase/api';
 import { RedisCache, CACHE_KEYS, CACHE_TTL } from '../../../../services/cache/redis-cache';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-let supabase: ReturnType<typeof createClient> | null = null;
 
 const cache = RedisCache.getInstance();
 
-function getSupabase() {
-  if (!supabase) {
-    if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Missing required Supabase configuration. Check your environment variables.');
-    }
-    supabase = createClient(supabaseUrl, supabaseKey);
-  }
-  return supabase;
-}
+type FixtureScoreboardRow = {
+  fixture_id: string;
+  match_date: string;
+  match_time: string;
+  stage: string;
+  group_name: string | null;
+  home_team: string;
+  away_team: string;
+  stadium: string;
+  status: string;
+  phase: string;
+  home_score: number;
+  away_score: number;
+  minute: number | null;
+  stoppage_minute: number | null;
+  final_score_confirmed_at: string | null;
+  updated_at: string | null;
+};
 
 export async function GET(
   request: NextRequest,
@@ -39,7 +43,7 @@ export async function GET(
   const { id } = await params;
 
   try {
-    const db = getSupabase();
+    const db = createApiClient();
 
     // Try cache first
     const cacheKey = CACHE_KEYS.matchDetail(id);
@@ -53,18 +57,10 @@ export async function GET(
       });
     }
 
-    // Fetch match with all related data
     const { data: match, error: matchError } = await db
-      .from('matches')
-      .select(`
-        *,
-        home_team:teams!home_team_id(*),
-        away_team:teams!away_team_id(*),
-        competition:competitions(*),
-        venue:venues(*),
-        live_state:live_match_state(*)
-      `)
-      .eq('id', id)
+      .from('fixture_live_scoreboard_view')
+      .select('*')
+      .eq('fixture_id', id)
       .single();
 
     if (matchError) {
@@ -77,6 +73,16 @@ export async function GET(
       throw matchError;
     }
 
+    const { data: liveState, error: liveStateError } = await db
+      .from('live_match_state')
+      .select('*')
+      .eq('match_id', id)
+      .maybeSingle();
+
+    if (liveStateError) {
+      throw liveStateError;
+    }
+
     // Fetch recent events
     const { data: events } = await db
       .from('match_events')
@@ -85,11 +91,27 @@ export async function GET(
       .order('minute', { ascending: true })
       .limit(100);
 
-    const matchRecord = match as Record<string, unknown> & { live_state?: unknown };
+    const matchRecord = match as FixtureScoreboardRow;
     const response = {
-      ...matchRecord,
+      id: matchRecord.fixture_id,
+      matchId: matchRecord.fixture_id,
+      matchDate: matchRecord.match_date,
+      matchTime: matchRecord.match_time,
+      stage: matchRecord.stage,
+      group: matchRecord.group_name,
+      homeTeam: matchRecord.home_team,
+      awayTeam: matchRecord.away_team,
+      stadium: matchRecord.stadium,
+      status: matchRecord.status,
+      period: matchRecord.phase,
+      homeScore: matchRecord.home_score,
+      awayScore: matchRecord.away_score,
+      minute: matchRecord.minute,
+      stoppageTime: matchRecord.stoppage_minute,
+      finalScoreConfirmedAt: matchRecord.final_score_confirmed_at,
+      updatedAt: matchRecord.updated_at,
       events: events || [],
-      live_state: matchRecord.live_state || null,
+      live_state: liveState || null,
     };
 
     // Cache the response

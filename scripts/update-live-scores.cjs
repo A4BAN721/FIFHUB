@@ -66,6 +66,7 @@ async function main() {
     }
   }
 
+  await advanceKnockoutFixtures();
   runHighlightsSyncAfterScores();
 }
 
@@ -169,10 +170,16 @@ function hasAssistData(events) {
 }
 
 function mergeMatchStatistics(base = {}, incoming = {}) {
-  return {
+  const merged = {
     ...compactObject(base),
     ...compactObject(incoming),
   };
+  for (const key of ["homeYellowCards", "awayYellowCards", "homeRedCards", "awayRedCards"]) {
+    if (base[key] != null && incoming[key] != null) {
+      merged[key] = Math.max(Number(base[key]) || 0, Number(incoming[key]) || 0);
+    }
+  }
+  return merged;
 }
 
 function runHighlightsSyncAfterScores() {
@@ -193,6 +200,143 @@ function runHighlightsSyncAfterScores() {
   } catch (error) {
     console.warn(`FIFA highlights sync after scores failed: ${error.message}`);
   }
+}
+
+const knockoutProgression = {
+  "89": ["75", "78"],
+  "90": ["73", "76"],
+  "91": ["84", "83"],
+  "92": ["82", "81"],
+  "93": ["74", "77"],
+  "94": ["79", "80"],
+  "95": ["87", "86"],
+  "96": ["85", "88"],
+  "97": ["89", "90"],
+  "98": ["91", "92"],
+  "99": ["93", "94"],
+  "100": ["95", "96"],
+  "101": ["97", "98"],
+  "102": ["99", "100"],
+  "104": ["101", "102"],
+};
+
+const bronzeFinalSources = ["101", "102"];
+
+async function advanceKnockoutFixtures() {
+  const matchIds = [
+    ...new Set([
+      ...Object.keys(knockoutProgression),
+      ...Object.values(knockoutProgression).flat(),
+      ...bronzeFinalSources,
+      "103",
+    ]),
+  ];
+
+  const { data: fixtures, error: fixtureError } = await supabase
+    .from("match_fixtures")
+    .select("id, home_team, away_team")
+    .in("id", matchIds);
+
+  if (fixtureError) {
+    throw new Error(`Failed to load knockout fixtures: ${fixtureError.message}`);
+  }
+
+  const { data: states, error: stateError } = await supabase
+    .from("live_match_state")
+    .select("match_id, home_team, away_team, home_score, away_score, status, final_score_confirmed_at")
+    .in("match_id", matchIds);
+
+  if (stateError) {
+    throw new Error(`Failed to load knockout live states: ${stateError.message}`);
+  }
+
+  const fixtureById = new Map((fixtures ?? []).map((fixture) => [String(fixture.id), fixture]));
+  const stateByMatchId = new Map((states ?? []).map((state) => [String(state.match_id), state]));
+  let updated = 0;
+  const skipped = [];
+
+  for (const [targetMatchId, sourceMatchIds] of Object.entries(knockoutProgression)) {
+    const homeTeam = getKnockoutWinnerName(sourceMatchIds[0], fixtureById, stateByMatchId);
+    const awayTeam = getKnockoutWinnerName(sourceMatchIds[1], fixtureById, stateByMatchId);
+
+    if (!homeTeam || !awayTeam) {
+      skipped.push(targetMatchId);
+      continue;
+    }
+
+    updated += await updateKnockoutFixtureTeams(targetMatchId, homeTeam, awayTeam, fixtureById);
+  }
+
+  const bronzeHomeTeam = getKnockoutLoserName(bronzeFinalSources[0], fixtureById, stateByMatchId);
+  const bronzeAwayTeam = getKnockoutLoserName(bronzeFinalSources[1], fixtureById, stateByMatchId);
+  if (bronzeHomeTeam && bronzeAwayTeam) {
+    updated += await updateKnockoutFixtureTeams("103", bronzeHomeTeam, bronzeAwayTeam, fixtureById);
+  } else {
+    skipped.push("103");
+  }
+
+  console.log(`Knockout advancement sync complete. Updated ${updated}; waiting on ${skipped.length}.`);
+}
+
+function getKnockoutWinnerName(matchId, fixtureById, stateByMatchId) {
+  const outcome = getKnockoutOutcome(matchId, fixtureById, stateByMatchId);
+  return outcome?.winner ?? null;
+}
+
+function getKnockoutLoserName(matchId, fixtureById, stateByMatchId) {
+  const outcome = getKnockoutOutcome(matchId, fixtureById, stateByMatchId);
+  return outcome?.loser ?? null;
+}
+
+function getKnockoutOutcome(matchId, fixtureById, stateByMatchId) {
+  const fixture = fixtureById.get(String(matchId));
+  const state = stateByMatchId.get(String(matchId));
+
+  if (!fixture || !state || state.status !== "finished" || !state.final_score_confirmed_at) {
+    return null;
+  }
+
+  const homeScore = Number(state.home_score);
+  const awayScore = Number(state.away_score);
+  if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore) || homeScore === awayScore) {
+    return null;
+  }
+
+  const homeTeam = state.home_team ?? fixture.home_team;
+  const awayTeam = state.away_team ?? fixture.away_team;
+
+  return homeScore > awayScore
+    ? { winner: homeTeam, loser: awayTeam }
+    : { winner: awayTeam, loser: homeTeam };
+}
+
+async function updateKnockoutFixtureTeams(matchId, homeTeam, awayTeam, fixtureById) {
+  const fixture = fixtureById.get(String(matchId));
+  if (!fixture || (fixture.home_team === homeTeam && fixture.away_team === awayTeam)) {
+    return 0;
+  }
+
+  if (isDryRun) {
+    console.log(`Would advance knockout fixture ${matchId}: ${homeTeam} vs ${awayTeam}`);
+    return 1;
+  }
+
+  const { error } = await supabase
+    .from("match_fixtures")
+    .update({
+      home_team: homeTeam,
+      away_team: awayTeam,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", matchId);
+
+  if (error) {
+    throw new Error(`Failed to advance knockout fixture ${matchId}: ${error.message}`);
+  }
+
+  fixture.home_team = homeTeam;
+  fixture.away_team = awayTeam;
+  return 1;
 }
 
 function resolveFixtureMatch(match, fixtureMap) {
@@ -463,16 +607,16 @@ function mapFotmobStatistics(details) {
     awayPassingAccuracy: fotmobPassAccuracy(rows, "away"),
     homePossession: fotmobStat(rows, ["ballpossession", "ballpossesion", "possession"]),
     awayPossession: fotmobStat(rows, ["ballpossession", "ballpossesion", "possession"], "away"),
-    homeYellowCards: fotmobStat(rows, ["yellowcards"]),
-    awayYellowCards: fotmobStat(rows, ["yellowcards"], "away"),
-    homeRedCards: fotmobStat(rows, ["redcards"]),
-    awayRedCards: fotmobStat(rows, ["redcards"], "away"),
+    homeYellowCards: fotmobStat(rows, ["yellowcards", "yellowcard", "yellow"]),
+    awayYellowCards: fotmobStat(rows, ["yellowcards", "yellowcard", "yellow"], "away"),
+    homeRedCards: fotmobStat(rows, ["redcards", "redcard", "red"]),
+    awayRedCards: fotmobStat(rows, ["redcards", "redcard", "red"], "away"),
     homeCorners: fotmobStat(rows, ["corners", "cornerkicks"]),
     awayCorners: fotmobStat(rows, ["corners", "cornerkicks"], "away"),
     homeFouls: fotmobStat(rows, ["foulscommitted", "fouls"]),
     awayFouls: fotmobStat(rows, ["foulscommitted", "fouls"], "away"),
-    homeOffsides: fotmobStat(rows, ["offsides"]),
-    awayOffsides: fotmobStat(rows, ["offsides"], "away"),
+    homeOffsides: fotmobStat(rows, ["offsides", "offside"]),
+    awayOffsides: fotmobStat(rows, ["offsides", "offside"], "away"),
   });
 }
 
@@ -481,8 +625,9 @@ function mapFotmobLineups(details, match) {
   if (!lineup?.homeTeam || !lineup?.awayTeam) return null;
 
   const ratings = mapFotmobPlayerRatings(details?.content?.playerStats);
-  const home = mapFotmobTeamLineup(lineup.homeTeam, match.homeTeam, ratings);
-  const away = mapFotmobTeamLineup(lineup.awayTeam, match.awayTeam, ratings);
+  const playerOfTheMatch = getFotmobPlayerOfTheMatch(details);
+  const home = mapFotmobTeamLineup(lineup.homeTeam, match.homeTeam, ratings, playerOfTheMatch);
+  const away = mapFotmobTeamLineup(lineup.awayTeam, match.awayTeam, ratings, playerOfTheMatch);
   if (!hasLineupPlayers(home) && !hasLineupPlayers(away)) return null;
 
   return {
@@ -500,7 +645,7 @@ function mapFotmobEvents(details, match) {
       const eventType = mapFotmobEventType(event);
       if (!eventType) return null;
 
-      const playerName = event.fullName ?? event.nameStr ?? event.player?.name ?? null;
+      const playerName = event.fullName ?? event.nameStr ?? event.player?.name ?? parseFotmobSubstitutedOutPlayer(event);
       const teamName = event.isHome === true ? match.homeTeam : event.isHome === false ? match.awayTeam : null;
 
       return {
@@ -516,6 +661,7 @@ function mapFotmobEvents(details, match) {
         awayTeamName: match.awayTeam,
         playerName,
         assistPlayerName: event.assistInput ?? parseFotmobAssist(event.assistStr),
+        substitutePlayerName: parseFotmobSubstitutePlayer(event),
         description: event.goalDescription ?? event.card ?? event.type ?? null,
         createdAt: match.kickoffTime ?? new Date().toISOString(),
       };
@@ -549,37 +695,87 @@ function parseFotmobAssist(value) {
   return match?.[1]?.trim() ?? null;
 }
 
-function mapFotmobTeamLineup(team, fallbackTeamName, ratings) {
+function parseFotmobSubstitutePlayer(event) {
+  if (String(event?.type ?? "").toLowerCase() !== "substitution") return null;
+
+  return (
+    event?.swap?.[0]?.name ??
+    event?.swap?.[0]?.fullName ??
+    event?.substitute?.name ??
+    event?.substitute?.fullName ??
+    event?.playerIn?.name ??
+    event?.playerIn?.fullName ??
+    event?.onPlayer?.name ??
+    event?.onPlayer?.fullName ??
+    event?.swap?.name ??
+    event?.swap?.fullName ??
+    null
+  );
+}
+
+function parseFotmobSubstitutedOutPlayer(event) {
+  if (String(event?.type ?? "").toLowerCase() !== "substitution") return null;
+
+  return (
+    event?.swap?.[1]?.name ??
+    event?.swap?.[1]?.fullName ??
+    event?.playerOut?.name ??
+    event?.playerOut?.fullName ??
+    event?.offPlayer?.name ??
+    event?.offPlayer?.fullName ??
+    null
+  );
+}
+
+function getFotmobPlayerOfTheMatch(details) {
+  const player = details?.content?.matchFacts?.playerOfTheMatch;
+  const id = player?.id != null ? String(player.id) : null;
+  const name = player?.name?.fullName ?? [player?.name?.firstName, player?.name?.lastName].filter(Boolean).join(" ");
+  return {
+    id,
+    name: name || null,
+  };
+}
+
+function mapFotmobTeamLineup(team, fallbackTeamName, ratings, playerOfTheMatch) {
   return {
     teamName: team.name ?? fallbackTeamName,
     formation: team.formation ?? null,
     coach: team.coach?.name ?? team.coach ?? null,
-    starters: (team.starters ?? []).map((player) => mapFotmobLineupPlayer(player, "starter", ratings)).filter(Boolean),
-    substitutes: (team.subs ?? team.substitutes ?? []).map((player) => mapFotmobLineupPlayer(player, "substitute", ratings)).filter(Boolean),
+    starters: (team.starters ?? []).map((player) => mapFotmobLineupPlayer(player, "starter", ratings, playerOfTheMatch)).filter(Boolean),
+    substitutes: (team.subs ?? team.substitutes ?? []).map((player) => mapFotmobLineupPlayer(player, "substitute", ratings, playerOfTheMatch)).filter(Boolean),
     unavailable: mapUnavailablePlayers(
       firstArray(team.unavailable, team.unavailablePlayers, team.missingPlayers, team.absentPlayers, team.sidelined),
     ),
   };
 }
 
-function mapFotmobLineupPlayer(player, status, ratings) {
+function mapFotmobLineupPlayer(player, status, ratings, playerOfTheMatch) {
   const name = player?.name ?? [player?.firstName, player?.lastName].filter(Boolean).join(" ");
   if (!name) return null;
 
   const id = player.id != null ? String(player.id) : null;
   const shirtNumber = Number(player.shirtNumber);
   const rating = Number(player.performance?.rating ?? player.rating ?? ratings.get(id));
+  const grid = fotmobGrid(player);
 
   return {
     id,
     name,
-    position: fotmobPosition(player.positionId ?? player.usualPlayingPositionId),
+    position: fotmobPosition(player.positionId ?? player.usualPlayingPositionId) ?? fotmobPositionFromGrid(grid),
     shirtNumber: Number.isFinite(shirtNumber) ? shirtNumber : null,
     status,
     rating: Number.isFinite(rating) ? rating : null,
-    grid: fotmobGrid(player),
+    grid,
     captain: player.isCaptain === true,
+    playerOfTheMatch: isSameFotmobPlayer({ id, name }, playerOfTheMatch),
   };
+}
+
+function isSameFotmobPlayer(player, target) {
+  if (!target?.id && !target?.name) return false;
+  if (player.id && target.id && String(player.id) === String(target.id)) return true;
+  return Boolean(player.name && target.name && normalizePlayerName(player.name) === normalizePlayerName(target.name));
 }
 
 function mapFotmobPlayerRatings(playerStats) {
@@ -616,6 +812,15 @@ function fotmobPosition(positionId) {
   if (value === 2 || value === 22 || value === 24 || value === 26) return "M";
   if (value === 3 || value === 13 || value === 23 || value === 33) return "F";
   return null;
+}
+
+function fotmobPositionFromGrid(grid) {
+  const y = Number(String(grid ?? "").split(":")[1]);
+  if (!Number.isFinite(y)) return null;
+  if (y <= 0.2) return "G";
+  if (y <= 0.45) return "D";
+  if (y <= 0.75) return "M";
+  return "F";
 }
 
 function fotmobGrid(player) {
@@ -917,6 +1122,7 @@ function mapApiFootballEvents(events, match) {
         teamName: event.team?.name ?? null,
         playerName: event.player?.name ?? null,
         assistPlayerName: event.assist?.name ?? null,
+        substitutePlayerName: eventType === "substitution" ? event.assist?.name ?? null : null,
         description: event.comments ?? event.detail ?? null,
         createdAt: match.kickoffTime ?? new Date().toISOString(),
       };
@@ -1273,7 +1479,14 @@ async function loadEspnCompletedMatches() {
   const matches = [];
 
   for (const date of enumerateIsoDates(dateFrom, dateTo)) {
-    const json = await espnScoreboardRequest(date);
+    let json;
+    try {
+      json = await espnScoreboardRequest(date);
+    } catch (error) {
+      console.warn(`ESPN completed scoreboard unavailable for ${date}: ${error.message}`);
+      continue;
+    }
+
     for (const event of json.events ?? []) {
       const match = mapEspnEvent(event, { completedOnly: true });
       if (match) matches.push(match);
@@ -1367,6 +1580,11 @@ function mapEspnMinute(competition) {
 }
 
 function mapEspnStatistics(home, away, details) {
+  const homeYellowCards = countEspnCards(details, home.id, "yellow_card");
+  const awayYellowCards = countEspnCards(details, away.id, "yellow_card");
+  const homeSecondYellowCards = countEspnCards(details, home.id, "second_yellow");
+  const awaySecondYellowCards = countEspnCards(details, away.id, "second_yellow");
+
   return {
     homePossession: espnStat(home, "possessionPct"),
     awayPossession: espnStat(away, "possessionPct"),
@@ -1380,16 +1598,16 @@ function mapEspnStatistics(home, away, details) {
     awayPasses: espnStat(away, "totalPasses") ?? espnStat(away, "passes"),
     homePassingAccuracy: espnStat(home, "accuratePassesPct") ?? espnStat(home, "passAccuracy") ?? espnStat(home, "passingAccuracy"),
     awayPassingAccuracy: espnStat(away, "accuratePassesPct") ?? espnStat(away, "passAccuracy") ?? espnStat(away, "passingAccuracy"),
-    homeYellowCards: countEspnCard(details, home.id, "yellowCard"),
-    awayYellowCards: countEspnCard(details, away.id, "yellowCard"),
-    homeRedCards: countEspnCard(details, home.id, "redCard"),
-    awayRedCards: countEspnCard(details, away.id, "redCard"),
+    homeYellowCards: homeYellowCards + homeSecondYellowCards,
+    awayYellowCards: awayYellowCards + awaySecondYellowCards,
+    homeRedCards: countEspnCards(details, home.id, "red_card") + homeSecondYellowCards,
+    awayRedCards: countEspnCards(details, away.id, "red_card") + awaySecondYellowCards,
     homeCorners: espnStat(home, "wonCorners") ?? 0,
     awayCorners: espnStat(away, "wonCorners") ?? 0,
     homeFouls: espnStat(home, "foulsCommitted") ?? 0,
     awayFouls: espnStat(away, "foulsCommitted") ?? 0,
-    homeOffsides: espnStat(home, "totalOffside") ?? 0,
-    awayOffsides: espnStat(away, "totalOffside") ?? 0,
+    homeOffsides: espnStat(home, "totalOffside") ?? espnStat(home, "offsides") ?? espnStat(home, "offside") ?? 0,
+    awayOffsides: espnStat(away, "totalOffside") ?? espnStat(away, "offsides") ?? espnStat(away, "offside") ?? 0,
   };
 }
 
@@ -1482,8 +1700,8 @@ function espnStat(competitor, name) {
   return Number.isFinite(value) ? value : null;
 }
 
-function countEspnCard(details, teamId, typeId) {
-  return details.filter((detail) => String(detail.team?.id) === String(teamId) && detail.type?.id === typeId).length;
+function countEspnCards(details, teamId, eventType) {
+  return details.filter((detail) => String(detail.team?.id) === String(teamId) && mapEspnCardEventType(detail) === eventType).length;
 }
 
 function parseEspnClock(displayValue) {
@@ -1535,7 +1753,7 @@ async function upsertLiveState(fixture, match, options = {}) {
     ? existingState?.final_score_confirmed_at ?? match.providerUpdatedAt ?? now
     : null;
   const phase = normalizePhase(match.phase);
-  const statistics = match.statistics ?? {};
+  const statistics = mergeMatchStatistics(match.statistics, statisticsFromEvents(match.events, fixture));
   const statisticColumns = mapStatisticColumns(statistics, existingState, options);
   const lineupColumns = mapLineupColumns(match.lineups ?? getKnownLineupsForFixture(fixture), existingState);
 
@@ -1744,10 +1962,43 @@ function hasConfirmedFinalScore(state) {
   return Boolean(state && state.status === "finished" && state.final_score_confirmed_at);
 }
 
+function statisticsFromEvents(events = [], fixture) {
+  const statistics = {
+    homeYellowCards: 0,
+    awayYellowCards: 0,
+    homeRedCards: 0,
+    awayRedCards: 0,
+  };
+  let hasCardEvents = false;
+
+  for (const event of events) {
+    if (!["yellow_card", "red_card", "second_yellow"].includes(event.eventType)) continue;
+
+    const teamKey = event.teamName ? normalizeTeamName(event.teamName) : null;
+    const side = teamKey === normalizeTeamName(fixture.home_team)
+      ? "home"
+      : teamKey === normalizeTeamName(fixture.away_team)
+        ? "away"
+        : null;
+
+    if (!side) continue;
+    hasCardEvents = true;
+
+    if (event.eventType === "yellow_card" || event.eventType === "second_yellow") {
+      statistics[`${side}YellowCards`]++;
+    }
+    if (event.eventType === "red_card" || event.eventType === "second_yellow") {
+      statistics[`${side}RedCards`]++;
+    }
+  }
+
+  return hasCardEvents ? statistics : {};
+}
+
 function mapStatisticColumns(statistics, existingState, options = {}) {
   const preferExistingStats = options.preserveExistingStats && hasDetailedStatistics(existingState);
   const mergeStat = (incoming, existing) => (
-    preferExistingStats ? firstDefined(existing, incoming) : firstDefined(incoming, existing)
+    preferExistingStats ? preferExistingStat(existing, incoming) : firstDefined(incoming, existing)
   );
 
   return compactObject({
@@ -1774,6 +2025,11 @@ function mapStatisticColumns(statistics, existingState, options = {}) {
     home_offsides: mergeStat(statistics.homeOffsides, existingState?.home_offsides),
     away_offsides: mergeStat(statistics.awayOffsides, existingState?.away_offsides),
   });
+}
+
+function preferExistingStat(existing, incoming) {
+  if (existing == null) return incoming;
+  return existing;
 }
 
 function hasDetailedStatistics(state) {
@@ -1832,6 +2088,7 @@ async function replaceMatchEvents(fixture, match) {
     team_name: getFixtureTeamNameForEvent(event.teamName, match, fixture),
     player_name: event.playerName,
     assist_player_name: event.assistPlayerName ?? null,
+    substitute_player_name: event.substitutePlayerName ?? null,
     description: event.description,
     event_timestamp: event.createdAt,
     created_at: event.createdAt,
@@ -1952,6 +2209,14 @@ function normalizeTeamName(name) {
 
   const compact = normalized.replace(/[^a-z0-9]/g, "");
   return direct[normalized] ?? direct[compact] ?? compact;
+}
+
+function normalizePlayerName(name) {
+  return String(name ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/gi, "")
+    .toLowerCase();
 }
 
 async function fetchWithRetry(url, options, label, attempts = 3) {

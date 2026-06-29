@@ -90,6 +90,7 @@ export interface MatchLineupPlayer {
   rating?: number | null;
   grid?: string | null;
   captain?: boolean | null;
+  playerOfTheMatch?: boolean | null;
 }
 
 export type MatchUnavailablePlayerStatus = "injured" | "suspended" | "unavailable";

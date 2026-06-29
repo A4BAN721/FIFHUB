@@ -71,11 +71,72 @@ type ScoreboardApiResponse = {
   matches?: ScoreboardApiMatch[];
 };
 
+type KnockoutPlacement = {
+  label: string;
+  column: number;
+  rowStart: number;
+  rowSpan: number;
+  matchId?: string;
+};
+
+type KnockoutTeam = {
+  name: string;
+  score?: number | null;
+  isWinner?: boolean;
+};
+
+type KnockoutMatch = {
+  matchId?: string;
+  stage?: string;
+  label: string;
+  home: KnockoutTeam;
+  away: KnockoutTeam;
+};
+
 const localDataNations = new Map(
   fallbackNations
     .filter((nation) => qualifiedNationIds.has(nation.id))
     .map((nation) => [nation.id, nation])
 );
+
+const knockoutRoundOf32Ids = [
+  "75",
+  "78",
+  "73",
+  "76",
+  "84",
+  "83",
+  "82",
+  "81",
+  "74",
+  "77",
+  "79",
+  "80",
+  "87",
+  "86",
+  "85",
+  "88",
+];
+
+const knockoutProgression = {
+  "89": ["75", "78"],
+  "90": ["73", "76"],
+  "91": ["84", "83"],
+  "92": ["82", "81"],
+  "93": ["74", "77"],
+  "94": ["79", "80"],
+  "95": ["87", "86"],
+  "96": ["85", "88"],
+  "97": ["89", "90"],
+  "98": ["91", "92"],
+  "99": ["93", "94"],
+  "100": ["95", "96"],
+  "101": ["97", "98"],
+  "102": ["99", "100"],
+  "104": ["101", "102"],
+} satisfies Record<string, [string, string]>;
+
+const bronzeFinalSources = ["101", "102"] as const;
 
 const leftKnockoutPlacements = [
   ...Array.from({ length: 8 }, (_, index) => ({
@@ -83,47 +144,53 @@ const leftKnockoutPlacements = [
     column: 1,
     rowStart: index * 2 + 1,
     rowSpan: 2,
+    matchId: knockoutRoundOf32Ids[index],
   })),
   ...Array.from({ length: 4 }, (_, index) => ({
     label: `Round of 16 ${index + 1}`,
     column: 2,
     rowStart: index * 4 + 1,
     rowSpan: 4,
+    matchId: String(89 + index),
   })),
   ...Array.from({ length: 2 }, (_, index) => ({
     label: `Quarter Finals ${index + 1}`,
     column: 3,
     rowStart: index * 8 + 1,
     rowSpan: 8,
+    matchId: String(97 + index),
   })),
-  { label: "Semi Finals 1", column: 4, rowStart: 1, rowSpan: 16 },
+  { label: "Semi Finals 1", column: 4, rowStart: 1, rowSpan: 16, matchId: "101" },
 ];
 
 const rightKnockoutPlacements = [
-  { label: "Semi Finals 2", column: 6, rowStart: 1, rowSpan: 16 },
+  { label: "Semi Finals 2", column: 6, rowStart: 1, rowSpan: 16, matchId: "102" },
   ...Array.from({ length: 2 }, (_, index) => ({
     label: `Quarter Finals ${index + 3}`,
     column: 7,
     rowStart: index * 8 + 1,
     rowSpan: 8,
+    matchId: String(99 + index),
   })),
   ...Array.from({ length: 4 }, (_, index) => ({
     label: `Round of 16 ${index + 5}`,
     column: 8,
     rowStart: index * 4 + 1,
     rowSpan: 4,
+    matchId: String(93 + index),
   })),
   ...Array.from({ length: 8 }, (_, index) => ({
     label: `Round of 32 ${index + 9}`,
     column: 9,
     rowStart: index * 2 + 1,
     rowSpan: 2,
+    matchId: knockoutRoundOf32Ids[index + 8],
   })),
 ];
 
 const centerKnockoutPlacements = [
-  { label: "Final", column: 5, rowStart: 6, rowSpan: 3 },
-  { label: "Bronze Final", column: 5, rowStart: 9, rowSpan: 3 },
+  { label: "Final", column: 5, rowStart: 6, rowSpan: 3, matchId: "104" },
+  { label: "Bronze Final", column: 5, rowStart: 9, rowSpan: 3, matchId: "103" },
 ];
 
 const mobileKnockoutPlacements = [
@@ -132,27 +199,31 @@ const mobileKnockoutPlacements = [
     column: 1,
     rowStart: index * 2 + 1,
     rowSpan: 2,
+    matchId: knockoutRoundOf32Ids[index],
   })),
   ...Array.from({ length: 8 }, (_, index) => ({
     label: `Round of 16 ${index + 1}`,
     column: 2,
     rowStart: index * 4 + 1,
     rowSpan: 4,
+    matchId: String(89 + index),
   })),
   ...Array.from({ length: 4 }, (_, index) => ({
     label: `Quarter Finals ${index + 1}`,
     column: 3,
     rowStart: index * 8 + 1,
     rowSpan: 8,
+    matchId: String(97 + index),
   })),
   ...Array.from({ length: 2 }, (_, index) => ({
     label: `Semi Finals ${index + 1}`,
     column: 4,
     rowStart: index * 16 + 1,
     rowSpan: 16,
+    matchId: String(101 + index),
   })),
-  { label: "Final", column: 5, rowStart: 11, rowSpan: 5 },
-  { label: "Bronze Final", column: 5, rowStart: 17, rowSpan: 5 },
+  { label: "Final", column: 5, rowStart: 11, rowSpan: 5, matchId: "104" },
+  { label: "Bronze Final", column: 5, rowStart: 17, rowSpan: 5, matchId: "103" },
 ];
 
 function convertToBanglaNumerals(value: string | number): string {
@@ -264,47 +335,233 @@ function sortStandingRows(rows: StandingRow[]) {
   });
 }
 
-function KnockoutMatchCard({ label }: { label: string }) {
+function getKnockoutWinner(match: MatchWithOptionalScore | undefined) {
+  if (!match) return null;
+
+  const score = getMatchScore(match);
+  if (!score || score.homeScore === score.awayScore) return null;
+
+  return {
+    name: score.homeScore > score.awayScore ? match.homeTeam : match.awayTeam,
+    score: score.homeScore > score.awayScore ? score.homeScore : score.awayScore,
+  };
+}
+
+function getKnockoutLoser(match: MatchWithOptionalScore | undefined) {
+  if (!match) return null;
+
+  const score = getMatchScore(match);
+  if (!score || score.homeScore === score.awayScore) return null;
+
+  return {
+    name: score.homeScore < score.awayScore ? match.homeTeam : match.awayTeam,
+    score: score.homeScore < score.awayScore ? score.homeScore : score.awayScore,
+  };
+}
+
+function buildKnockoutMatch(
+  placement: KnockoutPlacement,
+  matchById: Map<string, MatchWithOptionalScore>
+): KnockoutMatch {
+  const match = placement.matchId ? matchById.get(placement.matchId) : undefined;
+  const score = match ? getMatchScore(match) : null;
+
+  if (match && match.homeTeam !== "TBD" && match.awayTeam !== "TBD") {
+    return {
+      matchId: placement.matchId,
+      stage: match.stage,
+      label: placement.label,
+      home: {
+        name: match.homeTeam,
+        score: score?.homeScore,
+        isWinner: Boolean(score && score.homeScore > score.awayScore),
+      },
+      away: {
+        name: match.awayTeam,
+        score: score?.awayScore,
+        isWinner: Boolean(score && score.awayScore > score.homeScore),
+      },
+    };
+  }
+
+  if (placement.matchId === "103") {
+    const [firstSemiFinalId, secondSemiFinalId] = bronzeFinalSources;
+    const firstLoser = getKnockoutLoser(matchById.get(firstSemiFinalId));
+    const secondLoser = getKnockoutLoser(matchById.get(secondSemiFinalId));
+
+    return {
+      matchId: placement.matchId,
+      label: placement.label,
+      home: { name: firstLoser?.name ?? "Loser Semi-Final 1" },
+      away: { name: secondLoser?.name ?? "Loser Semi-Final 2" },
+    };
+  }
+
+  const sources = placement.matchId
+    ? knockoutProgression[placement.matchId as keyof typeof knockoutProgression]
+    : undefined;
+
+  if (sources) {
+    const firstWinner = getKnockoutWinner(matchById.get(sources[0]));
+    const secondWinner = getKnockoutWinner(matchById.get(sources[1]));
+
+    return {
+      matchId: placement.matchId,
+      label: placement.label,
+      home: { name: firstWinner?.name ?? `Winner Match ${sources[0]}` },
+      away: { name: secondWinner?.name ?? `Winner Match ${sources[1]}` },
+    };
+  }
+
+  return {
+    matchId: placement.matchId,
+    label: placement.label,
+    home: { name: "TBD" },
+    away: { name: "TBD" },
+  };
+}
+
+function KnockoutTeamRow({
+  team,
+  nationMap,
+  onOpenNation,
+}: {
+  team: KnockoutTeam;
+  nationMap: Map<string, Nation>;
+  onOpenNation: (nationId: string) => void;
+}) {
+  const nationId = normalizeCountryName(team.name);
+  const nation = nationMap.get(nationId) ?? localDataNations.get(nationId);
+  const isPlaceholder = !nation || team.name.startsWith("Winner ") || team.name.startsWith("Loser ") || team.name === "TBD";
+  const isEliminated = team.score != null && !team.isWinner;
+
   return (
-    <div className="w-full overflow-hidden rounded-md border border-border/50 bg-background/90 shadow-sm">
-      <div className="border-b border-border/40 px-1.5 py-1.5 text-[8px] font-semibold uppercase leading-none text-muted-foreground sm:py-1 sm:text-[9px] lg:px-2 lg:text-[10px]">
-        {label}
+    <div className="flex items-center justify-between gap-1 px-1.5 py-1.5 sm:py-1 lg:px-2">
+      <div className="flex min-w-0 items-center gap-1.5">
+        {!isPlaceholder && (
+          <NationFlag
+            className="h-3 w-4 shrink-0 sm:h-3.5 sm:w-5"
+            emoji={nation.flag}
+            fallbackClassName="text-xs"
+            label={nation.name}
+            nationId={nation.id}
+          />
+        )}
+        {isPlaceholder ? (
+          <span className="truncate text-[10px] font-medium text-muted-foreground sm:text-xs">
+            {team.name}
+          </span>
+        ) : (
+          <button
+            className={`truncate text-left text-[10px] font-medium transition-colors hover:text-[var(--nation-primary)] sm:text-xs ${
+              isEliminated ? "text-muted-foreground line-through decoration-2" : "text-foreground"
+            }`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenNation(nation.id);
+            }}
+            style={{ "--nation-primary": nation.jerseyColors.primary } as NationHoverStyle}
+            type="button"
+          >
+            {getTeamDisplayName(team.name)}
+          </button>
+        )}
+      </div>
+      <span className="shrink-0 text-[10px] font-semibold text-muted-foreground">
+        {team.score ?? "-"}
+      </span>
+    </div>
+  );
+}
+
+function KnockoutMatchCard({
+  match,
+  nationMap,
+  onOpenMatch,
+  onOpenNation,
+}: {
+  match: KnockoutMatch;
+  nationMap: Map<string, Nation>;
+  onOpenMatch: (match: KnockoutMatch) => void;
+  onOpenNation: (nationId: string) => void;
+}) {
+  const canOpenMatch = Boolean(match.matchId);
+
+  return (
+    <div
+      className="w-full cursor-pointer overflow-hidden rounded-md border border-border/50 bg-background/90 text-left shadow-sm transition hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      onClick={() => {
+        if (canOpenMatch) onOpenMatch(match);
+      }}
+      onKeyDown={(event) => {
+        if (!canOpenMatch || (event.key !== "Enter" && event.key !== " ")) return;
+        event.preventDefault();
+        onOpenMatch(match);
+      }}
+      role={canOpenMatch ? "button" : undefined}
+      tabIndex={canOpenMatch ? 0 : undefined}
+    >
+      <div className="border-b border-border/40 px-1.5 py-1.5 leading-none sm:py-1 lg:px-2">
+        <div className="truncate text-[8px] font-semibold uppercase text-muted-foreground sm:text-[9px] lg:text-[10px]">
+          {match.label}
+        </div>
       </div>
       <div className="divide-y divide-border/40">
-        <div className="flex items-center justify-between gap-1 px-1.5 py-1.5 sm:py-1 lg:px-2">
-          <span className="truncate text-[10px] font-medium text-foreground sm:text-xs">TBD</span>
-          <span className="text-[10px] font-semibold text-muted-foreground">-</span>
-        </div>
-        <div className="flex items-center justify-between gap-1 px-1.5 py-1.5 sm:py-1 lg:px-2">
-          <span className="truncate text-[10px] font-medium text-foreground sm:text-xs">TBD</span>
-          <span className="text-[10px] font-semibold text-muted-foreground">-</span>
-        </div>
+        <KnockoutTeamRow team={match.home} nationMap={nationMap} onOpenNation={onOpenNation} />
+        <KnockoutTeamRow team={match.away} nationMap={nationMap} onOpenNation={onOpenNation} />
       </div>
     </div>
   );
 }
 
-function KnockoutStageBracket() {
+function KnockoutStageBracket({
+  matchFixtures,
+  nationMap,
+}: {
+  matchFixtures: MatchWithOptionalScore[];
+  nationMap: Map<string, Nation>;
+}) {
   const bracketPlacements = [
     ...leftKnockoutPlacements,
     ...centerKnockoutPlacements,
     ...rightKnockoutPlacements,
-  ];
+  ] as KnockoutPlacement[];
+  const matchById = new Map(matchFixtures.map((match) => [match.id, match]));
+  const openMatch = (match: KnockoutMatch) => {
+    const fixture = match.matchId ? matchById.get(match.matchId) : null;
+    if (!match.matchId || !fixture) return;
+    window.dispatchEvent(
+      new CustomEvent("fixtureSelected", {
+        detail: {
+          matchId: match.matchId,
+          search: `${fixture.homeTeam} ${fixture.awayTeam}`,
+          selectedStage: fixture.stage,
+        },
+      })
+    );
+  };
+  const openNation = (nationId: string) => {
+    window.dispatchEvent(
+      new CustomEvent("nationSelected", {
+        detail: { nationId, returnTab: "table", returnScrollY: window.scrollY },
+      })
+    );
+  };
 
   return (
     <>
       <section className="overflow-x-auto rounded-lg border border-border/50 bg-card/75 p-2 backdrop-blur-xl sm:hidden">
         <div className="relative grid h-[1120px] min-w-[660px] grid-cols-5 grid-rows-[repeat(32,minmax(0,1fr))] gap-x-2">
-          {mobileKnockoutPlacements.map((match) => (
+          {mobileKnockoutPlacements.map((placement) => (
             <div
-              key={match.label}
+              key={placement.label}
               className="relative z-10 flex items-center"
               style={{
-                gridColumn: match.column,
-                gridRow: `${match.rowStart} / span ${match.rowSpan}`,
+                gridColumn: placement.column,
+                gridRow: `${placement.rowStart} / span ${placement.rowSpan}`,
               }}
             >
-              <KnockoutMatchCard label={match.label} />
+              <KnockoutMatchCard match={buildKnockoutMatch(placement, matchById)} nationMap={nationMap} onOpenMatch={openMatch} onOpenNation={openNation} />
             </div>
           ))}
         </div>
@@ -339,16 +596,16 @@ function KnockoutStageBracket() {
             </g>
           </svg>
 
-          {bracketPlacements.map((match) => (
+          {bracketPlacements.map((placement) => (
             <div
-              key={match.label}
+              key={placement.label}
               className="relative z-10 flex items-center"
               style={{
-                gridColumn: match.column,
-                gridRow: `${match.rowStart} / span ${match.rowSpan}`,
+                gridColumn: placement.column,
+                gridRow: `${placement.rowStart} / span ${placement.rowSpan}`,
               }}
             >
-              <KnockoutMatchCard label={match.label} />
+              <KnockoutMatchCard match={buildKnockoutMatch(placement, matchById)} nationMap={nationMap} onOpenMatch={openMatch} onOpenNation={openNation} />
             </div>
             ))}
         </div>
@@ -723,7 +980,7 @@ export function GroupStandingsTable() {
         </TabsContent>
 
         <TabsContent value="knockout-stage" className="mt-0">
-          <KnockoutStageBracket />
+          <KnockoutStageBracket matchFixtures={matchFixtures} nationMap={nationMap} />
         </TabsContent>
       </Tabs>
     </div>

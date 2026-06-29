@@ -23,6 +23,7 @@ import { motion } from "framer-motion";
 interface MatchFixturesProps {
   initialSearch?: string;
   initialSelectedStage?: string;
+  targetMatchId?: string | null;
   onViewChange?: (view: { search: string; selectedStage: string }) => void;
   mountFloatingControls?: boolean;
   showFloatingControls?: boolean;
@@ -36,6 +37,7 @@ type TeamAccentStyle = CSSProperties & {
 export function MatchFixtures({
   initialSearch = "",
   initialSelectedStage = "ALL",
+  targetMatchId = null,
   onViewChange,
   mountFloatingControls = false,
   showFloatingControls = false,
@@ -84,6 +86,20 @@ export function MatchFixtures({
     onViewChange?.({ search, selectedStage });
   }, [onViewChange, search, selectedStage]);
 
+  useEffect(() => {
+    const handleFixtureSelection = (event: CustomEvent) => {
+      const detail = event.detail;
+      if (typeof detail?.matchId !== "string") return;
+      setSearch(typeof detail.search === "string" ? detail.search : "");
+      setSelectedStage(typeof detail.selectedStage === "string" ? detail.selectedStage : "ALL");
+    };
+
+    window.addEventListener("fixtureSelected", handleFixtureSelection as EventListener);
+    return () => {
+      window.removeEventListener("fixtureSelected", handleFixtureSelection as EventListener);
+    };
+  }, []);
+
   const stages = useMemo(() => {
     const uniqueStages = Array.from(new Set(matchFixtures.map((m) => m.stage)));
     return ["ALL", ...uniqueStages];
@@ -120,6 +136,19 @@ export function MatchFixtures({
     });
     return grouped;
   }, [filteredMatches]);
+
+  useEffect(() => {
+    if (!targetMatchId || filteredMatches.length === 0) return;
+    const targetMatch = filteredMatches.find((match) => match.id === targetMatchId);
+    if (!targetMatch) return;
+
+    window.requestAnimationFrame(() => {
+      matchCardRefs.current[targetMatch.id]?.scrollIntoView({
+        block: "center",
+        behavior: "smooth",
+      });
+    });
+  }, [filteredMatches, targetMatchId]);
 
   useEffect(() => {
     if (hasAutoScrolled.current || filteredMatches.length === 0) return;

@@ -96,7 +96,8 @@ export function TournamentStats() {
             console.warn("Failed to load tournament stats.", error);
             return;
           }
-          setEvents(mergeEventRows(preferFotmobEventRows((data ?? []) as EventRow[]), getFallbackEventRows()));
+          const databaseRows = preferFotmobEventRows((data ?? []) as EventRow[]);
+          setEvents(databaseRows.length > 0 ? databaseRows : getFallbackEventRows());
         });
     };
     const loadLineups = () => {
@@ -310,26 +311,6 @@ function addLeaderValueOnce(
   addLeaderValue(totals, playerName, teamName, 1);
 }
 
-function mergeEventRows(primaryRows: EventRow[], fallbackRows: EventRow[]) {
-  const rows = new Map<string, EventRow>();
-
-  for (const row of fallbackRows) {
-    rows.set(eventKey(row), row);
-  }
-
-  for (const row of primaryRows) {
-    const key = eventKey(row);
-    const fallbackRow = rows.get(key);
-    rows.set(key, {
-      ...fallbackRow,
-      ...row,
-      assist_player_name: row.assist_player_name ?? fallbackRow?.assist_player_name ?? null,
-    });
-  }
-
-  return [...rows.values()];
-}
-
 function getFallbackEventRows(): EventRow[] {
   return Object.values(completedMatchData).flatMap((match) =>
     match.events.map((event) => ({
@@ -342,16 +323,6 @@ function getFallbackEventRows(): EventRow[] {
       minute: event.minute ?? null,
     }))
   );
-}
-
-function eventKey(event: EventRow) {
-  return [
-    normalizeName(event.match_id ?? ""),
-    normalizeName(event.event_type),
-    normalizeName(event.team_name ?? ""),
-    normalizeName(event.player_name ?? ""),
-    event.minute ?? "",
-  ].join("::");
 }
 
 function buildPlayerLookup(nations: Nation[], lineupRows: LineupRow[]) {

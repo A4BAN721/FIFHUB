@@ -14,14 +14,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createApiClient } from '@/lib/supabase/api';
 import { RedisCache, CACHE_KEYS, CACHE_TTL } from '../../../services/cache/redis-cache';
-
-// Initialize Supabase client - these env vars MUST be set at runtime
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-let supabase: ReturnType<typeof createClient> | null = null;
 
 // Initialize cache (will use in-memory fallback if Redis unavailable)
 const cache = RedisCache.getInstance();
@@ -41,22 +35,12 @@ type FixtureScoreboardRow = {
   updated_at: string | null;
 };
 
-function getSupabase() {
-  if (!supabase) {
-    if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Missing required Supabase configuration. Check your environment variables.');
-    }
-    supabase = createClient(supabaseUrl, supabaseKey);
-  }
-  return supabase;
-}
-
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const competition = searchParams.get('competition');
 
   try {
-    const db = getSupabase();
+    const db = createApiClient();
 
     // Try cache first
     const cacheKey = `${CACHE_KEYS.liveMatches}:${competition || 'all'}`;

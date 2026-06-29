@@ -19,6 +19,7 @@ export default function Home() {
   const [returnTab, setReturnTab] = useState<string | null>(null);
   const [returnScrollY, setReturnScrollY] = useState<number | null>(null);
   const [fixturesView, setFixturesView] = useState({ search: "", selectedStage: "ALL" });
+  const [targetFixtureId, setTargetFixtureId] = useState<string | null>(null);
   const [showFloatingChrome, setShowFloatingChrome] = useState(false);
   const [hasScrolledAway, setHasScrolledAway] = useState(false);
   const [matchDetailsOpen, setMatchDetailsOpen] = useState(false);
@@ -42,6 +43,26 @@ export default function Home() {
 
     return () => {
       window.removeEventListener("nationSelected", handleNationSelection as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleFixtureSelection = (event: CustomEvent) => {
+      const detail = event.detail;
+      const matchId = typeof detail?.matchId === "string" ? detail.matchId : null;
+      if (!matchId) return;
+
+      setFixturesView({
+        search: typeof detail.search === "string" ? detail.search : "",
+        selectedStage: typeof detail.selectedStage === "string" ? detail.selectedStage : "ALL",
+      });
+      setTargetFixtureId(matchId);
+      setActiveTab("fixtures");
+    };
+
+    window.addEventListener("fixtureSelected", handleFixtureSelection as EventListener);
+    return () => {
+      window.removeEventListener("fixtureSelected", handleFixtureSelection as EventListener);
     };
   }, []);
 
@@ -159,6 +180,7 @@ export default function Home() {
               <MatchFixtures
                 initialSearch={fixturesView.search}
                 initialSelectedStage={fixturesView.selectedStage}
+                targetMatchId={targetFixtureId}
                 onViewChange={setFixturesView}
                 mountFloatingControls={mountFloatingFixturesChrome}
                 showFloatingControls={showFloatingFixturesChrome}

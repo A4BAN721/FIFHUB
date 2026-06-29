@@ -14,7 +14,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createApiClient } from '@/lib/supabase/api';
 import { RedisCache, CACHE_TTL } from '../../../services/cache/redis-cache';
 
 // Initialize cache (will use in-memory fallback if Redis unavailable)
@@ -23,8 +23,6 @@ const cache = RedisCache.getInstance({
   port: parseInt(process.env.REDIS_PORT || '6379', 10),
   keyPrefix: 'fifhub:',
 });
-
-let supabase: ReturnType<typeof createClient> | null = null;
 
 type FixtureScoreboardRow = {
   fixture_id: string;
@@ -44,18 +42,6 @@ type FixtureScoreboardRow = {
   final_score_confirmed_at: string | null;
   updated_at: string | null;
 };
-
-function getSupabase() {
-  if (!supabase) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Missing required Supabase configuration. Check your environment variables.');
-    }
-    supabase = createClient(supabaseUrl, supabaseKey);
-  }
-  return supabase;
-}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -82,7 +68,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const db = getSupabase();
+    const db = createApiClient();
 
     // Build query from the fixture-backed live scoreboard contract.
     let query = db

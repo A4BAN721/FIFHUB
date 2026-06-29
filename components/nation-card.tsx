@@ -13,18 +13,19 @@ interface NationCardProps {
   nation: Nation;
   onClick: () => void;
   index: number;
+  fifaRanking?: number | null;
 }
 
 type NationCardStyle = React.CSSProperties & {
   "--tab-color": string;
 };
 
-export function NationCard({ nation, onClick, index }: NationCardProps) {
+export function NationCard({ nation, onClick, index, fifaRanking: fifaRankingOverride }: NationCardProps) {
   const { t, language } = useLanguage();
   const isMobile = useIsMobile();
   const shouldAnimate = !isMobile;
   const labelSpacingClass = language === "bn" ? "" : "uppercase tracking-[0.35em]";
-  const fifaRanking = getFifaWorldRanking(nation.id);
+  const fifaRanking = fifaRankingOverride ?? getFifaWorldRanking(nation.id);
 
   const formatSquadValue = (value: string): string => {
     if (language !== "bn") return value;

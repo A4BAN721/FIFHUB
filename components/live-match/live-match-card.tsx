@@ -742,7 +742,7 @@ function RedCardRow({ card, align }: { card: MatchEvent; align: "left" | "right"
 
 function formatGoalLine(goal: MatchEvent) {
   if (goal.eventType === "own_goal") {
-    return `${goal.playerName ?? "Unknown player"} ${formatMinute(goal)} OG`;
+    return `${goal.playerName ?? "Unknown player"} ${formatMinute(goal)} (OG)`;
   }
 
   const penaltyMarker = goal.eventType === "penalty_goal" ? " (P)" : "";

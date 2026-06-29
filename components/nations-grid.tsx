@@ -32,6 +32,7 @@ export function NationsGrid({ initialSelectedNationId, initialSelectedPlayerName
   const [groupScrollY, setGroupScrollY] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [nations, setNations] = useState<Nation[]>(fallbackNations);
+  const [fifaRankings, setFifaRankings] = useState<Record<string, number>>({});
 
   useEffect(() => {
     let isMounted = true;
@@ -54,6 +55,28 @@ export function NationsGrid({ initialSelectedNationId, initialSelectedPlayerName
       })
       .catch((error) => {
         console.error("Failed to load nations from Supabase:", error);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetch("/api/fifa-rankings", { cache: "no-store" })
+      .then((response) => {
+        if (!response.ok) throw new Error("Failed to load FIFA rankings.");
+        return response.json() as Promise<{ rankings?: Record<string, number> }>;
+      })
+      .then((data) => {
+        if (isMounted && data.rankings) {
+          setFifaRankings(data.rankings);
+        }
+      })
+      .catch((error) => {
+        console.warn("Using local FIFA rankings fallback.", error);
       });
 
     return () => {
@@ -185,6 +208,7 @@ export function NationsGrid({ initialSelectedNationId, initialSelectedPlayerName
                   nation={nation}
                   onClick={() => handleOpenNation(nation.id)}
                   index={index}
+                  fifaRanking={fifaRankings[nation.id] ?? null}
                 />
               ))}
             </div>
