@@ -40,6 +40,8 @@ type MatchWithOptionalScore = Match &
   Partial<{
     homeScore: number;
     awayScore: number;
+    homePenaltyScore: number | null;
+    awayPenaltyScore: number | null;
     status: string;
     period: string;
     finalScoreConfirmedAt: string | null;
@@ -63,6 +65,8 @@ type ScoreboardApiMatch = {
   period: string;
   homeScore: number;
   awayScore: number;
+  homePenaltyScore?: number | null;
+  awayPenaltyScore?: number | null;
   finalScoreConfirmedAt: string | null;
   updatedAt: string | null;
 };
@@ -82,6 +86,7 @@ type KnockoutPlacement = {
 type KnockoutTeam = {
   name: string;
   score?: number | null;
+  penaltyScore?: number | null;
   isWinner?: boolean;
 };
 
@@ -284,6 +289,8 @@ function getMatchScore(match: MatchWithOptionalScore) {
     return {
       homeScore: match.homeScore as number,
       awayScore: match.awayScore as number,
+      homePenaltyScore: match.homePenaltyScore ?? null,
+      awayPenaltyScore: match.awayPenaltyScore ?? null,
     };
   }
 
@@ -292,6 +299,8 @@ function getMatchScore(match: MatchWithOptionalScore) {
     return {
       homeScore: completedMatch.homeScore,
       awayScore: completedMatch.awayScore,
+      homePenaltyScore: completedMatch.homePenaltyScore ?? null,
+      awayPenaltyScore: completedMatch.awayPenaltyScore ?? null,
     };
   }
 
@@ -321,6 +330,8 @@ function mapScoreboardMatch(match: ScoreboardApiMatch): MatchWithOptionalScore {
     period: match.period,
     homeScore: match.homeScore,
     awayScore: match.awayScore,
+    homePenaltyScore: match.homePenaltyScore ?? null,
+    awayPenaltyScore: match.awayPenaltyScore ?? null,
     finalScoreConfirmedAt: match.finalScoreConfirmedAt,
     updatedAt: match.updatedAt,
   };
@@ -336,27 +347,44 @@ function sortStandingRows(rows: StandingRow[]) {
 }
 
 function getKnockoutWinner(match: MatchWithOptionalScore | undefined) {
-  if (!match) return null;
-
-  const score = getMatchScore(match);
-  if (!score || score.homeScore === score.awayScore) return null;
-
-  return {
-    name: score.homeScore > score.awayScore ? match.homeTeam : match.awayTeam,
-    score: score.homeScore > score.awayScore ? score.homeScore : score.awayScore,
-  };
+  return getKnockoutOutcome(match)?.winner ?? null;
 }
 
 function getKnockoutLoser(match: MatchWithOptionalScore | undefined) {
+  return getKnockoutOutcome(match)?.loser ?? null;
+}
+
+function getKnockoutOutcome(match: MatchWithOptionalScore | undefined) {
   if (!match) return null;
-
   const score = getMatchScore(match);
-  if (!score || score.homeScore === score.awayScore) return null;
+  if (!score) return null;
 
-  return {
-    name: score.homeScore < score.awayScore ? match.homeTeam : match.awayTeam,
-    score: score.homeScore < score.awayScore ? score.homeScore : score.awayScore,
+  const hasPenaltyWinner =
+    score.homePenaltyScore != null &&
+    score.awayPenaltyScore != null &&
+    score.homePenaltyScore !== score.awayPenaltyScore;
+
+  if (score.homeScore === score.awayScore && !hasPenaltyWinner) return null;
+
+  const homeWon =
+    score.homeScore === score.awayScore
+      ? Number(score.homePenaltyScore) > Number(score.awayPenaltyScore)
+      : score.homeScore > score.awayScore;
+
+  const home = {
+    name: match.homeTeam,
+    score: score.homeScore,
+    penaltyScore: score.homePenaltyScore,
   };
+  const away = {
+    name: match.awayTeam,
+    score: score.awayScore,
+    penaltyScore: score.awayPenaltyScore,
+  };
+
+  return homeWon
+    ? { winner: home, loser: away }
+    : { winner: away, loser: home };
 }
 
 function buildKnockoutMatch(
@@ -365,6 +393,7 @@ function buildKnockoutMatch(
 ): KnockoutMatch {
   const match = placement.matchId ? matchById.get(placement.matchId) : undefined;
   const score = match ? getMatchScore(match) : null;
+  const outcome = getKnockoutOutcome(match);
 
   if (match && match.homeTeam !== "TBD" && match.awayTeam !== "TBD") {
     return {
@@ -374,12 +403,14 @@ function buildKnockoutMatch(
       home: {
         name: match.homeTeam,
         score: score?.homeScore,
-        isWinner: Boolean(score && score.homeScore > score.awayScore),
+        penaltyScore: score?.homePenaltyScore,
+        isWinner: outcome?.winner.name === match.homeTeam,
       },
       away: {
         name: match.awayTeam,
         score: score?.awayScore,
-        isWinner: Boolean(score && score.awayScore > score.homeScore),
+        penaltyScore: score?.awayPenaltyScore,
+        isWinner: outcome?.winner.name === match.awayTeam,
       },
     };
   }
@@ -434,6 +465,7 @@ function KnockoutTeamRow({
   const nation = nationMap.get(nationId) ?? localDataNations.get(nationId);
   const isPlaceholder = !nation || team.name.startsWith("Winner ") || team.name.startsWith("Loser ") || team.name === "TBD";
   const isEliminated = team.score != null && !team.isWinner;
+  const scoreText = formatKnockoutScore(team);
 
   return (
     <div className="flex items-center justify-between gap-1 px-1.5 py-1.5 sm:py-1 lg:px-2">
@@ -468,10 +500,16 @@ function KnockoutTeamRow({
         )}
       </div>
       <span className="shrink-0 text-[10px] font-semibold text-muted-foreground">
-        {team.score ?? "-"}
+        {scoreText}
       </span>
     </div>
   );
+}
+
+function formatKnockoutScore(team: KnockoutTeam) {
+  if (team.score == null) return "-";
+  if (team.penaltyScore != null) return `${team.score}(${team.penaltyScore})`;
+  return team.score;
 }
 
 function KnockoutMatchCard({
