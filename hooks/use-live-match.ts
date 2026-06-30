@@ -80,12 +80,20 @@ export function useLiveMatch(
         homePenaltyScore: state.homePenaltyScore,
         awayPenaltyScore: state.awayPenaltyScore,
         minute: state.minute,
+        stoppageMinute: state.stoppageMinute ?? base.stoppageMinute,
         statistics: mergeDefinedStatistics(base.statistics, state),
-        updatedAt: new Date().toISOString(),
+        lineups: base.lineups,
+        events: base.events,
+        updatedAt: state.updatedAt ?? base.updatedAt,
       };
     });
     setLastUpdated(new Date());
   }, [fallbackMatch, matchId]);
+
+  const handleRealtimeStateChange = useCallback((state: LiveRealtimeState) => {
+    applyRealtimeState(state);
+    void refresh();
+  }, [applyRealtimeState, refresh]);
 
   const handleRealtimeEvent = useCallback(() => {
     void refresh();
@@ -94,7 +102,7 @@ export function useLiveMatch(
   useLiveMatchRealtime({
     matchId,
     enabled: enabled && Boolean(activeProvider),
-    onStateChange: applyRealtimeState,
+    onStateChange: handleRealtimeStateChange,
     onEvent: handleRealtimeEvent,
   });
 

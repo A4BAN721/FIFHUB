@@ -2180,7 +2180,7 @@ export const nations: Nation[] = [
     confederation: "AFC",
     headCoach: "Fabio Cannavaro",
     totalSquadValue: "€32M",
-    jerseyColors: { primary: "#1EB53A", secondary: "#FFFFFF", accent: "#0099B5" },
+    jerseyColors: { primary: "#0099B5", secondary: "#FFFFFF", accent: "#1EB53A" },
     players: [],
   },
   {

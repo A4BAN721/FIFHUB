@@ -9,6 +9,7 @@ import { getNations } from "@/lib/supabase/data";
 import { completedMatchData } from "@/lib/live-data/completed-matches";
 import { nations as fallbackNations } from "@/lib/world-cup-data";
 import type { Nation } from "@/lib/world-cup-data";
+import type { CSSProperties } from "react";
 
 type EventRow = {
   match_id?: string | null;
@@ -49,6 +50,10 @@ type Leader = {
 };
 
 type PlayerLookup = Map<string, number>;
+
+type PlayerHoverStyle = CSSProperties & {
+  "--player-nation-primary": string;
+};
 
 const categories: Array<{ value: StatCategory; label: string; heading: string }> = [
   { value: "goals", label: "Goals", heading: "Goals" },
@@ -148,7 +153,7 @@ export function TournamentStats() {
         </TabsList>
         {categories.map((category) => (
           <TabsContent key={category.value} value={category.value} className="mt-0">
-            <Leaderboard leaders={leaders[category.value]} heading={category.heading} />
+            <Leaderboard leaders={leaders[category.value]} heading={category.heading} nations={nations} />
           </TabsContent>
         ))}
       </Tabs>
@@ -156,7 +161,7 @@ export function TournamentStats() {
   );
 }
 
-function Leaderboard({ leaders, heading }: { leaders: Leader[]; heading: string }) {
+function Leaderboard({ leaders, heading, nations }: { leaders: Leader[]; heading: string; nations: Nation[] }) {
   return (
     <div className="rounded-lg border border-border/40 bg-card/45 p-3 sm:p-5">
       <div className="grid grid-cols-[3rem_1fr_4rem] border-b border-border/50 px-1 pb-3 text-sm text-muted-foreground">
@@ -166,7 +171,7 @@ function Leaderboard({ leaders, heading }: { leaders: Leader[]; heading: string 
       </div>
       <div>
         {leaders.length > 0 ? (
-          leaders.map((leader) => <LeaderRow key={`${leader.playerName}-${leader.teamName}`} leader={leader} />)
+          leaders.map((leader) => <LeaderRow key={`${leader.playerName}-${leader.teamName}`} leader={leader} nations={nations} />)
         ) : (
           <p className="py-6 text-center text-sm text-muted-foreground">No data available yet.</p>
         )}
@@ -175,8 +180,12 @@ function Leaderboard({ leaders, heading }: { leaders: Leader[]; heading: string 
   );
 }
 
-function LeaderRow({ leader }: { leader: Leader }) {
+function LeaderRow({ leader, nations }: { leader: Leader; nations: Nation[] }) {
   const nationId = leader.teamName ? normalizeCountryName(leader.teamName) : null;
+  const nation = nationId ? nations.find((entry) => entry.id === nationId) ?? fallbackNations.find((entry) => entry.id === nationId) : null;
+  const playerStyle = {
+    "--player-nation-primary": nation?.jerseyColors.primary ?? "hsl(var(--primary))",
+  } as PlayerHoverStyle;
 
   return (
     <div className="grid min-h-[70px] grid-cols-[3rem_1fr_4rem] items-center border-b border-border/30 px-1 py-2 last:border-b-0">
@@ -188,7 +197,14 @@ function LeaderRow({ leader }: { leader: Leader }) {
           </span>
         </div>
         <div className="min-w-0">
-          <p className="truncate text-base font-semibold text-foreground">{leader.playerName}</p>
+          <button
+            className="block min-w-0 max-w-full cursor-pointer truncate text-left text-base font-semibold text-foreground transition-colors hover:text-[var(--player-nation-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            onClick={() => openStatsPlayer(leader.teamName, leader.playerName)}
+            style={playerStyle}
+            type="button"
+          >
+            {leader.playerName}
+          </button>
           {leader.teamName && (
             <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
               <NationFlag className="h-4 w-6" label={leader.teamName} nationId={nationId} fallbackClassName="text-base" />
@@ -199,6 +215,21 @@ function LeaderRow({ leader }: { leader: Leader }) {
       </div>
       <span className="text-right text-lg font-semibold tabular-nums text-foreground">{leader.value}</span>
     </div>
+  );
+}
+
+function openStatsPlayer(teamName: string | null, playerName: string) {
+  if (!teamName) return;
+
+  window.dispatchEvent(
+    new CustomEvent("nationSelected", {
+      detail: {
+        nationId: normalizeCountryName(teamName),
+        playerName,
+        returnTab: "stats",
+        returnScrollY: window.scrollY,
+      },
+    }),
   );
 }
 

@@ -48,3 +48,15 @@ export function normalizeCountryName(name: string): string {
 
   return normalizedNameMap[normalizedName] || normalizedName.replace(/\s+/g, "-");
 }
+
+const countrySearchAliasesById: Record<string, string[]> = {
+  "bosnia-herzegovina": ["Bosnia & Herzegovina", "Bosnia and Herzegovina", "Bosnia"],
+  "cape-verde": ["Cape Verde", "Cabo Verde", "Cape Verde Islands"],
+  "ivory-coast": ["Ivory Coast", "Cote d'Ivoire", "Côte d'Ivoire", "Cote dIvoire", "Côte dIvoire"],
+  usa: ["United States", "United States of America", "USA", "US", "America"],
+};
+
+export function getCountrySearchAliases(name: string): string[] {
+  const nationId = normalizeCountryName(name);
+  return [name, nationId, ...(countrySearchAliasesById[nationId] ?? [])];
+}

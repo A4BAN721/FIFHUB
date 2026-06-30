@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Nation } from "@/lib/world-cup-data";
 import { nations as fallbackNations } from "@/lib/world-cup-data";
 import { qualifiedNationIds } from "@/lib/world-cup-groups";
+import { getCountrySearchAliases } from "@/lib/country-utils";
 import { getNations } from "@/lib/supabase/data";
 import { useLanguage } from "./language-provider";
 import { NationCard } from "./nation-card";
@@ -116,12 +117,9 @@ export function NationsGrid({ initialSelectedNationId, initialSelectedPlayerName
 
   const filteredNations = useMemo(() => {
     if (!search.trim()) return qualifiedNations;
-    const query = search.toLowerCase();
+    const query = normalizeNationSearch(search);
     return qualifiedNations.filter(
-      (nation) =>
-        nation.name.toLowerCase().includes(query) ||
-        nation.code.toLowerCase().includes(query) ||
-        nation.confederation.toLowerCase().includes(query)
+      (nation) => nationSearchText(nation).includes(query)
     );
   }, [search, qualifiedNations]);
 
@@ -217,4 +215,23 @@ export function NationsGrid({ initialSelectedNationId, initialSelectedPlayerName
       </div>
     </div>
   );
+}
+
+function nationSearchText(nation: Nation) {
+  return [
+    ...getCountrySearchAliases(nation.name),
+    nation.code,
+    nation.confederation,
+  ].map(normalizeNationSearch).join(" ");
+}
+
+function normalizeNationSearch(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/&/g, " and ")
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/gi, " ")
+    .trim()
+    .toLowerCase();
 }

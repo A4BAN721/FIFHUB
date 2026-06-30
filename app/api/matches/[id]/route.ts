@@ -15,6 +15,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createApiClient } from '@/lib/supabase/api';
 import { RedisCache, CACHE_KEYS, CACHE_TTL } from '../../../../services/cache/redis-cache';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const cache = RedisCache.getInstance();
 
 type FixtureScoreboardRow = {
@@ -43,13 +46,14 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const fresh = request.nextUrl.searchParams.get('fresh') === '1' || request.nextUrl.searchParams.get('fresh') === 'true';
 
   try {
     const db = createApiClient();
 
     // Try cache first
     const cacheKey = CACHE_KEYS.matchDetail(id);
-    const cached = await cache.get(cacheKey);
+    const cached = fresh ? null : await cache.get(cacheKey);
     if (cached) {
       return NextResponse.json(cached, {
         headers: {
@@ -118,13 +122,14 @@ export async function GET(
       live_state: liveState || null,
     };
 
-    // Cache the response
-    await cache.set(cacheKey, response, CACHE_TTL.MATCH_STATE);
+    if (!fresh) {
+      await cache.set(cacheKey, response, CACHE_TTL.MATCH_STATE);
+    }
 
     return NextResponse.json(response, {
       headers: {
         'X-Cache': 'MISS',
-        'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
+        'Cache-Control': fresh ? 'no-store, no-cache, must-revalidate, proxy-revalidate' : 'public, s-maxage=30, stale-while-revalidate=60',
       },
     });
   } catch (error) {

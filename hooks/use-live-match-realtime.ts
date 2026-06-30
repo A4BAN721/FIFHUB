@@ -29,8 +29,10 @@ export interface LiveRealtimeState {
   homePenaltyScore?: number | null;
   awayPenaltyScore?: number | null;
   minute: number;
+  stoppageMinute?: number | null;
   period: string;
   status: string;
+  updatedAt?: string | null;
   lastEventType?: string;
   homePossession?: number;
   awayPossession?: number;
@@ -93,9 +95,12 @@ type LiveMatchStateRow = {
   home_penalty_score?: number | null;
   away_penalty_score?: number | null;
   minute?: number | null;
+  stoppage_minute?: number | null;
+  stoppage_time?: number | null;
   phase?: string | null;
   period?: string | null;
   status?: string | null;
+  updated_at?: string | null;
   last_event_type?: string | null;
   home_possession?: number | null;
   away_possession?: number | null;
@@ -218,8 +223,10 @@ export function useLiveMatchRealtime({
               homePenaltyScore: data.home_penalty_score,
               awayPenaltyScore: data.away_penalty_score,
               minute: data.minute ?? 0,
+              stoppageMinute: data.stoppage_minute ?? data.stoppage_time ?? null,
               period: data.phase ?? data.period ?? '',
               status: data.status ?? '',
+              updatedAt: data.updated_at ?? null,
               lastEventType: data.last_event_type ?? undefined,
               homePossession: data.home_possession ?? undefined,
               awayPossession: data.away_possession ?? undefined,
@@ -281,8 +288,10 @@ export function useLiveMatchRealtime({
               homePenaltyScore: data.homePenaltyScore,
               awayPenaltyScore: data.awayPenaltyScore,
               minute: data.minute ?? 0,
+              stoppageMinute: data.stoppageMinute ?? null,
               period: data.period ?? '',
               status: data.status ?? '',
+              updatedAt: data.updatedAt ?? null,
               lastEventType: data.lastEventType,
               homePossession: data.homePossession,
               awayPossession: data.awayPossession,

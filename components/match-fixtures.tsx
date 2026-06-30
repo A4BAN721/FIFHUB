@@ -113,14 +113,8 @@ export function MatchFixtures({
     }
 
     if (search.trim()) {
-      const query = search.toLowerCase();
-      matches = matches.filter(
-        (m) =>
-          m.homeTeam.toLowerCase().includes(query) ||
-          m.awayTeam.toLowerCase().includes(query) ||
-          m.stadium.toLowerCase().includes(query) ||
-          m.date.toLowerCase().includes(query)
-      );
+      const query = normalizeFixtureSearch(search);
+      matches = matches.filter((match) => fixtureMatchesSearch(match, query));
     }
 
     return matches;
@@ -870,4 +864,42 @@ function parseFixtureDateTime(date: string, time: string) {
   const withoutWeekday = date.includes(",") ? date.split(",").slice(1).join(",").trim() : date;
   const parsed = Date.parse(`${withoutWeekday} ${time}`);
   return Number.isFinite(parsed) ? parsed : NaN;
+}
+
+function fixtureMatchesSearch(match: Match, query: string) {
+  const tokens = query.split(" ").filter(Boolean);
+  if (tokens.length === 0) return true;
+
+  const haystack = normalizeFixtureSearch(
+    [
+      match.homeTeam,
+      match.awayTeam,
+      `${match.homeTeam} ${match.awayTeam}`,
+      `${match.awayTeam} ${match.homeTeam}`,
+      getTeamDisplayName(match.homeTeam),
+      getTeamDisplayName(match.awayTeam),
+      getFifaAbbreviation(match.homeTeam),
+      getFifaAbbreviation(match.awayTeam),
+      match.stadium,
+      match.date,
+      match.time,
+      match.stage,
+      match.group ?? "",
+    ].join(" "),
+  );
+
+  return (
+    haystack.includes(query) ||
+    tokens.every((token) => haystack.includes(token))
+  );
+}
+
+function normalizeFixtureSearch(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/gi, " ")
+    .trim()
+    .toLowerCase();
 }

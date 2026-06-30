@@ -30,7 +30,7 @@ export function LiveMatchCard({ match, children, enableLiveData = true }: LiveMa
   const { liveMatch } = useLiveMatch(match.id, {
     enabled: enableLiveData,
     fallbackMatch: match,
-    intervalMs: enableLiveData ? 30000 : 120000,
+    intervalMs: enableLiveData ? 10000 : 120000,
   });
   const completedMatch = getCompletedMatch(match.id);
   const scheduledLiveMatch =
@@ -171,6 +171,7 @@ function MatchHighlightsLink({ liveMatch }: { liveMatch: LiveMatch }) {
 
 function CompactScoreOverlay({ liveMatch, fixtureStage }: { liveMatch: LiveMatch; fixtureStage: string }) {
   const timerLabel = getTimerLabel(liveMatch);
+  const isHalfTimeTimer = liveMatch.status === "half_time" || liveMatch.phase === "half_time";
   const showLiveIndicator = shouldShowLiveIndicator(liveMatch);
   const isGroupStage = fixtureStage === "GROUP STAGE";
   const penaltyScore = getPenaltyShootoutScore(liveMatch);
@@ -191,20 +192,27 @@ function CompactScoreOverlay({ liveMatch, fixtureStage }: { liveMatch: LiveMatch
       >
         {getPlayPeriodLabel(liveMatch)}
       </span>
-      <div className="absolute left-1/2 top-[58%] flex -translate-x-1/2 flex-col items-center gap-0.5 sm:top-[53%]">
-        <span className="min-w-[44px] -translate-y-1/2 rounded-md border border-zinc-200 bg-white px-1 py-0.5 text-center text-[10px] font-black tabular-nums leading-tight text-zinc-950 shadow-lg dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:min-w-[68px] sm:rounded-lg sm:px-3 sm:py-1 sm:text-sm">
-          {liveMatch.homeScore} - {liveMatch.awayScore}
-        </span>
-        {penaltyScore && !showShootoutBoard && (
-          <span className="-mt-2 rounded-full border border-zinc-200 bg-white/95 px-1.5 py-0.5 text-[8px] font-black uppercase tabular-nums text-zinc-700 shadow-md dark:border-zinc-700 dark:bg-zinc-950/95 dark:text-zinc-200 sm:px-2 sm:text-[9px]">
-            Pens {penaltyScore.home} - {penaltyScore.away}
-          </span>
-        )}
-        {timerLabel && (
-          <span className="-mt-3 rounded-full border border-zinc-200 bg-white/95 px-1.5 py-0.5 text-[9px] font-black uppercase tabular-nums text-red-600 shadow-md dark:border-zinc-700 dark:bg-zinc-950/95 sm:px-2 sm:text-[10px]">
+      <div className="absolute left-1/2 top-[54%] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-1 sm:top-[49%] sm:gap-1.5">
+        {timerLabel && !isHalfTimeTimer && (
+          <span className="rounded-md border border-zinc-200 bg-white/95 px-1 py-0.5 text-center text-[10px] font-black uppercase tabular-nums leading-tight text-red-600 shadow-lg dark:border-zinc-700 dark:bg-zinc-950/95 sm:rounded-lg sm:px-1.5 sm:py-1 sm:text-sm">
             {timerLabel}
           </span>
         )}
+        <span className="flex min-w-[44px] flex-col items-center sm:min-w-[68px]">
+          <span className="w-full rounded-md border border-zinc-200 bg-white px-1 py-0.5 text-center text-[10px] font-black tabular-nums leading-tight text-zinc-950 shadow-lg dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:rounded-lg sm:px-3 sm:py-1 sm:text-sm">
+            {liveMatch.homeScore} - {liveMatch.awayScore}
+          </span>
+          {penaltyScore && !showShootoutBoard && (
+            <span className="-mt-0.5 rounded-full border border-zinc-200 bg-white/95 px-1.5 py-0.5 text-[8px] font-black uppercase tabular-nums text-zinc-700 shadow-md dark:border-zinc-700 dark:bg-zinc-950/95 dark:text-zinc-200 sm:px-2 sm:text-[9px]">
+              Pens {penaltyScore.home} - {penaltyScore.away}
+            </span>
+          )}
+          {timerLabel && isHalfTimeTimer && (
+            <span className="-mt-0.5 rounded-full border border-zinc-200 bg-white/95 px-1 py-0 text-[7px] font-black uppercase tabular-nums leading-tight text-red-600 shadow-md dark:border-zinc-700 dark:bg-zinc-950/95 sm:px-1.5 sm:text-[8px]">
+              {timerLabel}
+            </span>
+          )}
+        </span>
       </div>
       {showShootoutBoard && (
         <div className="absolute bottom-6 left-2 right-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:bottom-8">
@@ -350,6 +358,7 @@ function MatchDetailsTabs({
         <LineupsPanel
           lineups={liveMatch.lineups}
           events={liveMatch.events}
+          matchId={liveMatch.matchId}
           homeTeam={liveMatch.homeTeam}
           awayTeam={liveMatch.awayTeam}
         />
@@ -453,7 +462,7 @@ function estimateDisplayClock(liveMatch: LiveMatch, now: number, fixture: Match)
   }
 
   if (liveMatch.status === "extra_time" || liveMatch.phase === "extra_time") {
-    return advanceProviderClock(liveMatch, now, {
+    return providerClock(liveMatch, {
       status: "extra_time",
       phase: "extra_time",
       fallbackMinute: 91,
@@ -463,7 +472,7 @@ function estimateDisplayClock(liveMatch: LiveMatch, now: number, fixture: Match)
   }
 
   if (liveMatch.phase === "first_half" && typeof liveMatch.minute === "number") {
-    return advanceProviderClock(liveMatch, now, {
+    return providerClock(liveMatch, {
       status: "live",
       phase: "first_half",
       fallbackMinute: liveMatch.minute,
@@ -473,7 +482,7 @@ function estimateDisplayClock(liveMatch: LiveMatch, now: number, fixture: Match)
   }
 
   if (liveMatch.phase === "second_half" && typeof liveMatch.minute === "number") {
-    return advanceProviderClock(liveMatch, now, {
+    return providerClock(liveMatch, {
       status: "live",
       phase: "second_half",
       fallbackMinute: liveMatch.minute,
@@ -518,9 +527,8 @@ function estimateDisplayClock(liveMatch: LiveMatch, now: number, fixture: Match)
   return capInProgressClock(liveMatch);
 }
 
-function advanceProviderClock(
+function providerClock(
   liveMatch: LiveMatch,
-  now: number,
   options: {
     status: "live" | "extra_time";
     phase: "first_half" | "second_half" | "extra_time";
@@ -530,13 +538,11 @@ function advanceProviderClock(
   },
 ) {
   const baseMinute = Math.min(options.maxMinute, Math.max(options.minMinute, liveMatch.minute ?? options.fallbackMinute));
-  const updatedAt = Date.parse(liveMatch.updatedAt);
-  const elapsedSinceUpdate = Number.isFinite(updatedAt) ? Math.max(0, Math.floor((now - updatedAt) / 60_000)) : 0;
 
   return {
     status: options.status,
     phase: options.phase,
-    minute: Math.min(options.maxMinute, baseMinute + elapsedSinceUpdate),
+    minute: baseMinute,
     stoppageMinute: capStoppageMinute(liveMatch.stoppageMinute),
   };
 }

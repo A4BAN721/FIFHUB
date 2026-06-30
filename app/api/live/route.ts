@@ -14,6 +14,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { normalizeMatchPhase, normalizeMatchStatus } from '@/lib/live-data/status';
 import { createApiClient } from '@/lib/supabase/api';
 import { RedisCache, CACHE_KEYS, CACHE_TTL } from '../../../services/cache/redis-cache';
 
@@ -40,13 +41,14 @@ type FixtureScoreboardRow = {
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const competition = searchParams.get('competition');
+  const fresh = searchParams.get('fresh') === '1' || searchParams.get('fresh') === 'true';
 
   try {
     const db = createApiClient();
 
     // Try cache first
     const cacheKey = `${CACHE_KEYS.liveMatches}:${competition || 'all'}`;
-    const cached = await cache.get(cacheKey);
+    const cached = fresh ? null : await cache.get(cacheKey);
     
     if (cached) {
       return NextResponse.json(cached, {
@@ -61,7 +63,6 @@ export async function GET(request: NextRequest) {
     let query = db
       .from('fixture_live_scoreboard_view')
       .select('*')
-      .in('status', ['live', 'half_time', 'extra_time', 'penalties'])
       .order('fixture_id', { ascending: true });
 
     if (competition) {
@@ -79,11 +80,13 @@ export async function GET(request: NextRequest) {
     }
 
     // Transform to minimal response format
-    const liveMatches = ((matches || []) as FixtureScoreboardRow[]).map((match) => ({
+    const liveMatches = ((matches || []) as FixtureScoreboardRow[])
+      .filter(isActiveScoreboardMatch)
+      .map((match) => ({
       id: match.fixture_id,
       matchId: match.fixture_id,
-      status: match.status,
-      period: match.phase,
+      status: normalizeMatchStatus(match.status),
+      period: normalizeMatchPhase(match.phase || match.status),
       homeTeam: {
         name: match.home_team,
         logo: null,
@@ -112,12 +115,14 @@ export async function GET(request: NextRequest) {
     };
 
     // Cache for 15 seconds
-    await cache.set(cacheKey, response, CACHE_TTL.LIVE_SCORE);
+    if (!fresh) {
+      await cache.set(cacheKey, response, CACHE_TTL.LIVE_SCORE);
+    }
 
     return NextResponse.json(response, {
       headers: {
-        'X-Cache': 'MISS',
-        'Cache-Control': 'public, s-maxage=15, stale-while-revalidate=30',
+        'X-Cache': fresh ? 'BYPASS' : 'MISS',
+        'Cache-Control': fresh ? 'no-store, no-cache, must-revalidate' : 'public, s-maxage=15, stale-while-revalidate=30',
       },
     });
   } catch (error) {
@@ -127,4 +132,21 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+function isActiveScoreboardMatch(match: FixtureScoreboardRow): boolean {
+  const status = normalizeMatchStatus(match.status);
+  const phase = normalizeMatchPhase(match.phase || match.status);
+
+  return (
+    status === 'live' ||
+    status === 'half_time' ||
+    status === 'extra_time' ||
+    status === 'penalties' ||
+    phase === 'first_half' ||
+    phase === 'half_time' ||
+    phase === 'second_half' ||
+    phase === 'extra_time' ||
+    phase === 'penalties'
+  );
 }

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { createServerFootballProvider } from "@/lib/live-data/server-provider";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type RouteContext = {
   params: Promise<{ matchId: string }> | { matchId: string };
 };
@@ -25,7 +28,17 @@ export async function GET(_request: Request, { params }: RouteContext) {
       return NextResponse.json({ match: null }, { status: 404 });
     }
 
-    return NextResponse.json({ match });
+    return NextResponse.json(
+      { match },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+          "Surrogate-Control": "no-store",
+        },
+      },
+    );
   } catch (error) {
     console.error("Failed to load live match:", error);
     return NextResponse.json({ error: "Failed to load live match" }, { status: 500 });

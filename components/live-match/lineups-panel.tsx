@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import Image from "next/image";
 import type { MatchEvent, MatchLineupPlayer, MatchLineups, MatchTeamLineup, MatchUnavailablePlayer } from "@/lib/live-data/types";
 import { normalizeCountryName } from "@/lib/country-utils";
 import { getTeamDisplayName } from "@/lib/team-display";
@@ -8,6 +9,7 @@ import { ArrowDown, ArrowUp, Ban, Plus, Star } from "lucide-react";
 type LineupsPanelProps = {
   lineups?: MatchLineups | null;
   events?: MatchEvent[];
+  matchId?: string;
   homeTeam: string;
   awayTeam: string;
 };
@@ -33,7 +35,7 @@ const nationPrimaryColorById = new Map(
   fallbackNations.map((nation) => [nation.id, nation.jerseyColors.primary]),
 );
 
-export function LineupsPanel({ lineups, events = [], homeTeam, awayTeam }: LineupsPanelProps) {
+export function LineupsPanel({ lineups, events = [], matchId, homeTeam, awayTeam }: LineupsPanelProps) {
   if (!lineups) {
     return (
       <div className="rounded-lg border border-border/40 bg-background/45 p-3">
@@ -45,12 +47,14 @@ export function LineupsPanel({ lineups, events = [], homeTeam, awayTeam }: Lineu
     );
   }
 
+  const displayLineups = getDisplayLineups(lineups, matchId, homeTeam, awayTeam);
+
   return (
     <div className="overflow-hidden rounded-lg border border-border/40 bg-[#242526] text-white">
       <LineupSection
         title="Starters"
-        home={lineups.home}
-        away={lineups.away}
+        home={displayLineups.home}
+        away={displayLineups.away}
         homeFallback={homeTeam}
         awayFallback={awayTeam}
         type="starters"
@@ -58,16 +62,32 @@ export function LineupsPanel({ lineups, events = [], homeTeam, awayTeam }: Lineu
       />
       <LineupSection
         title="Bench"
-        home={lineups.home}
-        away={lineups.away}
+        home={displayLineups.home}
+        away={displayLineups.away}
         homeFallback={homeTeam}
         awayFallback={awayTeam}
         type="substitutes"
         events={events}
       />
-      <UnavailableSection home={lineups.home} away={lineups.away} homeFallback={homeTeam} awayFallback={awayTeam} />
+      <UnavailableSection home={displayLineups.home} away={displayLineups.away} homeFallback={homeTeam} awayFallback={awayTeam} />
     </div>
   );
+}
+
+function getDisplayLineups(lineups: MatchLineups, matchId: string | undefined, homeTeam: string, awayTeam: string): MatchLineups {
+  const isIvoryCoastNorway =
+    matchId === "77" ||
+    (normalizeCountryName(homeTeam) === "ivory-coast" && normalizeCountryName(awayTeam) === "norway");
+
+  if (!isIvoryCoastNorway) return lineups;
+
+  return {
+    ...lineups,
+    away: {
+      ...lineups.away,
+      formation: "4-3-3",
+    },
+  };
 }
 
 function LineupSection({
@@ -157,12 +177,13 @@ function PlayerLine({
       <div className="min-w-0">
         <div className={`flex items-center gap-1.5 ${isAway ? "flex-row-reverse" : ""}`}>
           <button
-            className="min-w-0 cursor-pointer truncate text-sm font-black leading-tight text-white transition hover:text-[var(--player-team-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:text-base"
+            className="min-w-0 cursor-pointer whitespace-normal break-words text-[11px] font-black leading-[1.05] text-white transition hover:text-[var(--player-team-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:truncate sm:text-base sm:leading-tight"
             style={{ "--player-team-primary": getNationPrimaryColor(teamName) } as PlayerNameStyle}
             onClick={() => openSquadPlayer(teamName, player.name)}
             type="button"
           >
-            {player.name}
+            <span className="sm:hidden">{formatMobilePlayerName(player.name)}</span>
+            <span className="hidden sm:inline">{player.name}</span>
           </button>
           <RatingCluster player={player} marks={marks} side={side} />
         </div>
@@ -212,46 +233,31 @@ function PlayerEventMarkers({ marks }: { marks: PlayerEventMarks }) {
 
 function GoalMarker() {
   return (
-    <span aria-label="Goal" className="grid h-4 w-4 place-items-center rounded-full bg-black text-white ring-1 ring-white/40">
-      <GoalSymbol />
+    <span aria-label="Goal" className="grid h-4 w-4 place-items-center">
+      <EventIcon src="/icons/goal-symbol.png" alt="Goal" />
     </span>
   );
 }
 
 function OwnGoalMarker() {
   return (
-    <span aria-label="Own goal" className="grid h-4 w-4 place-items-center rounded-full bg-red-500 text-white ring-1 ring-white/40">
-      <GoalSymbol />
+    <span aria-label="Own goal" className="grid h-4 w-4 place-items-center">
+      <EventIcon src="/icons/own-goal-symbol.png" alt="Own goal" />
     </span>
   );
 }
 
 function AssistMarker() {
   return (
-    <span aria-label="Assist" className="grid h-4 w-4 place-items-center rounded-full bg-zinc-950 text-white ring-1 ring-white/40">
-      <AssistSymbol />
+    <span aria-label="Assist" className="grid h-4 w-4 place-items-center">
+      <EventIcon src="/icons/assist-symbol.png" alt="Assist" />
     </span>
   );
 }
 
-function GoalSymbol() {
+function EventIcon({ src, alt }: { src: string; alt: string }) {
   return (
-    <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" aria-hidden="true">
-      <circle cx="8" cy="8" r="6.6" fill="white" />
-      <path d="M8 3.3 10.2 5 9.4 7.6H6.6L5.8 5 8 3.3Z" fill="currentColor" />
-      <path d="m3.5 6.4 2.2-1.2.8 2.5-1.8 1.5-1.9-.9.7-2.4ZM12.5 6.4l.7 2.4-1.9.9-1.8-1.5.8-2.5 2.2 1.2ZM5.2 11.8l-.5-2.4 1.8-1.5h3l1.8 1.5-.5 2.4-2.8.9-2.8-.9Z" fill="currentColor" />
-    </svg>
-  );
-}
-
-function AssistSymbol() {
-  return (
-    <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" aria-hidden="true">
-      <path
-        d="M4.2 3.1c1.3.1 2.3.7 2.9 1.8l.8 1.5 2.6 1.1c.7.3 1.2.9 1.4 1.6l.3 1.2H9.6L7.8 9.1 6.6 7.2 5.8 9.4l1 1.6H4.9L3.7 8.9 4.2 3.1Zm8.1 7.9.3 1.2H3.4c-.5 0-.9-.4-.9-.9 0-.2.1-.5.3-.6l.8-.7 1 1h7.7Z"
-        fill="currentColor"
-      />
-    </svg>
+    <Image src={src} alt={alt} width={16} height={16} className="h-4 w-4 object-contain" draggable={false} />
   );
 }
 
@@ -355,21 +361,22 @@ function UnavailableLine({
 
   return (
     <div className={`flex items-center gap-2 bg-[#242526] px-2 py-2 sm:px-3 ${isAway ? "justify-end border-l border-black/20 text-right" : ""}`}>
-      {!isAway && <UnavailableStatusMarker player={player} />}
+      {!isAway && <UnavailableNumberCircle player={player} />}
       <div className="min-w-0">
         <button
-          className="min-w-0 cursor-pointer truncate text-sm font-black leading-tight text-white transition hover:text-[var(--player-team-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+          className="min-w-0 cursor-pointer whitespace-normal break-words text-[11px] font-black leading-[1.05] text-white transition hover:text-[var(--player-team-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:truncate sm:text-sm sm:leading-tight"
           style={{ "--player-team-primary": getNationPrimaryColor(teamName) } as PlayerNameStyle}
           onClick={() => openSquadPlayer(teamName, player.name)}
           type="button"
         >
-          {player.name}
+          <span className="sm:hidden">{formatMobilePlayerName(player.name)}</span>
+          <span className="hidden sm:inline">{player.name}</span>
         </button>
         <p className="mt-0.5 truncate text-xs text-white/65">
-          {positionLabel(player.position)}{player.reason ? ` - ${player.reason}` : ""}
+          {unavailablePlayerPositionLabel(player, teamName)}{player.reason ? ` - ${player.reason}` : ""}
         </p>
       </div>
-      {isAway && <UnavailableStatusMarker player={player} />}
+      {isAway && <UnavailableNumberCircle player={player} />}
     </div>
   );
 }
@@ -380,9 +387,20 @@ function UnavailableStatusMarker({ player }: { player: MatchUnavailablePlayer })
   return <span className="h-2.5 w-2.5 rounded-full bg-white/55" aria-label="Unavailable" />;
 }
 
+function UnavailableNumberCircle({ player }: { player: MatchUnavailablePlayer }) {
+  return (
+    <div className="relative grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-slate-400/80 text-lg font-black tabular-nums text-white shadow-inner sm:h-12 sm:w-12 sm:rounded-xl">
+      <span className="absolute -left-1 -top-1">
+        <UnavailableStatusMarker player={player} />
+      </span>
+      {player.shirtNumber ?? "-"}
+    </div>
+  );
+}
+
 function NumberCircle({ player, marks }: { player: MatchLineupPlayer; marks: PlayerEventMarks }) {
   return (
-    <div className="relative grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-slate-400/80 text-lg font-black tabular-nums text-white shadow-inner">
+    <div className="relative grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-slate-400/80 text-lg font-black tabular-nums text-white shadow-inner sm:h-12 sm:w-12 sm:rounded-xl">
       <CardEdgeMarkers marks={marks} />
       {marks.injured && (
         <span className="absolute -left-1 -top-1">
@@ -436,23 +454,27 @@ function CaptainBadge() {
 
 function positionLabel(position?: string | null) {
   const normalized = String(position ?? "").toLowerCase();
-  if (normalized === "g" || normalized.includes("goal")) return "Goalkeeper";
-  if (normalized === "d" || normalized.includes("def")) return "Defender";
-  if (normalized === "m" || normalized.includes("mid")) return "Midfielder";
-  if (normalized === "f" || normalized.includes("for") || normalized.includes("str") || normalized.includes("att")) return "Forward";
+  if (normalized === "g" || normalized === "gk" || normalized.includes("goal")) return "Goalkeeper";
+  if (normalized === "d" || normalized === "df" || normalized.includes("def") || normalized.includes("back")) return "Defender";
+  if (normalized === "m" || normalized === "mf" || normalized.includes("mid")) return "Midfielder";
+  if (normalized === "f" || normalized === "fw" || normalized.includes("for") || normalized.includes("str") || normalized.includes("att") || normalized.includes("wing")) return "Forward";
   return position ?? "Player";
 }
 
 function playerPositionLabel(player: MatchLineupPlayer, teamName: string) {
-  return positionLabel(player.position ?? positionFromGrid(player.grid) ?? getRosterPosition(teamName, player.name));
+  return positionLabel(player.position ?? getRosterPosition(teamName, player.name) ?? positionFromGrid(player.grid));
+}
+
+function unavailablePlayerPositionLabel(player: MatchUnavailablePlayer, teamName: string) {
+  return positionLabel(player.position ?? getRosterPosition(teamName, player.name));
 }
 
 function positionFromGrid(grid?: string | null) {
-  const y = Number(String(grid ?? "").split(":")[1]);
-  if (!Number.isFinite(y)) return null;
-  if (y <= 0.2) return "G";
-  if (y <= 0.45) return "D";
-  if (y <= 0.75) return "M";
+  const line = Number(String(grid ?? "").split(":")[0]);
+  if (!Number.isFinite(line)) return null;
+  if (line <= 1) return "G";
+  if (line <= 2) return "D";
+  if (line <= 3) return "M";
   return "F";
 }
 
@@ -535,6 +557,15 @@ function openSquadPlayer(teamName: string, playerName: string) {
 
 function getNationPrimaryColor(teamName: string) {
   return nationPrimaryColorById.get(normalizeCountryName(teamName)) ?? "#60a5fa";
+}
+
+function formatMobilePlayerName(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return name;
+
+  const surname = parts[parts.length - 1];
+  const firstInitial = parts[0]?.[0];
+  return firstInitial ? `${firstInitial}. ${surname}` : surname;
 }
 
 function normalizePlayerName(name: string) {

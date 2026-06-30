@@ -472,7 +472,7 @@ function KnockoutTeamRow({
       <div className="flex min-w-0 items-center gap-1.5">
         {!isPlaceholder && (
           <NationFlag
-            className="h-3 w-4 shrink-0 sm:h-3.5 sm:w-5"
+            className={`h-3 w-4 shrink-0 transition-opacity sm:h-3.5 sm:w-5 ${isEliminated ? "opacity-35" : ""}`}
             emoji={nation.flag}
             fallbackClassName="text-xs"
             label={nation.name}
@@ -485,7 +485,7 @@ function KnockoutTeamRow({
           </span>
         ) : (
           <button
-            className={`truncate text-left text-[10px] font-medium transition-colors hover:text-[var(--nation-primary)] sm:text-xs ${
+            className={`cursor-pointer truncate text-left text-[10px] font-medium transition-colors hover:text-[var(--nation-primary)] sm:text-xs ${
               isEliminated ? "text-muted-foreground line-through decoration-2" : "text-foreground"
             }`}
             onClick={(event) => {
@@ -495,7 +495,7 @@ function KnockoutTeamRow({
             style={{ "--nation-primary": nation.jerseyColors.primary } as NationHoverStyle}
             type="button"
           >
-            {getTeamDisplayName(team.name)}
+            {getKnockoutTeamDisplayName(team.name)}
           </button>
         )}
       </div>
@@ -510,6 +510,14 @@ function formatKnockoutScore(team: KnockoutTeam) {
   if (team.score == null) return "-";
   if (team.penaltyScore != null) return `${team.score}(${team.penaltyScore})`;
   return team.score;
+}
+
+function getKnockoutTeamDisplayName(teamName: string) {
+  const nationId = normalizeCountryName(teamName);
+  if (nationId === "bosnia-herzegovina") return "Bosnia";
+  if (nationId === "usa") return "USA";
+  if (nationId === "cape-verde") return "Cape Verde";
+  return getTeamDisplayName(teamName);
 }
 
 function KnockoutMatchCard({
