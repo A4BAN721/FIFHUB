@@ -26,6 +26,8 @@ export interface LiveRealtimeState {
   matchId: string;
   homeScore: number;
   awayScore: number;
+  homePenaltyScore?: number | null;
+  awayPenaltyScore?: number | null;
   minute: number;
   period: string;
   status: string;
@@ -88,6 +90,8 @@ type LiveMatchStateRow = {
   match_id?: string | null;
   home_score?: number | null;
   away_score?: number | null;
+  home_penalty_score?: number | null;
+  away_penalty_score?: number | null;
   minute?: number | null;
   phase?: string | null;
   period?: string | null;
@@ -211,6 +215,8 @@ export function useLiveMatchRealtime({
               matchId: data.match_id ?? matchId,
               homeScore: data.home_score ?? 0,
               awayScore: data.away_score ?? 0,
+              homePenaltyScore: data.home_penalty_score,
+              awayPenaltyScore: data.away_penalty_score,
               minute: data.minute ?? 0,
               period: data.phase ?? data.period ?? '',
               status: data.status ?? '',
@@ -272,6 +278,8 @@ export function useLiveMatchRealtime({
               matchId: data.matchId,
               homeScore: data.homeScore ?? 0,
               awayScore: data.awayScore ?? 0,
+              homePenaltyScore: data.homePenaltyScore,
+              awayPenaltyScore: data.awayPenaltyScore,
               minute: data.minute ?? 0,
               period: data.period ?? '',
               status: data.status ?? '',

@@ -173,6 +173,8 @@ function CompactScoreOverlay({ liveMatch, fixtureStage }: { liveMatch: LiveMatch
   const timerLabel = getTimerLabel(liveMatch);
   const showLiveIndicator = shouldShowLiveIndicator(liveMatch);
   const isGroupStage = fixtureStage === "GROUP STAGE";
+  const penaltyScore = getPenaltyShootoutScore(liveMatch);
+  const showShootoutBoard = isPenaltyShootoutInProgress(liveMatch);
 
   return (
     <div className="pointer-events-none absolute inset-0 z-20">
@@ -193,12 +195,24 @@ function CompactScoreOverlay({ liveMatch, fixtureStage }: { liveMatch: LiveMatch
         <span className="min-w-[44px] -translate-y-1/2 rounded-md border border-zinc-200 bg-white px-1 py-0.5 text-center text-[10px] font-black tabular-nums leading-tight text-zinc-950 shadow-lg dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:min-w-[68px] sm:rounded-lg sm:px-3 sm:py-1 sm:text-sm">
           {liveMatch.homeScore} - {liveMatch.awayScore}
         </span>
+        {penaltyScore && !showShootoutBoard && (
+          <span className="-mt-2 rounded-full border border-zinc-200 bg-white/95 px-1.5 py-0.5 text-[8px] font-black uppercase tabular-nums text-zinc-700 shadow-md dark:border-zinc-700 dark:bg-zinc-950/95 dark:text-zinc-200 sm:px-2 sm:text-[9px]">
+            Pens {penaltyScore.home} - {penaltyScore.away}
+          </span>
+        )}
         {timerLabel && (
           <span className="-mt-3 rounded-full border border-zinc-200 bg-white/95 px-1.5 py-0.5 text-[9px] font-black uppercase tabular-nums text-red-600 shadow-md dark:border-zinc-700 dark:bg-zinc-950/95 sm:px-2 sm:text-[10px]">
             {timerLabel}
           </span>
         )}
       </div>
+      {showShootoutBoard && (
+        <div className="absolute bottom-6 left-2 right-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:bottom-8">
+          <PenaltyAttemptDots attempts={getPenaltyShootoutAttempts(liveMatch, liveMatch.homeTeam)} align="left" compact />
+          <span className="w-10 sm:w-16" aria-hidden="true" />
+          <PenaltyAttemptDots attempts={getPenaltyShootoutAttempts(liveMatch, liveMatch.awayTeam)} align="right" compact />
+        </div>
+      )}
     </div>
   );
 }
@@ -245,6 +259,8 @@ function mergeCompletedAndLiveMatch(completedMatch: LiveMatch, liveMatch: LiveMa
     ...completedMatch,
     homeScore: liveMatch.homeScore,
     awayScore: liveMatch.awayScore,
+    homePenaltyScore: liveMatch.homePenaltyScore ?? completedMatch.homePenaltyScore,
+    awayPenaltyScore: liveMatch.awayPenaltyScore ?? completedMatch.awayPenaltyScore,
     status: liveMatch.status,
     phase: liveMatch.phase,
     minute: liveMatch.minute,
@@ -343,8 +359,12 @@ function MatchDetailsTabs({
 }
 
 function getStatusLabel(liveMatch: LiveMatch) {
-  if (liveMatch.status === "finished") return "FT";
+  if (isFinalMatchState(liveMatch)) return "FT";
+  if (liveMatch.status === "penalties" || liveMatch.phase === "penalties") return "PEN";
   if (liveMatch.status === "half_time" || liveMatch.phase === "half_time") return "HT";
+  if (liveMatch.status === "extra_time" || liveMatch.phase === "extra_time") {
+    return `ET ${formatMatchMinute(liveMatch.minute, liveMatch.stoppageMinute)}`;
+  }
 
   const minute = formatMatchMinute(liveMatch.minute, liveMatch.stoppageMinute);
   if (minute && liveMatch.status !== "scheduled") return minute;
@@ -355,12 +375,14 @@ function getStatusLabel(liveMatch: LiveMatch) {
 }
 
 function getPlayPeriodLabel(liveMatch: LiveMatch) {
-  if (liveMatch.status === "finished" || liveMatch.phase === "full_time") return "Full Time";
-  if (liveMatch.status === "half_time" || liveMatch.phase === "half_time") return "Half Time";
-  if (liveMatch.status === "penalties" || liveMatch.phase === "penalties") return "Penalties";
+  if (isFinalMatchState(liveMatch)) return "Full-time";
+  if (liveMatch.status === "penalties" || liveMatch.phase === "penalties") return "Penalty shoot-out";
+  if (liveMatch.status === "half_time" || liveMatch.phase === "half_time") {
+    return (liveMatch.minute ?? 45) >= 90 ? "End of 90 minutes" : "Half-time";
+  }
 
   if (liveMatch.status === "extra_time" || liveMatch.phase === "extra_time") {
-    return getExtraTimeHalfLabel(liveMatch.minute);
+    return getExtraTimeStageLabel(liveMatch.minute);
   }
 
   if (liveMatch.status === "live") {
@@ -370,9 +392,10 @@ function getPlayPeriodLabel(liveMatch: LiveMatch) {
   return formatPhaseLabel(liveMatch.phase);
 }
 
-function getExtraTimeHalfLabel(minute?: number | null) {
-  if (typeof minute === "number" && minute > 105) return "Extra Time Second Half";
-  return "Extra Time First Half";
+function getExtraTimeStageLabel(minute?: number | null) {
+  if (typeof minute === "number" && minute <= 90) return "End of 90 minutes";
+  if (typeof minute === "number" && minute > 105) return "Extra-time 2nd half";
+  return "Extra-time 1st half";
 }
 
 function getTimerLabel(liveMatch: LiveMatch) {
@@ -425,6 +448,40 @@ function sanitizeMatchClock(liveMatch: LiveMatch): LiveMatch {
 function estimateDisplayClock(liveMatch: LiveMatch, now: number, fixture: Match) {
   if (!isMatchInProgress(liveMatch)) return null;
 
+  if (liveMatch.status === "penalties" || liveMatch.phase === "penalties") {
+    return capInProgressClock(liveMatch);
+  }
+
+  if (liveMatch.status === "extra_time" || liveMatch.phase === "extra_time") {
+    return advanceProviderClock(liveMatch, now, {
+      status: "extra_time",
+      phase: "extra_time",
+      fallbackMinute: 91,
+      minMinute: 91,
+      maxMinute: 120,
+    });
+  }
+
+  if (liveMatch.phase === "first_half" && typeof liveMatch.minute === "number") {
+    return advanceProviderClock(liveMatch, now, {
+      status: "live",
+      phase: "first_half",
+      fallbackMinute: liveMatch.minute,
+      minMinute: 1,
+      maxMinute: 45,
+    });
+  }
+
+  if (liveMatch.phase === "second_half" && typeof liveMatch.minute === "number") {
+    return advanceProviderClock(liveMatch, now, {
+      status: "live",
+      phase: "second_half",
+      fallbackMinute: liveMatch.minute,
+      minMinute: 46,
+      maxMinute: 90,
+    });
+  }
+
   const kickoffTime = getKickoffTime(liveMatch, fixture);
   if (!Number.isFinite(kickoffTime)) return phaseFallbackClock(liveMatch);
 
@@ -458,11 +515,30 @@ function estimateDisplayClock(liveMatch: LiveMatch, now: number, fixture: Match)
     };
   }
 
-  if (liveMatch.status === "extra_time" || liveMatch.phase === "extra_time") {
-    return extraTimeClock(elapsed);
-  }
-
   return capInProgressClock(liveMatch);
+}
+
+function advanceProviderClock(
+  liveMatch: LiveMatch,
+  now: number,
+  options: {
+    status: "live" | "extra_time";
+    phase: "first_half" | "second_half" | "extra_time";
+    fallbackMinute: number;
+    minMinute: number;
+    maxMinute: number;
+  },
+) {
+  const baseMinute = Math.min(options.maxMinute, Math.max(options.minMinute, liveMatch.minute ?? options.fallbackMinute));
+  const updatedAt = Date.parse(liveMatch.updatedAt);
+  const elapsedSinceUpdate = Number.isFinite(updatedAt) ? Math.max(0, Math.floor((now - updatedAt) / 60_000)) : 0;
+
+  return {
+    status: options.status,
+    phase: options.phase,
+    minute: Math.min(options.maxMinute, baseMinute + elapsedSinceUpdate),
+    stoppageMinute: capStoppageMinute(liveMatch.stoppageMinute),
+  };
 }
 
 function phaseFallbackClock(liveMatch: LiveMatch) {
@@ -493,43 +569,7 @@ function phaseFallbackClock(liveMatch: LiveMatch) {
     };
   }
 
-  if (liveMatch.phase === "extra_time" || liveMatch.status === "extra_time") {
-    return {
-      status: "extra_time" as const,
-      phase: "extra_time" as const,
-      minute: Math.min(120, Math.max(91, liveMatch.minute ?? 91)),
-      stoppageMinute: capStoppageMinute(liveMatch.stoppageMinute),
-    };
-  }
-
   return null;
-}
-
-function extraTimeClock(elapsed: number) {
-  if (elapsed < 120) {
-    return {
-      status: "extra_time" as const,
-      phase: "extra_time" as const,
-      minute: Math.min(105, Math.max(91, elapsed - 14)),
-      stoppageMinute: null,
-    };
-  }
-
-  if (elapsed < 135) {
-    return {
-      status: "extra_time" as const,
-      phase: "extra_time" as const,
-      minute: Math.min(120, Math.max(106, elapsed - 14)),
-      stoppageMinute: null,
-    };
-  }
-
-  return {
-    status: "finished" as const,
-    phase: "full_time" as const,
-    minute: 120,
-    stoppageMinute: null,
-  };
 }
 
 function capInProgressClock(liveMatch: LiveMatch) {
@@ -593,6 +633,8 @@ function capStoppageMinute(stoppageMinute?: number | null) {
 }
 
 function isMatchInProgress(liveMatch: LiveMatch) {
+  if (isFinalMatchState(liveMatch)) return false;
+
   return (
     liveMatch.status === "live" ||
     liveMatch.status === "half_time" ||
@@ -605,19 +647,143 @@ function shouldShowLiveIndicator(liveMatch: LiveMatch) {
   return isMatchInProgress(liveMatch);
 }
 
+function getPenaltyShootoutScore(liveMatch: LiveMatch) {
+  if (
+    typeof liveMatch.homePenaltyScore === "number" &&
+    typeof liveMatch.awayPenaltyScore === "number" &&
+    (liveMatch.homePenaltyScore > 0 ||
+      liveMatch.awayPenaltyScore > 0 ||
+      liveMatch.status === "penalties" ||
+      liveMatch.phase === "penalties")
+  ) {
+    return { home: liveMatch.homePenaltyScore, away: liveMatch.awayPenaltyScore };
+  }
+
+  const shootoutGoals = liveMatch.events.filter((event) => event.eventType === "penalty_shootout_goal");
+  if (shootoutGoals.length === 0) return null;
+
+  return {
+    home: shootoutGoals.filter((event) => isSameTeam(event.teamName, liveMatch.homeTeam)).length,
+    away: shootoutGoals.filter((event) => isSameTeam(event.teamName, liveMatch.awayTeam)).length,
+  };
+}
+
+function isPenaltyShootoutInProgress(liveMatch: LiveMatch) {
+  return (
+    !isFinalMatchState(liveMatch) &&
+    (liveMatch.status === "penalties" ||
+      liveMatch.phase === "penalties" ||
+      isLikelyAwaitingPenaltyShootout(liveMatch) ||
+      hasPenaltyShootoutEvents(liveMatch) ||
+      Boolean(getPenaltyShootoutScore(liveMatch)))
+  );
+}
+
+function isFinalMatchState(liveMatch: LiveMatch) {
+  return liveMatch.status === "finished" || liveMatch.phase === "full_time" || Boolean(liveMatch.finalScoreConfirmedAt);
+}
+
+function isLikelyAwaitingPenaltyShootout(liveMatch: LiveMatch) {
+  return (
+    liveMatch.homeScore === liveMatch.awayScore &&
+    (liveMatch.status === "extra_time" || liveMatch.phase === "extra_time") &&
+    typeof liveMatch.minute === "number" &&
+    liveMatch.minute >= 120
+  );
+}
+
+type PenaltyAttemptState = "scored" | "missed" | null;
+
+function getPenaltyShootoutAttempts(liveMatch: LiveMatch, teamName: string): PenaltyAttemptState[] {
+  const attempts = sortEventsByMinute(
+    liveMatch.events.filter((event) =>
+      (event.eventType === "penalty_shootout_goal" || event.eventType === "penalty_shootout_miss") &&
+      isSameTeam(event.teamName, teamName),
+    ),
+  ).map((event) => event.eventType === "penalty_shootout_goal" ? "scored" as const : "missed" as const);
+
+  if (attempts.length === 0) {
+    const penaltyScore = getPenaltyShootoutScore(liveMatch);
+    if (penaltyScore) {
+      const scoredCount = teamName === liveMatch.homeTeam ? penaltyScore.home : penaltyScore.away;
+      return Array.from({ length: 5 }, (_, index) => index < scoredCount ? "scored" : null);
+    }
+  }
+
+  return Array.from({ length: 5 }, (_, index) => attempts[index] ?? null);
+}
+
+function hasPenaltyShootoutEvents(liveMatch: LiveMatch) {
+  return liveMatch.events.some((event) =>
+    event.eventType === "penalty_shootout_goal" || event.eventType === "penalty_shootout_miss",
+  );
+}
+
+function PenaltyAttemptDots({
+  attempts,
+  align,
+  compact = false,
+}: {
+  attempts: PenaltyAttemptState[];
+  align: "left" | "right";
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={`flex items-center gap-1 ${
+        align === "right" ? "justify-end" : "justify-start"
+      }`}
+      aria-label="Penalty shoot-out attempts"
+    >
+      {attempts.map((attempt, index) => (
+        <span
+          key={index}
+          className={`rounded-full border ${
+            compact ? "h-2 w-2 sm:h-2.5 sm:w-2.5" : "h-3 w-3 sm:h-3.5 sm:w-3.5"
+          } ${
+            attempt === "scored"
+              ? "border-emerald-500 bg-emerald-500"
+              : attempt === "missed"
+                ? "border-red-500 bg-red-500"
+                : "border-zinc-400 bg-transparent dark:border-zinc-500"
+          }`}
+        />
+      ))}
+    </div>
+  );
+}
+
 function isSameTeam(eventTeamName: string | null | undefined, teamName: string) {
   if (!eventTeamName) return false;
   return normalizeCountryName(eventTeamName) === normalizeCountryName(teamName);
 }
 
 function ExpandedScoreboard({ liveMatch }: { liveMatch: LiveMatch }) {
+  const penaltyScore = getPenaltyShootoutScore(liveMatch);
+  const showShootoutBoard = isPenaltyShootoutInProgress(liveMatch);
+
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl border border-border/50 bg-background/45 p-3 sm:gap-5 sm:p-5">
-      <ExpandedTeamName teamName={liveMatch.homeTeam} align="left" />
+      <div className="min-w-0 space-y-2">
+        <ExpandedTeamName teamName={liveMatch.homeTeam} align="left" />
+        {showShootoutBoard && (
+          <PenaltyAttemptDots attempts={getPenaltyShootoutAttempts(liveMatch, liveMatch.homeTeam)} align="left" />
+        )}
+      </div>
       <span className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-2xl font-black tabular-nums text-zinc-950 shadow-lg dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:text-3xl">
-        {liveMatch.homeScore} - {liveMatch.awayScore}
+        <span className="block">{liveMatch.homeScore} - {liveMatch.awayScore}</span>
+        {penaltyScore && !showShootoutBoard && (
+          <span className="mt-1 block text-center text-[10px] font-black uppercase text-zinc-600 dark:text-zinc-300 sm:text-xs">
+            Pens {penaltyScore.home} - {penaltyScore.away}
+          </span>
+        )}
       </span>
-      <ExpandedTeamName teamName={liveMatch.awayTeam} align="right" />
+      <div className="min-w-0 space-y-2">
+        <ExpandedTeamName teamName={liveMatch.awayTeam} align="right" />
+        {showShootoutBoard && (
+          <PenaltyAttemptDots attempts={getPenaltyShootoutAttempts(liveMatch, liveMatch.awayTeam)} align="right" />
+        )}
+      </div>
     </div>
   );
 }

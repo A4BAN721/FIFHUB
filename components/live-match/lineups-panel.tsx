@@ -459,7 +459,7 @@ function positionFromGrid(grid?: string | null) {
 function getRosterPosition(teamName: string, playerName: string) {
   const nation = fallbackNations.find((entry) => entry.id === normalizeCountryName(teamName));
   const playerKey = normalizePlayerName(playerName);
-  const player = nation?.squad.find((entry) => normalizePlayerName(entry.name) === playerKey);
+  const player = nation?.players.find((entry) => normalizePlayerName(entry.fullName) === playerKey);
   return player?.position ?? null;
 }
 

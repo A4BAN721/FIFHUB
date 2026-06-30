@@ -47,13 +47,20 @@ function getStatusLabel(
   stoppageMinute?: number | null
 ) {
   if (status === "finished" || phase === "full_time") return "FT";
-  if (status === "half_time" || phase === "half_time") return "HT";
-  if (status === "extra_time") return `ET ${formatMatchMinute(minute, stoppageMinute)}`;
-  if (status === "penalties") return "PEN";
+  if (status === "half_time" || phase === "half_time") return (minute ?? 45) >= 90 ? "End 90" : "HT";
+  if (status === "extra_time" || phase === "extra_time") {
+    return `${extraTimeBadgeLabel(minute)} ${formatMatchMinute(minute, stoppageMinute)}`;
+  }
+  if (status === "penalties" || phase === "penalties") return "PEN";
   if (status === "postponed") return "Postponed";
   if (status === "cancelled") return "Cancelled";
   if (status === "suspended") return "Suspended";
   if (status === "interrupted") return "Interrupted";
   if (status === "live") return `LIVE ${formatMatchMinute(minute, stoppageMinute)}`;
   return "Scheduled";
+}
+
+function extraTimeBadgeLabel(minute?: number | null) {
+  if (typeof minute === "number" && minute > 105) return "ET 2H";
+  return "ET 1H";
 }

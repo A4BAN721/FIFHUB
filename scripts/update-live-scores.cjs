@@ -32,7 +32,7 @@ async function main() {
   const fixtureMap = new Map(fixtures.map((fixture) => [teamPairKey(fixture.home_team, fixture.away_team), fixture]));
 
   console.log(`Live score provider order: ${providerOrder.join(" -> ")}`);
-  const providerMatches = await loadProviderMatches();
+  const providerMatches = await loadProviderMatches(fixtureMap);
   const primaryResult = await syncMatches(providerMatches, fixtureMap, { writeEvents: true });
   const storedFotmobMatches = await loadStoredFotmobCompletedMatches();
   const storedFotmobResult = await syncMatches(storedFotmobMatches, fixtureMap, { writeEvents: false });
@@ -196,7 +196,7 @@ function mergeMatchStatistics(base = {}, incoming = {}) {
 }
 
 function runHighlightsSyncAfterScores() {
-  if (process.env.RUN_HIGHLIGHTS_SYNC_AFTER_SCORES === "0") return;
+  if (process.env.RUN_HIGHLIGHTS_SYNC_AFTER_SCORES !== "1") return;
 
   const args = [path.join("scripts", "sync-fifa-highlights.cjs")];
   if (isDryRun) args.push("--dry-run");
@@ -256,7 +256,7 @@ async function advanceKnockoutFixtures() {
 
   const { data: states, error: stateError } = await supabase
     .from("live_match_state")
-    .select("match_id, home_team, away_team, home_score, away_score, status, final_score_confirmed_at")
+    .select("match_id, home_team, away_team, home_score, away_score, home_penalty_score, away_penalty_score, status, final_score_confirmed_at")
     .in("match_id", matchIds);
 
   if (stateError) {
@@ -311,14 +311,26 @@ function getKnockoutOutcome(matchId, fixtureById, stateByMatchId) {
 
   const homeScore = Number(state.home_score);
   const awayScore = Number(state.away_score);
-  if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore) || homeScore === awayScore) {
+  if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore)) {
+    return null;
+  }
+  const homePenaltyScore = Number(state.home_penalty_score);
+  const awayPenaltyScore = Number(state.away_penalty_score);
+  const hasPenaltyWinner =
+    Number.isFinite(homePenaltyScore) &&
+    Number.isFinite(awayPenaltyScore) &&
+    homePenaltyScore !== awayPenaltyScore;
+
+  if (homeScore === awayScore && !hasPenaltyWinner) {
     return null;
   }
 
   const homeTeam = state.home_team ?? fixture.home_team;
   const awayTeam = state.away_team ?? fixture.away_team;
 
-  return homeScore > awayScore
+  const homeWon = homeScore === awayScore ? homePenaltyScore > awayPenaltyScore : homeScore > awayScore;
+
+  return homeWon
     ? { winner: homeTeam, loser: awayTeam }
     : { winner: awayTeam, loser: homeTeam };
 }
@@ -365,6 +377,8 @@ function resolveFixtureMatch(match, fixtureMap) {
         awayTeam: match.homeTeam,
         homeScore: match.awayScore,
         awayScore: match.homeScore,
+        homePenaltyScore: match.awayPenaltyScore,
+        awayPenaltyScore: match.homePenaltyScore,
       };
     }
   }
@@ -413,20 +427,20 @@ async function loadFixtures() {
   return data ?? [];
 }
 
-async function loadProviderMatches() {
+async function loadProviderMatches(fixtureMap) {
   const providerMatches = [];
 
   for (const provider of providerOrder) {
-    providerMatches.push(...await loadProviderSource(provider));
+    providerMatches.push(...await loadProviderSource(provider, fixtureMap));
   }
 
-  return dedupeProviderMatches(providerMatches);
+  return dedupeProviderMatches(filterProviderMatchesForFixtures(providerMatches, fixtureMap));
 }
 
 async function loadStoredFotmobCompletedMatches() {
   const { data: states, error: statesError } = await supabase
     .from("live_match_state")
-    .select("match_id,home_team,away_team,home_score,away_score,status,phase")
+    .select("match_id,home_team,away_team,home_score,away_score,home_penalty_score,away_penalty_score,status,phase")
     .eq("status", "finished");
 
   if (statesError) {
@@ -470,6 +484,8 @@ async function loadStoredFotmobCompletedMatches() {
         awayTeam: state.away_team,
         homeScore: state.home_score,
         awayScore: state.away_score,
+        homePenaltyScore: state.home_penalty_score,
+        awayPenaltyScore: state.away_penalty_score,
         status: "finished",
         phase: state.phase ?? "full_time",
         minute: null,
@@ -523,11 +539,11 @@ async function repairStoredFotmobCompletedStatistics(matches) {
   return { updated, skipped };
 }
 
-async function loadProviderSource(provider) {
+async function loadProviderSource(provider, fixtureMap) {
   try {
     if (provider === "fotmob") {
       if (process.env.FOTMOB_ENABLED === "0") return [];
-      return loadFotmobMatches();
+      return loadFotmobMatches(fixtureMap);
     }
 
     if (provider === "espn") {
@@ -535,11 +551,11 @@ async function loadProviderSource(provider) {
     }
 
     if (provider === "football-data") {
-      return footballDataKey ? loadFootballDataMatches() : [];
+      return footballDataKey ? loadFootballDataMatches(fixtureMap) : [];
     }
 
     if (provider === "api-football") {
-      return apiFootballKey ? loadApiFootballMatches() : [];
+      return apiFootballKey ? loadApiFootballMatches(fixtureMap) : [];
     }
   } catch (error) {
     console.warn(`${provider} live scores unavailable: ${error.message}`);
@@ -579,8 +595,8 @@ async function loadEspnLiveMatches() {
   return matches;
 }
 
-async function loadFotmobMatches() {
-  const dateFrom = process.env.FOTMOB_DATE_FROM ?? process.env.ESPN_LIVE_DATE_FROM ?? "2026-06-11";
+async function loadFotmobMatches(fixtureMap) {
+  const dateFrom = process.env.FOTMOB_DATE_FROM ?? process.env.ESPN_LIVE_DATE_FROM ?? offsetIsoDate(todayIsoDate(), -2);
   const dateTo = process.env.FOTMOB_DATE_TO ?? process.env.ESPN_LIVE_DATE_TO ?? offsetIsoDate(todayIsoDate(), 1);
   const matches = [];
 
@@ -590,7 +606,7 @@ async function loadFotmobMatches() {
       for (const league of json.leagues ?? []) {
         for (const match of league.matches ?? []) {
           const mapped = mapFotmobMatch(match, league);
-          if (mapped) matches.push(mapped);
+          if (mapped && hasFixturePair(mapped, fixtureMap)) matches.push(mapped);
         }
       }
     } catch (error) {
@@ -607,6 +623,7 @@ function mapFotmobMatch(match, league) {
   if (!match.id || !homeTeam || !awayTeam) return null;
 
   const score = parseFotmobScore(match);
+  const minute = parseFotmobMinute(match.status?.liveTime?.short ?? match.status?.liveTime?.long);
 
   return {
     provider: "fotmob",
@@ -615,10 +632,12 @@ function mapFotmobMatch(match, league) {
     awayTeam,
     homeScore: score.home,
     awayScore: score.away,
-    minute: parseFotmobMinute(match.status?.liveTime?.short ?? match.status?.liveTime?.long),
+    homePenaltyScore: score.homePenalty,
+    awayPenaltyScore: score.awayPenalty,
+    minute,
     stoppageMinute: null,
-    status: mapFotmobStatus(match.status),
-    phase: mapFotmobPhase(match.status),
+    status: mapFotmobStatus(match.status, minute),
+    phase: mapFotmobPhase(match.status, minute),
     kickoffTime: match.status?.utcTime ?? match.timeTS ?? match.time ?? null,
     providerUpdatedAt: new Date().toISOString(),
     competition: league.name,
@@ -630,15 +649,55 @@ function mapFotmobMatch(match, league) {
 function parseFotmobScore(match) {
   const homeScore = Number(match.home?.score);
   const awayScore = Number(match.away?.score);
+  const penaltyScore = parsePenaltyScore(
+    match.home?.penaltyScore,
+    match.away?.penaltyScore,
+    match.home?.penalty,
+    match.away?.penalty,
+    match.status?.scoreStr,
+  );
+
   if (Number.isFinite(homeScore) && Number.isFinite(awayScore)) {
-    return { home: homeScore, away: awayScore };
+    return { home: homeScore, away: awayScore, ...penaltyScore };
   }
 
   const scoreMatch = String(match.status?.scoreStr ?? "").match(/(\d+)\s*-\s*(\d+)/);
   return {
     home: scoreMatch ? Number(scoreMatch[1]) : 0,
     away: scoreMatch ? Number(scoreMatch[2]) : 0,
+    ...penaltyScore,
   };
+}
+
+function parsePenaltyScore(homeValue, awayValue, fallbackHomeValue, fallbackAwayValue, textValue) {
+  const home = firstFiniteNumber(homeValue, fallbackHomeValue);
+  const away = firstFiniteNumber(awayValue, fallbackAwayValue);
+  if (home != null && away != null) {
+    return { homePenalty: home, awayPenalty: away };
+  }
+
+  const text = String(textValue ?? "");
+  const textMatch =
+    text.match(/\((\d+)\s*-\s*(\d+)\s*(?:pen|pens|penalties)?\)/i) ??
+    text.match(/(?:pen|pens|penalties)[:\s]+(\d+)\s*-\s*(\d+)/i) ??
+    text.match(/(\d+)\s*-\s*(\d+)\s*(?:pen|pens|penalties)/i);
+
+  if (!textMatch) {
+    return { homePenalty: null, awayPenalty: null };
+  }
+
+  return {
+    homePenalty: Number(textMatch[1]),
+    awayPenalty: Number(textMatch[2]),
+  };
+}
+
+function firstFiniteNumber(...values) {
+  for (const value of values) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
 }
 
 function parseFotmobMinute(value) {
@@ -646,22 +705,27 @@ function parseFotmobMinute(value) {
   return match ? Number(match[0]) : null;
 }
 
-function mapFotmobStatus(status) {
+function mapFotmobStatus(status, minute) {
   const reason = String(status?.reason?.short ?? status?.reason?.long ?? "").toUpperCase();
   if (status?.finished || ["FT", "AET", "PEN"].includes(reason)) return "finished";
   if (reason === "HT") return "half_time";
-  if (status?.started || ["1H", "2H", "ET", "LIVE"].includes(reason)) return "live";
+  if (typeof minute === "number" && minute > 90 && status?.started) return "extra_time";
+  if (reason === "ET") return "extra_time";
+  if (["P", "PENS", "PENALTIES"].includes(reason)) return "penalties";
+  if (status?.started || ["1H", "2H", "LIVE"].includes(reason)) return "live";
   if (status?.cancelled) return "cancelled";
   return "scheduled";
 }
 
-function mapFotmobPhase(status) {
+function mapFotmobPhase(status, minute) {
   const reason = String(status?.reason?.short ?? status?.reason?.long ?? "").toUpperCase();
   if (["FT", "AET", "PEN"].includes(reason) || status?.finished) return "full_time";
   if (reason === "HT") return "half_time";
   if (reason === "1H") return "first_half";
   if (reason === "2H") return "second_half";
+  if (typeof minute === "number" && minute > 90 && status?.started) return "extra_time";
   if (reason === "ET") return "extra_time";
+  if (["P", "PENS", "PENALTIES"].includes(reason)) return "penalties";
   return status?.started ? "second_half" : "pre_match";
 }
 
@@ -786,7 +850,12 @@ function mapFotmobEventType(event) {
   const type = String(event.type ?? "").toLowerCase();
   const card = String(event.card ?? "").toLowerCase();
   const goalDescription = String(event.goalDescription ?? event.suffix ?? "").toLowerCase();
+  const combined = `${type} ${goalDescription}`;
 
+  if (combined.includes("shootout") || combined.includes("shoot-out")) {
+    if (combined.includes("miss") || combined.includes("saved")) return "penalty_shootout_miss";
+    return "penalty_shootout_goal";
+  }
   if (type.includes("injur")) return "injury";
   if (type === "goal") {
     if (event.ownGoal) return "own_goal";
@@ -1028,9 +1097,9 @@ function compactIsoDate(date) {
   return String(date).replace(/-/g, "");
 }
 
-async function loadApiFootballMatches() {
+async function loadApiFootballMatches(fixtureMap) {
   const dates = enumerateIsoDates(
-    process.env.API_FOOTBALL_DATE_FROM ?? "2026-06-11",
+    process.env.API_FOOTBALL_DATE_FROM ?? offsetIsoDate(todayIsoDate(), -2),
     process.env.API_FOOTBALL_DATE_TO ?? offsetIsoDate(todayIsoDate(), 1),
   );
   const responses = await Promise.all([
@@ -1040,7 +1109,10 @@ async function loadApiFootballMatches() {
 
   const byId = new Map();
   for (const fixture of responses.flat()) {
-    byId.set(String(fixture.fixture.id), mapApiFootballFixture(fixture));
+    const match = mapApiFootballFixture(fixture);
+    if (match && hasFixturePair(match, fixtureMap)) {
+      byId.set(String(fixture.fixture.id), match);
+    }
   }
 
   for (const match of byId.values()) {
@@ -1120,6 +1192,13 @@ async function apiFootballRequest(endpoint, params) {
 
 function mapApiFootballFixture(fixture) {
   const status = fixture.fixture.status.short;
+  const penaltyScore = parsePenaltyScore(
+    fixture.score?.penalty?.home,
+    fixture.score?.penalty?.away,
+    fixture.score?.penalties?.home,
+    fixture.score?.penalties?.away,
+  );
+
   return {
     provider: "api-football",
     providerMatchId: String(fixture.fixture.id),
@@ -1129,6 +1208,8 @@ function mapApiFootballFixture(fixture) {
     awayTeam: fixture.teams.away.name,
     homeScore: fixture.goals.home ?? 0,
     awayScore: fixture.goals.away ?? 0,
+    homePenaltyScore: penaltyScore.homePenalty,
+    awayPenaltyScore: penaltyScore.awayPenalty,
     minute: fixture.fixture.status.elapsed,
     stoppageMinute: fixture.fixture.status.extra,
     status: mapApiFootballStatus(status),
@@ -1246,7 +1327,13 @@ function mapApiFootballEvents(events, match) {
 function mapApiFootballEventType(event) {
   const type = String(event.type ?? "").toLowerCase();
   const detail = String(event.detail ?? "").toLowerCase();
+  const comments = String(event.comments ?? "").toLowerCase();
+  const combined = `${type} ${detail} ${comments}`;
 
+  if (combined.includes("penalty shootout") || combined.includes("penalty shoot-out")) {
+    if (combined.includes("miss") || combined.includes("saved")) return "penalty_shootout_miss";
+    return "penalty_shootout_goal";
+  }
   if (type.includes("injur") || detail.includes("injur")) return "injury";
   if (type === "goal") {
     if (detail.includes("own")) return "own_goal";
@@ -1302,7 +1389,9 @@ function apiFootballStat(statistics, type) {
 function mapApiFootballStatus(status) {
   if (["FT", "AET", "PEN"].includes(status)) return "finished";
   if (status === "HT") return "half_time";
-  if (["1H", "2H", "ET", "BT", "P"].includes(status)) return "live";
+  if (["ET", "BT"].includes(status)) return "extra_time";
+  if (status === "P") return "penalties";
+  if (["1H", "2H"].includes(status)) return "live";
   return "scheduled";
 }
 
@@ -1316,13 +1405,13 @@ function mapApiFootballPhase(status) {
   return "pre_match";
 }
 
-async function loadFootballDataMatches() {
+async function loadFootballDataMatches(fixtureMap) {
   const json = await footballDataRequest("competitions/WC/matches", {
-    dateFrom: process.env.FOOTBALL_DATA_DATE_FROM ?? "2026-06-11",
-    dateTo: process.env.FOOTBALL_DATA_DATE_TO ?? "2026-07-20",
+    dateFrom: process.env.FOOTBALL_DATA_DATE_FROM ?? offsetIsoDate(todayIsoDate(), -2),
+    dateTo: process.env.FOOTBALL_DATA_DATE_TO ?? offsetIsoDate(todayIsoDate(), 1),
   });
 
-  return (json.matches ?? []).map(mapFootballDataMatch);
+  return (json.matches ?? []).map(mapFootballDataMatch).filter((match) => hasFixturePair(match, fixtureMap));
 }
 
 function dedupeProviderMatches(matches) {
@@ -1343,7 +1432,27 @@ function dedupeProviderMatches(matches) {
     }
   }
 
-  return [...bestByFixturePair.values(), ...bestByProviderMatch.values()];
+  const deduped = new Map();
+  for (const match of [...bestByFixturePair.values(), ...bestByProviderMatch.values()]) {
+    const key = teamPairKey(match.homeTeam, match.awayTeam);
+    const current = deduped.get(key);
+    if (!current || isBetterScoreMatch(match, current)) {
+      deduped.set(key, match);
+    }
+  }
+
+  return [...deduped.values()];
+}
+
+function filterProviderMatchesForFixtures(matches, fixtureMap) {
+  return matches.filter((match) => hasFixturePair(match, fixtureMap));
+}
+
+function hasFixturePair(match, fixtureMap) {
+  return (
+    fixtureMap.has(teamPairKey(match.homeTeam, match.awayTeam)) ||
+    fixtureMap.has(teamPairKey(match.awayTeam, match.homeTeam))
+  );
 }
 
 function isBetterScoreMatch(candidate, current) {
@@ -1403,7 +1512,13 @@ async function footballDataRequest(endpoint, params) {
 
 function mapFootballDataMatch(match) {
   const minute = estimateFootballDataMinute(match);
-  const status = mapFootballDataStatus(match.status);
+  const status = mapFootballDataStatus(match.status, minute);
+  const penaltyScore = parsePenaltyScore(
+    match.score?.penalties?.home,
+    match.score?.penalties?.away,
+    match.score?.penalty?.home,
+    match.score?.penalty?.away,
+  );
 
   return {
     provider: "football-data",
@@ -1412,6 +1527,8 @@ function mapFootballDataMatch(match) {
     awayTeam: match.awayTeam.name,
     homeScore: match.score.fullTime.home ?? match.score.halfTime.home ?? 0,
     awayScore: match.score.fullTime.away ?? match.score.halfTime.away ?? 0,
+    homePenaltyScore: penaltyScore.homePenalty,
+    awayPenaltyScore: penaltyScore.awayPenalty,
     minute,
     stoppageMinute: null,
     status,
@@ -1553,9 +1670,12 @@ function isSameProviderTeam(candidate, expected) {
   return normalizeTeamName(candidate.name ?? candidate.shortName ?? "") === normalizeTeamName(expected.name ?? expected.shortName ?? "");
 }
 
-function mapFootballDataStatus(status) {
+function mapFootballDataStatus(status, minute) {
   if (status === "FINISHED") return "finished";
   if (status === "PAUSED") return "half_time";
+  if (["EXTRA_TIME", "IN_EXTRA_TIME"].includes(status)) return "extra_time";
+  if (["PENALTY_SHOOTOUT", "PENALTIES"].includes(status)) return "penalties";
+  if (["LIVE", "IN_PLAY"].includes(status) && typeof minute === "number" && minute > 90) return "extra_time";
   if (["LIVE", "IN_PLAY"].includes(status)) return "live";
   return "scheduled";
 }
@@ -1563,7 +1683,10 @@ function mapFootballDataStatus(status) {
 function mapFootballDataPhase(status, minute) {
   if (status === "FINISHED") return "full_time";
   if (status === "PAUSED") return "half_time";
+  if (["EXTRA_TIME", "IN_EXTRA_TIME"].includes(status)) return "extra_time";
+  if (["PENALTY_SHOOTOUT", "PENALTIES"].includes(status)) return "penalties";
   if (["LIVE", "IN_PLAY"].includes(status)) {
+    if (typeof minute === "number" && minute > 90) return "extra_time";
     if (typeof minute === "number" && minute <= 45) return "first_half";
     return "second_half";
   }
@@ -1639,6 +1762,7 @@ function mapEspnEvent(event, { completedOnly }) {
     [String(home.id), home.team?.displayName ?? home.team?.shortDisplayName],
     [String(away.id), away.team?.displayName ?? away.team?.shortDisplayName],
   ]);
+  const penaltyScore = mapEspnPenaltyScore(competition, home, away);
 
   return {
     provider: "espn",
@@ -1647,9 +1771,11 @@ function mapEspnEvent(event, { completedOnly }) {
     awayTeam: away.team?.displayName ?? away.team?.shortDisplayName,
     homeScore: Number(home.score ?? 0),
     awayScore: Number(away.score ?? 0),
+    homePenaltyScore: penaltyScore.homePenalty,
+    awayPenaltyScore: penaltyScore.awayPenalty,
     minute: mapEspnMinute(competition),
     stoppageMinute: null,
-    status: mapEspnStatus(statusType),
+    status: mapEspnStatus(statusType, competition),
     phase: mapEspnPhase(statusType, competition),
     kickoffTime: competition.date ?? event.date,
     providerUpdatedAt: new Date().toISOString(),
@@ -1658,8 +1784,12 @@ function mapEspnEvent(event, { completedOnly }) {
   };
 }
 
-function mapEspnStatus(statusType) {
+function mapEspnStatus(statusType, competition) {
   if (statusType?.completed) return "finished";
+  const statusName = String(statusType?.name ?? statusType?.description ?? "").toUpperCase();
+  if (statusName.includes("PENAL")) return "penalties";
+  if (statusName.includes("EXTRA") || statusName.includes("AET")) return "extra_time";
+  if (Number(competition.status?.period ?? 0) > 2) return "extra_time";
   if (statusType?.state === "in") return "live";
   if (statusType?.state === "post") return "finished";
   return "scheduled";
@@ -1670,6 +1800,7 @@ function mapEspnPhase(statusType, competition) {
 
   const period = Number(competition.status?.period ?? 0);
   const statusName = String(statusType?.name ?? statusType?.description ?? "").toUpperCase();
+  if (statusName.includes("PENAL")) return "penalties";
   if (statusName.includes("HALFTIME") || statusName === "STATUS_HALFTIME") return "half_time";
   if (period === 1) return "first_half";
   if (period === 2) return "second_half";
@@ -1724,6 +1855,43 @@ function mapEspnStatistics(home, away, details) {
   };
 }
 
+function mapEspnPenaltyScore(competition, home, away) {
+  const directScore = parsePenaltyScore(
+    home.shootoutScore ?? home.penaltyScore ?? home.penalties,
+    away.shootoutScore ?? away.penaltyScore ?? away.penalties,
+    home.score?.shootout ?? home.score?.penalties,
+    away.score?.shootout ?? away.score?.penalties,
+  );
+  if (directScore.homePenalty != null && directScore.awayPenalty != null) {
+    return directScore;
+  }
+
+  const shootoutDetails = (competition.details ?? []).filter((detail) => detail.shootout);
+  if (shootoutDetails.length === 0) {
+    return { homePenalty: null, awayPenalty: null };
+  }
+
+  let homePenalty = 0;
+  let awayPenalty = 0;
+  for (const detail of shootoutDetails) {
+    if (!isSuccessfulShootoutAttempt(detail)) continue;
+
+    const teamId = String(detail.team?.id ?? "");
+    if (teamId === String(home.id)) homePenalty++;
+    if (teamId === String(away.id)) awayPenalty++;
+  }
+
+  return { homePenalty, awayPenalty };
+}
+
+function isSuccessfulShootoutAttempt(detail) {
+  if (detail.scoringPlay === true) return true;
+  if (detail.scoreValue != null) return Number(detail.scoreValue) > 0;
+
+  const text = String(detail.type?.text ?? detail.type?.description ?? detail.text ?? "").toLowerCase();
+  return text.includes("scored") || text.includes("made");
+}
+
 function mapEspnEvents(competition, teamById) {
   const goalEvents = (competition.details ?? [])
     .filter((detail) => detail.scoringPlay && !detail.shootout)
@@ -1775,7 +1943,29 @@ function mapEspnEvents(competition, teamById) {
     })
     .filter(Boolean);
 
-  return [...goalEvents, ...cardEvents].sort((a, b) => {
+  const shootoutEvents = (competition.details ?? [])
+    .filter((detail) => detail.shootout)
+    .map((detail, index) => {
+      const teamName = teamById.get(String(detail.team?.id)) ?? detail.team?.displayName ?? null;
+      const player = detail.athletesInvolved?.[0]?.displayName ?? null;
+      const scored = isSuccessfulShootoutAttempt(detail);
+
+      return {
+        externalEventId: `espn:${competition.id}:shootout:${index}:${detail.type?.id ?? (scored ? "goal" : "miss")}:${detail.athletesInvolved?.[0]?.id ?? player ?? "unknown"}`,
+        provider: "espn",
+        minute: 120,
+        stoppageMinute: null,
+        sequenceNumber: goalEvents.length + cardEvents.length + index + 1,
+        eventType: scored ? "penalty_shootout_goal" : "penalty_shootout_miss",
+        teamName,
+        playerName: player,
+        assistPlayerName: null,
+        description: detail.text ?? null,
+        createdAt: competition.date ?? new Date().toISOString(),
+      };
+    });
+
+  return [...goalEvents, ...cardEvents, ...shootoutEvents].sort((a, b) => {
     const minuteDiff = (a.minute ?? 0) - (b.minute ?? 0);
     if (minuteDiff !== 0) return minuteDiff;
     return (a.sequenceNumber ?? 0) - (b.sequenceNumber ?? 0);
@@ -1869,6 +2059,7 @@ async function upsertLiveState(fixture, match, options = {}) {
   const statistics = mergeMatchStatistics(match.statistics, statisticsFromEvents(match.events, fixture));
   const statisticColumns = mapStatisticColumns(statistics, existingState, options);
   const lineupColumns = mapLineupColumns(match.lineups ?? getKnownLineupsForFixture(fixture), existingState);
+  const penaltyColumns = mapPenaltyScoreColumns(match, existingState);
 
   const { error } = await supabase.from("live_match_state").upsert(
     {
@@ -1877,6 +2068,7 @@ async function upsertLiveState(fixture, match, options = {}) {
       away_team: fixture.away_team,
       home_score: match.homeScore,
       away_score: match.awayScore,
+      ...penaltyColumns,
       minute: match.minute,
       stoppage_minute: match.stoppageMinute,
       stoppage_time: match.stoppageMinute,
@@ -1901,7 +2093,7 @@ async function upsertLiveState(fixture, match, options = {}) {
 async function getExistingLiveState(matchId) {
   const { data, error } = await supabase
     .from("live_match_state")
-    .select("status, phase, period, home_score, away_score, minute, final_score_confirmed_at, provider_updated_at, updated_at, home_possession, away_possession, home_shots, away_shots, home_shots_on_target, away_shots_on_target, home_expected_goals, away_expected_goals, home_passes, away_passes, home_passing_accuracy, away_passing_accuracy, home_yellow_cards, away_yellow_cards, home_red_cards, away_red_cards, home_corners, away_corners, home_fouls, away_fouls, home_offsides, away_offsides, lineups, lineups_provider, lineups_updated_at")
+    .select("status, phase, period, home_score, away_score, home_penalty_score, away_penalty_score, minute, final_score_confirmed_at, provider_updated_at, updated_at, home_possession, away_possession, home_shots, away_shots, home_shots_on_target, away_shots_on_target, home_expected_goals, away_expected_goals, home_passes, away_passes, home_passing_accuracy, away_passing_accuracy, home_yellow_cards, away_yellow_cards, home_red_cards, away_red_cards, home_corners, away_corners, home_fouls, away_fouls, home_offsides, away_offsides, lineups, lineups_provider, lineups_updated_at")
     .eq("match_id", matchId)
     .maybeSingle();
 
@@ -1910,6 +2102,34 @@ async function getExistingLiveState(matchId) {
   }
 
   return data;
+}
+
+function mapPenaltyScoreColumns(match, existingState) {
+  const incomingHomePenaltyScore = firstFiniteNumber(match.homePenaltyScore);
+  const incomingAwayPenaltyScore = firstFiniteNumber(match.awayPenaltyScore);
+  const existingHomePenaltyScore = firstFiniteNumber(existingState?.home_penalty_score);
+  const existingAwayPenaltyScore = firstFiniteNumber(existingState?.away_penalty_score);
+
+  const incomingHasShootoutScore =
+    incomingHomePenaltyScore != null &&
+    incomingAwayPenaltyScore != null &&
+    (incomingHomePenaltyScore > 0 || incomingAwayPenaltyScore > 0 || match.status === "penalties" || match.phase === "penalties");
+  const existingHasShootoutScore =
+    existingHomePenaltyScore != null &&
+    existingAwayPenaltyScore != null &&
+    (existingHomePenaltyScore > 0 || existingAwayPenaltyScore > 0);
+
+  const homePenaltyScore = incomingHasShootoutScore ? incomingHomePenaltyScore : existingHasShootoutScore ? existingHomePenaltyScore : null;
+  const awayPenaltyScore = incomingHasShootoutScore ? incomingAwayPenaltyScore : existingHasShootoutScore ? existingAwayPenaltyScore : null;
+
+  if (homePenaltyScore == null || awayPenaltyScore == null) {
+    return {};
+  }
+
+  return {
+    home_penalty_score: homePenaltyScore,
+    away_penalty_score: awayPenaltyScore,
+  };
 }
 
 function shouldSkipLiveStateUpdate(existingState, incomingMatch) {

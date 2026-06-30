@@ -12,6 +12,8 @@ type LiveMatchStateRow = {
   away_team?: string | null;
   home_score: number | null;
   away_score: number | null;
+  home_penalty_score?: number | null;
+  away_penalty_score?: number | null;
   minute: number | null;
   stoppage_minute: number | null;
   stoppage_time?: number | null;
@@ -146,6 +148,8 @@ function mapLiveMatch(state: LiveMatchStateRow, eventRows: MatchEventRow[]): Liv
     awayTeam,
     homeScore: state.home_score ?? 0,
     awayScore: state.away_score ?? 0,
+    homePenaltyScore: state.home_penalty_score,
+    awayPenaltyScore: state.away_penalty_score,
     minute: state.minute,
     stoppageMinute: state.stoppage_minute ?? state.stoppage_time,
     startedAt: state.started_at,

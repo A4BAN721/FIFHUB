@@ -128,6 +128,8 @@ export interface LiveMatch {
   awayTeam: string;
   homeScore: number;
   awayScore: number;
+  homePenaltyScore?: number | null;
+  awayPenaltyScore?: number | null;
   minute?: number | null;
   stoppageMinute?: number | null;
   startedAt?: string | null;

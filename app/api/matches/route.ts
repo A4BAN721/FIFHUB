@@ -37,6 +37,8 @@ type FixtureScoreboardRow = {
   phase: string;
   home_score: number;
   away_score: number;
+  home_penalty_score: number | null;
+  away_penalty_score: number | null;
   minute: number | null;
   stoppage_minute: number | null;
   final_score_confirmed_at: string | null;
@@ -118,6 +120,8 @@ export async function GET(request: NextRequest) {
       period: match.phase,
       homeScore: match.home_score,
       awayScore: match.away_score,
+      homePenaltyScore: match.home_penalty_score,
+      awayPenaltyScore: match.away_penalty_score,
       minute: match.minute,
       stoppageTime: match.stoppage_minute,
       finalScoreConfirmedAt: match.final_score_confirmed_at,

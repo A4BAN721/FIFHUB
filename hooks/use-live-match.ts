@@ -77,6 +77,8 @@ export function useLiveMatch(
         phase: normalizeMatchPhase(state.period),
         homeScore: state.homeScore,
         awayScore: state.awayScore,
+        homePenaltyScore: state.homePenaltyScore,
+        awayPenaltyScore: state.awayPenaltyScore,
         minute: state.minute,
         statistics: mergeDefinedStatistics(base.statistics, state),
         updatedAt: new Date().toISOString(),

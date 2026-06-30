@@ -23,7 +23,7 @@ main().catch((error) => {
 async function main() {
   const { data: rows, error } = await supabase
     .from("fixture_live_scoreboard_view")
-    .select("fixture_id,home_team,away_team,status,phase,home_score,away_score,minute,final_score_confirmed_at,updated_at")
+    .select("fixture_id,home_team,away_team,status,phase,home_score,away_score,home_penalty_score,away_penalty_score,minute,final_score_confirmed_at,updated_at")
     .in("status", ["finished", "live", "half_time", "extra_time", "penalties"])
     .order("fixture_id", { ascending: true });
 
@@ -36,16 +36,29 @@ async function main() {
   const suspiciousFinishedScoreless = activeOrFinished.filter(
     (row) => row.status === "finished" && row.home_score === 0 && row.away_score === 0,
   );
+  const finishedPenaltyShootouts = activeOrFinished.filter(
+    (row) =>
+      row.status === "finished" &&
+      row.home_penalty_score != null &&
+      row.away_penalty_score != null &&
+      (row.home_penalty_score > 0 || row.away_penalty_score > 0),
+  );
 
   console.log(`Active/finished scoreboard rows: ${activeOrFinished.length}`);
   console.log(`Finished rows without final_score_confirmed_at: ${unconfirmedFinished.length}`);
   console.log(`Confirmed finished 0-0 rows: ${suspiciousFinishedScoreless.length}`);
+  console.log(`Finished penalty shoot-outs: ${finishedPenaltyShootouts.length}`);
 
   for (const row of activeOrFinished.slice(0, 80)) {
+    const penaltyScore =
+      row.home_penalty_score != null && row.away_penalty_score != null
+        ? ` (Pens ${row.home_penalty_score}-${row.away_penalty_score})`
+        : "";
+
     console.log(
       [
         `#${row.fixture_id}`,
-        `${row.home_team} ${row.home_score}-${row.away_score} ${row.away_team}`,
+        `${row.home_team} ${row.home_score}-${row.away_score} ${row.away_team}${penaltyScore}`,
         row.status,
         row.phase,
         row.final_score_confirmed_at ? "confirmed" : "unconfirmed",

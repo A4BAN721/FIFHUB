@@ -153,7 +153,7 @@ function collectRankingRows(value: unknown, rows: Array<{ nationId: string; rank
   }
 }
 
-function extractRank(record: Record<string, unknown>) {
+function extractRank(record: Record<string, unknown>): number | null {
   for (const key of ["rank", "ranking", "position", "rankPosition"]) {
     const rank = toRank(record[key]);
     if (rank != null) return rank;
@@ -162,7 +162,7 @@ function extractRank(record: Record<string, unknown>) {
   return null;
 }
 
-function toRank(value: unknown) {
+function toRank(value: unknown): number | null {
   if (typeof value === "number" && Number.isInteger(value) && value > 0 && value < 250) {
     return value;
   }
@@ -175,7 +175,7 @@ function toRank(value: unknown) {
   return null;
 }
 
-function extractCountryName(record: Record<string, unknown>) {
+function extractCountryName(record: Record<string, unknown>): string | null {
   for (const key of ["countryName", "teamName", "name", "displayName"]) {
     const value = textValue(record[key]);
     if (value) return value;
@@ -191,7 +191,7 @@ function extractCountryName(record: Record<string, unknown>) {
   return null;
 }
 
-function textValue(value: unknown) {
+function textValue(value: unknown): string | null {
   if (typeof value === "string" && /[A-Za-z]/.test(value)) return value;
 
   if (value && typeof value === "object") {

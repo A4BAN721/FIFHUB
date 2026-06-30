@@ -1,4 +1,4 @@
-import type { MatchStatistics } from "@/lib/live-data/types";
+import type { MatchEvent, MatchStatistics } from "@/lib/live-data/types";
 
 type LiveStatsPanelProps = {
   statistics?: MatchStatistics | null;
