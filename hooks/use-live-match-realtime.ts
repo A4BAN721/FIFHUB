@@ -477,7 +477,12 @@ export function useLiveScoreboard(options?: {
     // Fetch initial live matches
     const fetchInitial = async () => {
       try {
-        const response = await fetch('/api/live');
+        const response = await fetch('/api/live?fresh=1', {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+          },
+        });
         const data = await response.json();
         if (Array.isArray(data.matches)) {
           setLiveMatches(data.matches);

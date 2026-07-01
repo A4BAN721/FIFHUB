@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getFotmobLiveRefresh } from "@/lib/live-data/fotmob-live-refresh";
 import { createServerFootballProvider } from "@/lib/live-data/server-provider";
 
 export const dynamic = "force-dynamic";
@@ -28,8 +29,10 @@ export async function GET(_request: Request, { params }: RouteContext) {
       return NextResponse.json({ match: null }, { status: 404 });
     }
 
+    const refreshedMatch = await getFotmobLiveRefresh(match);
+
     return NextResponse.json(
-      { match },
+      { match: refreshedMatch ?? match },
       {
         headers: {
           "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
 import { Play, X } from "lucide-react";
 import type { Match } from "@/lib/match-fixtures";
@@ -25,12 +25,13 @@ type LiveMatchCardProps = {
 
 export function LiveMatchCard({ match, children, enableLiveData = true }: LiveMatchCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isRefreshingDetails, setIsRefreshingDetails] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const detailsScrollRef = useRef<HTMLDivElement | null>(null);
-  const { liveMatch } = useLiveMatch(match.id, {
+  const { liveMatch, refresh } = useLiveMatch(match.id, {
     enabled: enableLiveData,
     fallbackMatch: match,
-    intervalMs: enableLiveData ? 10000 : 120000,
+    intervalMs: enableLiveData ? 5000 : 120000,
   });
   const completedMatch = getCompletedMatch(match.id);
   const scheduledLiveMatch =
@@ -65,6 +66,17 @@ export function LiveMatchCard({ match, children, enableLiveData = true }: LiveMa
     };
   }, [shouldRunTimer, sourcedMatch?.matchId]);
 
+  const openMatchDetails = useCallback(() => {
+    setIsExpanded(true);
+
+    if (!enableLiveData) return;
+
+    setIsRefreshingDetails(true);
+    void refresh().finally(() => {
+      setIsRefreshingDetails(false);
+    });
+  }, [enableLiveData, refresh]);
+
   if (!isVisibleLiveState(displayMatch)) {
     return <div className="relative transition-all duration-300 hover:-translate-y-1">{children}</div>;
   }
@@ -78,12 +90,12 @@ export function LiveMatchCard({ match, children, enableLiveData = true }: LiveMa
         onClick={(event) => {
           const target = event.target as HTMLElement;
           if (target.closest("button,a,input,select,textarea")) return;
-          setIsExpanded(true);
+          openMatchDetails();
         }}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
-            setIsExpanded(true);
+            openMatchDetails();
           }
         }}
         aria-label={`Open ${displayMatch.homeTeam} versus ${displayMatch.awayTeam} match details`}
@@ -119,7 +131,11 @@ export function LiveMatchCard({ match, children, enableLiveData = true }: LiveMa
               <ExpandedMatchHeader liveMatch={displayMatch} stadium={match.stadium} />
               <ExpandedScoreboard liveMatch={displayMatch} />
               <TeamEventSummary liveMatch={displayMatch} />
-              <MatchDetailsTabs liveMatch={displayMatch} scrollContainerRef={detailsScrollRef} />
+              <MatchDetailsTabs
+                liveMatch={displayMatch}
+                scrollContainerRef={detailsScrollRef}
+                isRefreshingStats={isRefreshingDetails}
+              />
               <MatchHighlightsLink liveMatch={displayMatch} />
 
               <div className="flex items-center justify-between gap-2 border-t border-border/40 pt-3 text-xs text-muted-foreground">
@@ -176,6 +192,8 @@ function CompactScoreOverlay({ liveMatch, fixtureStage }: { liveMatch: LiveMatch
   const isGroupStage = fixtureStage === "GROUP STAGE";
   const penaltyScore = getPenaltyShootoutScore(liveMatch);
   const showShootoutBoard = isPenaltyShootoutInProgress(liveMatch);
+  const showPenaltyInScorePill = Boolean(penaltyScore && isFinalMatchState(liveMatch));
+  const scoreGroupPosition = isGroupStage ? "top-[57%] sm:top-[52%]" : "top-[54%] sm:top-[49%]";
 
   return (
     <div className="pointer-events-none absolute inset-0 z-20">
@@ -192,23 +210,30 @@ function CompactScoreOverlay({ liveMatch, fixtureStage }: { liveMatch: LiveMatch
       >
         {getPlayPeriodLabel(liveMatch)}
       </span>
-      <div className="absolute left-1/2 top-[54%] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-1 sm:top-[49%] sm:gap-1.5">
+      <div className={`absolute left-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center gap-0.5 sm:flex-row sm:gap-1.5 ${scoreGroupPosition}`}>
         {timerLabel && !isHalfTimeTimer && (
-          <span className="rounded-md border border-zinc-200 bg-white/95 px-1 py-0.5 text-center text-[10px] font-black uppercase tabular-nums leading-tight text-red-600 shadow-lg dark:border-zinc-700 dark:bg-zinc-950/95 sm:rounded-lg sm:px-1.5 sm:py-1 sm:text-sm">
+          <span className="rounded-full border border-zinc-200 bg-white/95 px-1.5 py-0 text-center text-[8px] font-black uppercase tabular-nums leading-tight text-red-600 shadow-md dark:border-zinc-700 dark:bg-zinc-950/95 sm:rounded-lg sm:px-1.5 sm:py-1 sm:text-sm sm:shadow-lg">
             {timerLabel}
           </span>
         )}
-        <span className="flex min-w-[44px] flex-col items-center sm:min-w-[68px]">
-          <span className="w-full rounded-md border border-zinc-200 bg-white px-1 py-0.5 text-center text-[10px] font-black tabular-nums leading-tight text-zinc-950 shadow-lg dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:rounded-lg sm:px-3 sm:py-1 sm:text-sm">
-            {liveMatch.homeScore} - {liveMatch.awayScore}
+        <span className="flex min-w-[38px] flex-col items-center sm:min-w-[54px]">
+          <span className={`flex w-full flex-col items-center justify-center rounded-md border border-zinc-200 bg-white px-0.5 text-center font-black tabular-nums leading-none text-zinc-950 shadow-lg dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:rounded-lg sm:px-1.5 ${
+            showPenaltyInScorePill ? "h-[24px] sm:h-[31px]" : "h-[17px] sm:h-[24px]"
+          }`}>
+            <span className="block text-[12px] leading-none sm:text-[17px]">{liveMatch.homeScore} - {liveMatch.awayScore}</span>
+            {penaltyScore && showPenaltyInScorePill && (
+              <span className="block text-[8px] font-black uppercase leading-none text-zinc-600 dark:text-zinc-300 sm:text-[9px]">
+                Pens {penaltyScore.home} - {penaltyScore.away}
+              </span>
+            )}
           </span>
-          {penaltyScore && !showShootoutBoard && (
+          {penaltyScore && !showShootoutBoard && !showPenaltyInScorePill && (
             <span className="-mt-0.5 rounded-full border border-zinc-200 bg-white/95 px-1.5 py-0.5 text-[8px] font-black uppercase tabular-nums text-zinc-700 shadow-md dark:border-zinc-700 dark:bg-zinc-950/95 dark:text-zinc-200 sm:px-2 sm:text-[9px]">
               Pens {penaltyScore.home} - {penaltyScore.away}
             </span>
           )}
           {timerLabel && isHalfTimeTimer && (
-            <span className="-mt-0.5 rounded-full border border-zinc-200 bg-white/95 px-1 py-0 text-[7px] font-black uppercase tabular-nums leading-tight text-red-600 shadow-md dark:border-zinc-700 dark:bg-zinc-950/95 sm:px-1.5 sm:text-[8px]">
+            <span className="mt-0.5 rounded-full border border-zinc-200 bg-white/95 px-0.5 py-0 text-[7px] font-black uppercase tabular-nums leading-tight tracking-[0.08em] text-red-600 shadow-md dark:border-zinc-700 dark:bg-zinc-950/95 sm:px-1 sm:text-[8px] sm:tracking-[0.1em]">
               {timerLabel}
             </span>
           )}
@@ -311,9 +336,11 @@ function ExpandedMatchHeader({ liveMatch, stadium }: { liveMatch: LiveMatch; sta
 function MatchDetailsTabs({
   liveMatch,
   scrollContainerRef,
+  isRefreshingStats,
 }: {
   liveMatch: LiveMatch;
   scrollContainerRef: RefObject<HTMLDivElement | null>;
+  isRefreshingStats: boolean;
 }) {
   const [activeDetailsTab, setActiveDetailsTab] = useState("stats");
   const tabPanelStartRef = useRef<HTMLDivElement | null>(null);
@@ -347,12 +374,16 @@ function MatchDetailsTabs({
       </TabsList>
       <div ref={tabPanelStartRef} />
       <TabsContent value="stats" className="mt-3">
-        <LiveStatsPanel
-          statistics={liveMatch.statistics}
-          events={liveMatch.events}
-          homeTeam={liveMatch.homeTeam}
-          awayTeam={liveMatch.awayTeam}
-        />
+        {isRefreshingStats && !hasMatchStatistics(liveMatch.statistics) ? (
+          <StatsPanelSkeleton />
+        ) : (
+          <LiveStatsPanel
+            statistics={liveMatch.statistics}
+            events={liveMatch.events}
+            homeTeam={liveMatch.homeTeam}
+            awayTeam={liveMatch.awayTeam}
+          />
+        )}
       </TabsContent>
       <TabsContent value="lineups" className="mt-3">
         <LineupsPanel
@@ -410,6 +441,11 @@ function getExtraTimeStageLabel(minute?: number | null) {
 function getTimerLabel(liveMatch: LiveMatch) {
   if (!isMatchInProgress(liveMatch)) return "";
   if (liveMatch.status === "half_time" || liveMatch.phase === "half_time") return "Half Time";
+  if (liveMatch.status === "penalties" || liveMatch.phase === "penalties") return "PEN";
+  if (liveMatch.status === "extra_time" || liveMatch.phase === "extra_time") {
+    return typeof liveMatch.minute === "number" ? formatMatchMinute(liveMatch.minute, liveMatch.stoppageMinute) : "ET";
+  }
+  if (typeof liveMatch.minute !== "number") return "LIVE";
 
   return formatMatchMinute(liveMatch.minute, liveMatch.stoppageMinute);
 }
@@ -458,24 +494,24 @@ function estimateDisplayClock(liveMatch: LiveMatch, now: number, fixture: Match)
   if (!isMatchInProgress(liveMatch)) return null;
 
   if (liveMatch.status === "penalties" || liveMatch.phase === "penalties") {
-    return capInProgressClock(liveMatch);
+    return typeof liveMatch.minute === "number" ? capInProgressClock(liveMatch) : null;
   }
 
   if (liveMatch.status === "extra_time" || liveMatch.phase === "extra_time") {
-    return providerClock(liveMatch, {
-      status: "extra_time",
-      phase: "extra_time",
-      fallbackMinute: 91,
-      minMinute: 91,
-      maxMinute: 120,
-    });
+    return typeof liveMatch.minute === "number"
+      ? providerClock(liveMatch, {
+          status: "extra_time",
+          phase: "extra_time",
+          minMinute: 91,
+          maxMinute: 120,
+        })
+      : null;
   }
 
   if (liveMatch.phase === "first_half" && typeof liveMatch.minute === "number") {
     return providerClock(liveMatch, {
       status: "live",
       phase: "first_half",
-      fallbackMinute: liveMatch.minute,
       minMinute: 1,
       maxMinute: 45,
     });
@@ -485,11 +521,12 @@ function estimateDisplayClock(liveMatch: LiveMatch, now: number, fixture: Match)
     return providerClock(liveMatch, {
       status: "live",
       phase: "second_half",
-      fallbackMinute: liveMatch.minute,
       minMinute: 46,
       maxMinute: 90,
     });
   }
+
+  if (liveMatch.status !== "scheduled") return null;
 
   const kickoffTime = getKickoffTime(liveMatch, fixture);
   if (!Number.isFinite(kickoffTime)) return phaseFallbackClock(liveMatch);
@@ -532,12 +569,11 @@ function providerClock(
   options: {
     status: "live" | "extra_time";
     phase: "first_half" | "second_half" | "extra_time";
-    fallbackMinute: number;
     minMinute: number;
     maxMinute: number;
   },
 ) {
-  const baseMinute = Math.min(options.maxMinute, Math.max(options.minMinute, liveMatch.minute ?? options.fallbackMinute));
+  const baseMinute = Math.min(options.maxMinute, Math.max(options.minMinute, liveMatch.minute ?? options.minMinute));
 
   return {
     status: options.status,
@@ -685,6 +721,20 @@ function isPenaltyShootoutInProgress(liveMatch: LiveMatch) {
   );
 }
 
+function StatsPanelSkeleton() {
+  return (
+    <div className="space-y-1 rounded-lg border border-border/40 bg-background/45 p-2" aria-hidden="true">
+      {Array.from({ length: 11 }, (_, index) => (
+        <div key={index} className="grid grid-cols-[2.75rem_1fr_2.75rem] items-center gap-2">
+          <span className="h-3 rounded bg-muted/60" />
+          <span className="mx-auto h-3 w-28 max-w-full rounded bg-muted/50" />
+          <span className="h-3 rounded bg-muted/60" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function isFinalMatchState(liveMatch: LiveMatch) {
   return liveMatch.status === "finished" || liveMatch.phase === "full_time" || Boolean(liveMatch.finalScoreConfirmedAt);
 }
@@ -776,10 +826,12 @@ function ExpandedScoreboard({ liveMatch }: { liveMatch: LiveMatch }) {
           <PenaltyAttemptDots attempts={getPenaltyShootoutAttempts(liveMatch, liveMatch.homeTeam)} align="left" />
         )}
       </div>
-      <span className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-2xl font-black tabular-nums text-zinc-950 shadow-lg dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:text-3xl">
-        <span className="block">{liveMatch.homeScore} - {liveMatch.awayScore}</span>
+      <span className={`flex min-w-[5.5rem] flex-col items-center justify-center rounded-xl border border-zinc-200 bg-white px-2 font-black tabular-nums leading-none text-zinc-950 shadow-lg dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:min-w-[6.25rem] sm:px-3 ${
+        penaltyScore && !showShootoutBoard ? "h-11 sm:h-12" : "h-10 sm:h-11"
+      }`}>
+        <span className="block text-[1.85rem] leading-none sm:text-[2.25rem]">{liveMatch.homeScore} - {liveMatch.awayScore}</span>
         {penaltyScore && !showShootoutBoard && (
-          <span className="mt-1 block text-center text-[10px] font-black uppercase text-zinc-600 dark:text-zinc-300 sm:text-xs">
+          <span className="mt-0.5 block text-center text-[11px] font-black uppercase leading-none text-zinc-600 dark:text-zinc-300 sm:text-[13px]">
             Pens {penaltyScore.home} - {penaltyScore.away}
           </span>
         )}

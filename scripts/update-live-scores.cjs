@@ -623,7 +623,7 @@ function mapFotmobMatch(match, league) {
   if (!match.id || !homeTeam || !awayTeam) return null;
 
   const score = parseFotmobScore(match);
-  const minute = parseFotmobMinute(match.status?.liveTime?.short ?? match.status?.liveTime?.long);
+  const minute = getFotmobMinute(match.status);
 
   return {
     provider: "fotmob",
@@ -700,9 +700,48 @@ function firstFiniteNumber(...values) {
   return null;
 }
 
+function getFotmobMinute(status) {
+  const liveTimeMinute = parseFotmobMinute(status?.liveTime?.short ?? status?.liveTime?.long);
+  if (liveTimeMinute != null) return liveTimeMinute;
+
+  const reason = String(status?.reason?.short ?? status?.reason?.long ?? "").toUpperCase();
+  if (reason === "HT") return 45;
+  if (status?.finished) return 90;
+  if (!status?.started) return null;
+
+  const secondHalfStarted = parseFotmobLocalTimestamp(status?.halfs?.secondHalfStarted);
+  if (Number.isFinite(secondHalfStarted)) {
+    return Math.min(90, Math.max(46, Math.floor((Date.now() - secondHalfStarted) / 60_000) + 46));
+  }
+
+  const firstHalfStarted = parseFotmobLocalTimestamp(status?.halfs?.firstHalfStarted);
+  if (Number.isFinite(firstHalfStarted)) {
+    return Math.min(45, Math.max(1, Math.floor((Date.now() - firstHalfStarted) / 60_000) + 1));
+  }
+
+  return null;
+}
+
 function parseFotmobMinute(value) {
   const match = String(value ?? "").match(/\d+/);
   return match ? Number(match[0]) : null;
+}
+
+function parseFotmobLocalTimestamp(value) {
+  const match = String(value ?? "").match(/^(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) return NaN;
+
+  const [, day, month, year, hour, minute, second = "0"] = match;
+  const parsed = new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    Number(second),
+  ).getTime();
+
+  return Number.isFinite(parsed) ? parsed : NaN;
 }
 
 function mapFotmobStatus(status, minute) {

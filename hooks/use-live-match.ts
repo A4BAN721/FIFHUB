@@ -49,7 +49,7 @@ export function useLiveMatch(
       // the state with current scores, and nulling it would cause the
       // component to fall back to stale completedMatch data.
       if (nextMatch !== null) {
-        setLiveMatch(nextMatch);
+        setLiveMatch((current) => chooseFreshestMatch(current, nextMatch));
       }
       setError(null);
       setLastUpdated(new Date());
@@ -71,7 +71,7 @@ export function useLiveMatch(
 
       if (!base) return current;
 
-      return {
+      return chooseFreshestMatch(base, {
         ...base,
         status: normalizeMatchStatus(state.status),
         phase: normalizeMatchPhase(state.period),
@@ -85,7 +85,7 @@ export function useLiveMatch(
         lineups: base.lineups,
         events: base.events,
         updatedAt: state.updatedAt ?? base.updatedAt,
-      };
+      });
     });
     setLastUpdated(new Date());
   }, [fallbackMatch, matchId]);
@@ -139,10 +139,25 @@ function createLiveMatchShell(matchId: string, homeTeam: string, awayTeam: strin
     homeScore: 0,
     awayScore: 0,
     minute: null,
-    updatedAt: new Date().toISOString(),
+    updatedAt: "",
     statistics: {},
     events: [],
   };
+}
+
+function chooseFreshestMatch(current: LiveMatch | null, incoming: LiveMatch): LiveMatch {
+  if (!current) return incoming;
+
+  const currentTime = getMatchUpdatedTime(current);
+  const incomingTime = getMatchUpdatedTime(incoming);
+  if (incomingTime > 0 && currentTime > 0 && incomingTime < currentTime) return current;
+
+  return incoming;
+}
+
+function getMatchUpdatedTime(match: LiveMatch): number {
+  const parsed = Date.parse(match.updatedAt ?? "");
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function mergeDefinedStatistics(

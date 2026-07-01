@@ -26,7 +26,9 @@ async function fetchLiveMatchDetail(matchId: string): Promise<LiveMatch | null> 
     const payload = (await response.json()) as { match?: LiveMatch | null };
     return payload.match ?? null;
   } catch (error) {
-    console.warn("Falling back to scoreboard match data.", error);
+    if (isLiveDataDebugEnabled()) {
+      console.debug("Falling back to scoreboard match data.", error);
+    }
     return null;
   }
 }
@@ -47,6 +49,10 @@ function fetchNoStore(url: string) {
       "Cache-Control": "no-cache",
     },
   });
+}
+
+function isLiveDataDebugEnabled() {
+  return typeof window !== "undefined" && window.localStorage.getItem("fifhub:live-debug") === "1";
 }
 
 type ScoreboardMatchPayload = {
