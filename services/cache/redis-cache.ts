@@ -63,6 +63,7 @@ export const CACHE_KEYS = {
   matchEvents: (id: string) => `events:match:${id}`,
   score: (id: string) => `score:${id}`,
   liveMatches: 'api:matches:live',
+  liveMatchesByCompetition: (competition?: string | null) => `api:matches:live:${competition || 'all'}`,
   matchDetail: (id: string) => `api:match:${id}`,
   matchEventList: (id: string) => `api:match:${id}:events`,
   teamById: (id: string) => `team:${id}`,
@@ -414,6 +415,7 @@ export class MatchCache {
       this.cache.del(CACHE_KEYS.matchDetail(matchId)),
       this.cache.del(CACHE_KEYS.matchEventList(matchId)),
       this.cache.del(CACHE_KEYS.liveMatches),
+      this.cache.del(CACHE_KEYS.liveMatchesByCompetition()),
     ]);
   }
 }

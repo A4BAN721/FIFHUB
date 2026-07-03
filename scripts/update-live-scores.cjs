@@ -840,10 +840,10 @@ function mapFotmobLineups(details, match) {
   const lineup = details?.content?.lineup;
   if (!lineup?.homeTeam || !lineup?.awayTeam) return null;
 
-  const ratings = mapFotmobPlayerRatings(details?.content?.playerStats);
+  const playerStats = mapFotmobPlayerStats(details?.content?.playerStats);
   const playerOfTheMatch = getFotmobPlayerOfTheMatch(details);
-  const home = mapFotmobTeamLineup(lineup.homeTeam, match.homeTeam, ratings, playerOfTheMatch);
-  const away = mapFotmobTeamLineup(lineup.awayTeam, match.awayTeam, ratings, playerOfTheMatch);
+  const home = mapFotmobTeamLineup(lineup.homeTeam, match.homeTeam, playerStats, playerOfTheMatch);
+  const away = mapFotmobTeamLineup(lineup.awayTeam, match.awayTeam, playerStats, playerOfTheMatch);
   if (!hasLineupPlayers(home) && !hasLineupPlayers(away)) return null;
 
   return {
@@ -958,26 +958,29 @@ function getFotmobPlayerOfTheMatch(details) {
   };
 }
 
-function mapFotmobTeamLineup(team, fallbackTeamName, ratings, playerOfTheMatch) {
+function mapFotmobTeamLineup(team, fallbackTeamName, playerStats, playerOfTheMatch) {
   return {
     teamName: team.name ?? fallbackTeamName,
     formation: team.formation ?? null,
     coach: team.coach?.name ?? team.coach ?? null,
-    starters: (team.starters ?? []).map((player) => mapFotmobLineupPlayer(player, "starter", ratings, playerOfTheMatch)).filter(Boolean),
-    substitutes: (team.subs ?? team.substitutes ?? []).map((player) => mapFotmobLineupPlayer(player, "substitute", ratings, playerOfTheMatch)).filter(Boolean),
+    starters: (team.starters ?? []).map((player) => mapFotmobLineupPlayer(player, "starter", playerStats, playerOfTheMatch)).filter(Boolean),
+    substitutes: (team.subs ?? team.substitutes ?? []).map((player) => mapFotmobLineupPlayer(player, "substitute", playerStats, playerOfTheMatch)).filter(Boolean),
     unavailable: mapUnavailablePlayers(
       firstArray(team.unavailable, team.unavailablePlayers, team.missingPlayers, team.absentPlayers, team.sidelined),
     ),
   };
 }
 
-function mapFotmobLineupPlayer(player, status, ratings, playerOfTheMatch) {
+function mapFotmobLineupPlayer(player, status, playerStats, playerOfTheMatch) {
   const name = player?.name ?? [player?.firstName, player?.lastName].filter(Boolean).join(" ");
   if (!name) return null;
 
   const id = player.id != null ? String(player.id) : null;
+  const stats = id ? playerStats.get(id) : null;
   const shirtNumber = Number(player.shirtNumber);
-  const rating = Number(player.performance?.rating ?? player.rating ?? ratings.get(id));
+  const rating = Number(stats?.rating ?? player.performance?.rating ?? player.rating);
+  const minutesPlayed = Number(player.minutesPlayed ?? player.minutes ?? player.timePlayed ?? stats?.minutesPlayed);
+  const offsides = Number(player.offsides ?? player.offside ?? stats?.offsides);
   const grid = fotmobGrid(player);
 
   return {
@@ -987,6 +990,8 @@ function mapFotmobLineupPlayer(player, status, ratings, playerOfTheMatch) {
     shirtNumber: Number.isFinite(shirtNumber) ? shirtNumber : null,
     status,
     rating: Number.isFinite(rating) ? rating : null,
+    minutesPlayed: Number.isFinite(minutesPlayed) ? minutesPlayed : null,
+    offsides: Number.isFinite(offsides) ? offsides : null,
     grid,
     captain: player.isCaptain === true,
     playerOfTheMatch: isSameFotmobPlayer({ id, name }, playerOfTheMatch),
@@ -999,30 +1004,44 @@ function isSameFotmobPlayer(player, target) {
   return Boolean(player.name && target.name && normalizePlayerName(player.name) === normalizePlayerName(target.name));
 }
 
-function mapFotmobPlayerRatings(playerStats) {
-  const ratings = new Map();
-  if (!playerStats || typeof playerStats !== "object") return ratings;
+function mapFotmobPlayerStats(playerStats) {
+  const statsByPlayer = new Map();
+  if (!playerStats || typeof playerStats !== "object") return statsByPlayer;
 
   for (const [playerId, player] of Object.entries(playerStats)) {
-    const rating = extractFotmobPlayerRating(player);
-    if (rating != null) ratings.set(String(player?.id ?? playerId), rating);
+    const stats = extractFotmobPlayerStats(player);
+    if (stats.rating != null || stats.minutesPlayed != null || stats.offsides != null) {
+      statsByPlayer.set(String(player?.id ?? playerId), stats);
+    }
   }
 
-  return ratings;
+  return statsByPlayer;
 }
 
-function extractFotmobPlayerRating(player) {
+function extractFotmobPlayerStats(player) {
+  const result = {
+    rating: null,
+    minutesPlayed: firstFiniteNumber(player?.minutesPlayed, player?.minutes, player?.timePlayed),
+    offsides: firstFiniteNumber(player?.offsides, player?.offside),
+  };
+
   for (const group of player?.stats ?? []) {
     for (const stat of Object.values(group?.stats ?? {})) {
       const key = normalizeFotmobStatKey(stat?.key ?? stat?.title ?? "");
+      const value = firstFiniteNumber(stat?.stat?.value, stat?.value, stat?.stat);
+      if (value == null) continue;
+
       if (key === "ratingtitle" || key === "fotmobrating") {
-        const rating = Number(stat?.stat?.value ?? stat?.value);
-        return Number.isFinite(rating) ? rating : null;
+        result.rating = value;
+      } else if (["minutesplayed", "minsplayed", "minutes", "mins"].includes(key)) {
+        result.minutesPlayed = value;
+      } else if (key.includes("offside")) {
+        result.offsides = value;
       }
     }
   }
 
-  return null;
+  return result;
 }
 
 function fotmobPosition(positionId) {
@@ -1305,6 +1324,8 @@ function mapApiFootballLineupPlayer(entry, status, ratings) {
   const ratingEntry = id ? ratings.get(id) : null;
   const shirtNumber = Number(player?.number ?? ratingEntry?.shirtNumber);
   const rating = Number(ratingEntry?.rating);
+  const minutesPlayed = Number(ratingEntry?.minutesPlayed);
+  const offsides = Number(ratingEntry?.offsides);
 
   return {
     id,
@@ -1313,6 +1334,8 @@ function mapApiFootballLineupPlayer(entry, status, ratings) {
     shirtNumber: Number.isFinite(shirtNumber) ? shirtNumber : null,
     status,
     rating: Number.isFinite(rating) ? rating : null,
+    minutesPlayed: Number.isFinite(minutesPlayed) ? minutesPlayed : null,
+    offsides: Number.isFinite(offsides) ? offsides : null,
     grid: player?.grid ?? null,
     captain: Boolean(ratingEntry?.captain),
   };
@@ -1329,6 +1352,8 @@ function mapApiFootballRatings(playerStats) {
       const games = item.statistics?.[0]?.games ?? {};
       ratings.set(id, {
         rating: games.rating,
+        minutesPlayed: games.minutes,
+        offsides: item.statistics?.[0]?.offsides,
         shirtNumber: games.number,
         position: games.position,
         captain: games.captain,

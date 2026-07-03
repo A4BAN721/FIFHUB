@@ -22,8 +22,12 @@ type EventRow = {
 };
 
 type LineupPlayer = {
+  id?: string | null;
   name?: string | null;
   shirtNumber?: number | null;
+  rating?: number | null;
+  minutesPlayed?: number | null;
+  offsides?: number | null;
 };
 
 type LineupTeam = {
@@ -33,13 +37,24 @@ type LineupTeam = {
 };
 
 type LineupRow = {
+  match_id?: string | null;
   lineups: {
     home?: LineupTeam | null;
     away?: LineupTeam | null;
   } | null;
 };
 
-type StatCategory = "goals" | "assists" | "ga" | "yellow" | "red";
+type FotmobStatRow = {
+  id?: string | null;
+  teamId?: string | null;
+  teamName?: string | null;
+  playerName: string;
+  value: number;
+  subValue?: number | null;
+  rank?: number | null;
+};
+
+type StatCategory = "goals" | "assists" | "ga" | "minutes" | "distance" | "rating" | "yellow" | "red" | "offsides";
 
 type Leader = {
   playerName: string;
@@ -47,6 +62,7 @@ type Leader = {
   value: number;
   rank: number;
   jerseyNumber: number | null;
+  valueLabel?: string;
 };
 
 type PlayerLookup = Map<string, number>;
@@ -59,13 +75,21 @@ const categories: Array<{ value: StatCategory; label: string; heading: string }>
   { value: "goals", label: "Goals", heading: "Goals" },
   { value: "assists", label: "Assists", heading: "Assists" },
   { value: "ga", label: "Goals + Assists (G/A)", heading: "G/A" },
+  { value: "minutes", label: "Minutes Played", heading: "Minutes" },
+  { value: "distance", label: "Distance Covered (m)", heading: "Distance (m)" },
+  { value: "rating", label: "Average Rating", heading: "Rating" },
   { value: "yellow", label: "Yellow cards", heading: "Yellow cards" },
   { value: "red", label: "Red cards", heading: "Red cards" },
+  { value: "offsides", label: "Offsides", heading: "Offsides" },
 ];
 
 export function TournamentStats() {
   const [events, setEvents] = useState<EventRow[]>(() => getFallbackEventRows());
   const [lineupRows, setLineupRows] = useState<LineupRow[]>([]);
+  const [fotmobRatingRows, setFotmobRatingRows] = useState<FotmobStatRow[]>([]);
+  const [fotmobMinutesRows, setFotmobMinutesRows] = useState<FotmobStatRow[]>([]);
+  const [fifaDistanceRows, setFifaDistanceRows] = useState<FotmobStatRow[]>([]);
+  const [fifaOffsidesRows, setFifaOffsidesRows] = useState<FotmobStatRow[]>([]);
   const [nations, setNations] = useState<Nation[]>(fallbackNations);
 
   useEffect(() => {
@@ -93,12 +117,23 @@ export function TournamentStats() {
       try {
         const response = await fetch("/api/tournament-stats?fresh=1", { cache: "no-store" });
         if (!response.ok) throw new Error(`Tournament stats request failed with ${response.status}`);
-        const payload = (await response.json()) as { events?: EventRow[]; lineupRows?: LineupRow[] };
+        const payload = (await response.json()) as {
+          events?: EventRow[];
+          lineupRows?: LineupRow[];
+          fotmobRatingRows?: FotmobStatRow[];
+          fotmobMinutesRows?: FotmobStatRow[];
+          fifaDistanceRows?: FotmobStatRow[];
+          fifaOffsidesRows?: FotmobStatRow[];
+        };
         if (!isMounted) return;
 
         const databaseRows = preferFotmobEventRows(payload.events ?? []);
         setEvents(databaseRows.length > 0 ? databaseRows : getFallbackEventRows());
         setLineupRows(payload.lineupRows ?? []);
+        setFotmobRatingRows(payload.fotmobRatingRows ?? []);
+        setFotmobMinutesRows(payload.fotmobMinutesRows ?? []);
+        setFifaDistanceRows(payload.fifaDistanceRows ?? []);
+        setFifaOffsidesRows(payload.fifaOffsidesRows ?? []);
       } catch (error) {
         if (!isMounted) return;
         console.warn("Failed to load tournament stats.", error);
@@ -128,14 +163,28 @@ export function TournamentStats() {
   const playerLookup = useMemo(() => buildPlayerLookup(nations, lineupRows), [nations, lineupRows]);
 
   const leaders = useMemo(() => {
+    const performanceLeaders = buildPerformanceLeaders(lineupRows, playerLookup);
+    const fotmobRatingLeaders = buildFotmobStatLeaders(fotmobRatingRows, lineupRows, playerLookup);
+    const fotmobMinutesLeaders = buildFotmobStatLeaders(
+      fotmobMinutesRows,
+      lineupRows,
+      playerLookup,
+      (row) => (row.subValue != null ? `${formatInteger(row.value)} (${formatInteger(row.subValue)})` : formatInteger(row.value)),
+    );
+    const fifaDistanceLeaders = buildFotmobStatLeaders(fifaDistanceRows, lineupRows, playerLookup);
+    const fifaOffsidesLeaders = buildFotmobStatLeaders(fifaOffsidesRows, lineupRows, playerLookup);
     return {
       goals: buildLeaders(events, "goals", playerLookup),
       assists: buildLeaders(events, "assists", playerLookup),
       ga: buildLeaders(events, "ga", playerLookup),
+      minutes: fotmobMinutesLeaders.length > 0 ? fotmobMinutesLeaders : performanceLeaders.minutes,
+      distance: fifaDistanceLeaders,
+      rating: fotmobRatingLeaders.length > 0 ? fotmobRatingLeaders : performanceLeaders.rating,
       yellow: buildLeaders(events, "yellow", playerLookup),
       red: buildLeaders(events, "red", playerLookup),
+      offsides: fifaOffsidesLeaders.length > 0 ? fifaOffsidesLeaders : performanceLeaders.offsides,
     };
-  }, [events, playerLookup]);
+  }, [events, fifaDistanceRows, fifaOffsidesRows, fotmobMinutesRows, fotmobRatingRows, lineupRows, playerLookup]);
 
   return (
     <div className="mx-auto max-w-5xl px-2 py-4 sm:px-4">
@@ -153,7 +202,12 @@ export function TournamentStats() {
         </TabsList>
         {categories.map((category) => (
           <TabsContent key={category.value} value={category.value} className="mt-0">
-            <Leaderboard leaders={leaders[category.value]} heading={category.heading} nations={nations} />
+            <Leaderboard
+              leaders={leaders[category.value]}
+              heading={category.heading}
+              nations={nations}
+              formatValue={category.value === "rating" ? formatRating : undefined}
+            />
           </TabsContent>
         ))}
       </Tabs>
@@ -161,7 +215,17 @@ export function TournamentStats() {
   );
 }
 
-function Leaderboard({ leaders, heading, nations }: { leaders: Leader[]; heading: string; nations: Nation[] }) {
+function Leaderboard({
+  leaders,
+  heading,
+  nations,
+  formatValue = formatInteger,
+}: {
+  leaders: Leader[];
+  heading: string;
+  nations: Nation[];
+  formatValue?: (value: number) => string;
+}) {
   return (
     <div className="rounded-lg border border-border/40 bg-card/45 p-3 sm:p-5">
       <div className="grid grid-cols-[3rem_1fr_4rem] border-b border-border/50 px-1 pb-3 text-sm text-muted-foreground">
@@ -171,7 +235,14 @@ function Leaderboard({ leaders, heading, nations }: { leaders: Leader[]; heading
       </div>
       <div>
         {leaders.length > 0 ? (
-          leaders.map((leader) => <LeaderRow key={`${leader.playerName}-${leader.teamName}`} leader={leader} nations={nations} />)
+          leaders.map((leader) => (
+            <LeaderRow
+              key={`${leader.playerName}-${leader.teamName}`}
+              leader={leader}
+              nations={nations}
+              formatValue={formatValue}
+            />
+          ))
         ) : (
           <p className="py-6 text-center text-sm text-muted-foreground">No data available yet.</p>
         )}
@@ -180,7 +251,15 @@ function Leaderboard({ leaders, heading, nations }: { leaders: Leader[]; heading
   );
 }
 
-function LeaderRow({ leader, nations }: { leader: Leader; nations: Nation[] }) {
+function LeaderRow({
+  leader,
+  nations,
+  formatValue,
+}: {
+  leader: Leader;
+  nations: Nation[];
+  formatValue: (value: number) => string;
+}) {
   const nationId = leader.teamName ? normalizeCountryName(leader.teamName) : null;
   const nation = nationId ? nations.find((entry) => entry.id === nationId) ?? fallbackNations.find((entry) => entry.id === nationId) : null;
   const playerStyle = {
@@ -213,7 +292,9 @@ function LeaderRow({ leader, nations }: { leader: Leader; nations: Nation[] }) {
           )}
         </div>
       </div>
-      <span className="text-right text-lg font-semibold tabular-nums text-foreground">{leader.value}</span>
+      <span className="text-right text-lg font-semibold tabular-nums text-foreground">
+        {leader.valueLabel ?? formatValue(leader.value)}
+      </span>
     </div>
   );
 }
@@ -235,7 +316,7 @@ function openStatsPlayer(teamName: string | null, playerName: string) {
 
 function buildLeaders(
   events: EventRow[],
-  category: StatCategory,
+  category: Extract<StatCategory, "goals" | "assists" | "ga" | "yellow" | "red">,
   playerLookup: PlayerLookup
 ) {
   const totals = new Map<string, { playerName: string; teamName: string | null; value: number }>();
@@ -261,12 +342,172 @@ function buildLeaders(
   let previousRank = 0;
   return [...totals.values()]
     .sort((a, b) => b.value - a.value || a.playerName.localeCompare(b.playerName))
-    .slice(0, 50)
     .map((leader, index) => {
       const rank = leader.value === previousValue ? previousRank : index + 1;
       previousValue = leader.value;
       previousRank = rank;
       return { ...leader, rank, jerseyNumber: getJerseyNumber(leader.playerName, leader.teamName, playerLookup) };
+    });
+}
+
+function buildPerformanceLeaders(lineupRows: LineupRow[], playerLookup: PlayerLookup) {
+  const totals = new Map<
+    string,
+    {
+      playerName: string;
+      teamName: string | null;
+      minutes: number;
+      offsides: number;
+      ratingTotal: number;
+      ratingCount: number;
+    }
+  >();
+  const counted = new Set<string>();
+
+  for (const row of lineupRows) {
+    for (const team of [row.lineups?.home, row.lineups?.away]) {
+      if (!team?.teamName) continue;
+      for (const player of [...(team.starters ?? []), ...(team.substitutes ?? [])]) {
+        if (!player.name) continue;
+
+        const eventKey = [
+          normalizeName(row.match_id ?? ""),
+          normalizeName(team.teamName),
+          normalizeName(player.name),
+        ].join("::");
+        if (counted.has(eventKey)) continue;
+        counted.add(eventKey);
+
+        const playerKeyValue = playerKey(player.name, team.teamName);
+        const current = totals.get(playerKeyValue) ?? {
+          playerName: player.name,
+          teamName: team.teamName,
+          minutes: 0,
+          offsides: 0,
+          ratingTotal: 0,
+          ratingCount: 0,
+        };
+
+        const minutesPlayed = finiteStat(player.minutesPlayed);
+        const offsides = finiteStat(player.offsides);
+        const rating = finiteStat(player.rating);
+
+        if (minutesPlayed != null) current.minutes += minutesPlayed;
+        if (offsides != null) current.offsides += offsides;
+        if (rating != null) {
+          current.ratingTotal += rating;
+          current.ratingCount += 1;
+        }
+
+        totals.set(playerKeyValue, current);
+      }
+    }
+  }
+
+  return {
+    minutes: rankPerformanceLeaders(totals, (entry) => entry.minutes, playerLookup),
+    rating: rankPerformanceLeaders(
+      totals,
+      (entry) => (entry.ratingCount > 0 ? entry.ratingTotal / entry.ratingCount : null),
+      playerLookup,
+    ),
+    offsides: rankPerformanceLeaders(totals, (entry) => entry.offsides, playerLookup),
+  };
+}
+
+function buildFotmobStatLeaders(
+  rows: FotmobStatRow[],
+  lineupRows: LineupRow[],
+  playerLookup: PlayerLookup,
+  valueLabelFor?: (row: FotmobStatRow & { value: number }) => string,
+) {
+  const teamLookup = buildFotmobPlayerTeamLookup(lineupRows);
+  const sortedRows = rows
+    .map((row) => ({ ...row, value: finiteStat(row.value) }))
+    .filter((row): row is FotmobStatRow & { value: number } => row.value != null && row.value > 0)
+    .sort((a, b) => (a.rank ?? Number.MAX_SAFE_INTEGER) - (b.rank ?? Number.MAX_SAFE_INTEGER) || b.value - a.value);
+
+  let previousValue = -1;
+  let previousRank = 0;
+
+  return sortedRows.map((row, index) => {
+    const teamName =
+      row.teamName ??
+      teamLookup.get(`player-id:${row.id ?? ""}`) ??
+      teamLookup.get(`player-name:${normalizeName(row.playerName)}`) ??
+      null;
+    const rank = row.rank ?? (row.value === previousValue ? previousRank : index + 1);
+    previousValue = row.value;
+    previousRank = rank;
+
+    return {
+      playerName: row.playerName,
+      teamName,
+      value: row.value,
+      rank,
+      jerseyNumber: getJerseyNumber(row.playerName, teamName, playerLookup),
+      valueLabel: valueLabelFor?.(row),
+    };
+  });
+}
+
+function buildFotmobPlayerTeamLookup(lineupRows: LineupRow[]) {
+  const lookup = new Map<string, string>();
+
+  for (const row of lineupRows) {
+    for (const team of [row.lineups?.home, row.lineups?.away]) {
+      if (!team?.teamName) continue;
+      for (const player of [...(team.starters ?? []), ...(team.substitutes ?? [])]) {
+        if (!player.name) continue;
+        if (player.id) lookup.set(`player-id:${player.id}`, team.teamName);
+        lookup.set(`player-name:${normalizeName(player.name)}`, team.teamName);
+      }
+    }
+  }
+
+  return lookup;
+}
+
+function rankPerformanceLeaders(
+  totals: Map<
+    string,
+    {
+      playerName: string;
+      teamName: string | null;
+      minutes: number;
+      offsides: number;
+      ratingTotal: number;
+      ratingCount: number;
+    }
+  >,
+  valueFor: (entry: {
+    playerName: string;
+    teamName: string | null;
+    minutes: number;
+    offsides: number;
+    ratingTotal: number;
+    ratingCount: number;
+  }) => number | null,
+  playerLookup: PlayerLookup,
+) {
+  let previousValue = -1;
+  let previousRank = 0;
+
+  return [...totals.values()]
+    .map((entry) => ({ ...entry, value: valueFor(entry) }))
+    .filter((entry): entry is typeof entry & { value: number } => entry.value != null && entry.value > 0)
+    .sort((a, b) => b.value - a.value || a.playerName.localeCompare(b.playerName))
+    .map((leader, index) => {
+      const rank = leader.value === previousValue ? previousRank : index + 1;
+      previousValue = leader.value;
+      previousRank = rank;
+      return {
+        playerName: leader.playerName,
+        teamName: leader.teamName,
+        value: leader.value,
+        rank,
+        jerseyNumber: getJerseyNumber(leader.playerName, leader.teamName, playerLookup),
+      };
     });
 }
 
@@ -289,6 +530,19 @@ function statPlayerName(event: EventRow, category: StatCategory, eventType: stri
   if (category === "yellow" && ["yellow_card", "yellow"].includes(eventType)) return event.player_name;
   if (category === "red" && ["red_card", "second_yellow", "red"].includes(eventType)) return event.player_name;
   return null;
+}
+
+function finiteStat(value: number | null | undefined) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatInteger(value: number) {
+  return String(Math.round(value));
+}
+
+function formatRating(value: number) {
+  return value.toFixed(1);
 }
 
 function preferFotmobEventRows(rows: EventRow[]) {

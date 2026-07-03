@@ -142,6 +142,44 @@ type LiveScoreboardMatch = {
   [key: string]: unknown;
 };
 
+type LiveMatchBroadcastData = {
+  matchId?: string | null;
+  homeScore?: number | null;
+  awayScore?: number | null;
+  homePenaltyScore?: number | null;
+  awayPenaltyScore?: number | null;
+  minute?: number | null;
+  stoppageMinute?: number | null;
+  stoppageTime?: number | null;
+  period?: string | null;
+  phase?: string | null;
+  status?: string | null;
+  updatedAt?: string | null;
+  lastEventType?: string | null;
+  homePossession?: number | null;
+  awayPossession?: number | null;
+  homeShots?: number | null;
+  awayShots?: number | null;
+  homeShotsOnTarget?: number | null;
+  awayShotsOnTarget?: number | null;
+  homeExpectedGoals?: number | null;
+  awayExpectedGoals?: number | null;
+  homePasses?: number | null;
+  awayPasses?: number | null;
+  homePassingAccuracy?: number | null;
+  awayPassingAccuracy?: number | null;
+  homeYellowCards?: number | null;
+  awayYellowCards?: number | null;
+  homeRedCards?: number | null;
+  awayRedCards?: number | null;
+  homeCorners?: number | null;
+  awayCorners?: number | null;
+  homeFouls?: number | null;
+  awayFouls?: number | null;
+  homeOffsides?: number | null;
+  awayOffsides?: number | null;
+};
+
 /**
  * Hook return type
  */
@@ -216,41 +254,7 @@ export function useLiveMatchRealtime({
           (payload: RealtimePostgresChangesPayload<LiveMatchStateRow>) => {
             if (!mounted || !payload.new) return;
             const data = payload.new as LiveMatchStateRow;
-            const newState: LiveRealtimeState = {
-              matchId: data.match_id ?? matchId,
-              homeScore: data.home_score ?? 0,
-              awayScore: data.away_score ?? 0,
-              homePenaltyScore: data.home_penalty_score,
-              awayPenaltyScore: data.away_penalty_score,
-              minute: data.minute ?? 0,
-              stoppageMinute: data.stoppage_minute ?? data.stoppage_time ?? null,
-              period: data.phase ?? data.period ?? '',
-              status: data.status ?? '',
-              updatedAt: data.updated_at ?? null,
-              lastEventType: data.last_event_type ?? undefined,
-              homePossession: data.home_possession ?? undefined,
-              awayPossession: data.away_possession ?? undefined,
-              homeShots: data.home_shots ?? undefined,
-              awayShots: data.away_shots ?? undefined,
-              homeShotsOnTarget: data.home_shots_on_target ?? undefined,
-              awayShotsOnTarget: data.away_shots_on_target ?? undefined,
-              homeExpectedGoals: data.home_expected_goals ?? undefined,
-              awayExpectedGoals: data.away_expected_goals ?? undefined,
-              homePasses: data.home_passes ?? undefined,
-              awayPasses: data.away_passes ?? undefined,
-              homePassingAccuracy: data.home_passing_accuracy ?? undefined,
-              awayPassingAccuracy: data.away_passing_accuracy ?? undefined,
-              homeYellowCards: data.home_yellow_cards ?? undefined,
-              awayYellowCards: data.away_yellow_cards ?? undefined,
-              homeRedCards: data.home_red_cards ?? undefined,
-              awayRedCards: data.away_red_cards ?? undefined,
-              homeCorners: data.home_corners ?? undefined,
-              awayCorners: data.away_corners ?? undefined,
-              homeFouls: data.home_fouls ?? undefined,
-              awayFouls: data.away_fouls ?? undefined,
-              homeOffsides: data.home_offsides ?? undefined,
-              awayOffsides: data.away_offsides ?? undefined,
-            };
+            const newState = stateFromLiveMatchRow(data, matchId);
 
             setLiveState(newState);
             onStateChange?.(newState);
@@ -281,41 +285,7 @@ export function useLiveMatchRealtime({
           if (!mounted) return;
           const data = payload.payload?.data;
           if (data) {
-            const newState: LiveRealtimeState = {
-              matchId: data.matchId,
-              homeScore: data.homeScore ?? 0,
-              awayScore: data.awayScore ?? 0,
-              homePenaltyScore: data.homePenaltyScore,
-              awayPenaltyScore: data.awayPenaltyScore,
-              minute: data.minute ?? 0,
-              stoppageMinute: data.stoppageMinute ?? null,
-              period: data.period ?? '',
-              status: data.status ?? '',
-              updatedAt: data.updatedAt ?? null,
-              lastEventType: data.lastEventType,
-              homePossession: data.homePossession,
-              awayPossession: data.awayPossession,
-              homeShots: data.homeShots,
-              awayShots: data.awayShots,
-              homeShotsOnTarget: data.homeShotsOnTarget,
-              awayShotsOnTarget: data.awayShotsOnTarget,
-              homeExpectedGoals: data.homeExpectedGoals,
-              awayExpectedGoals: data.awayExpectedGoals,
-              homePasses: data.homePasses,
-              awayPasses: data.awayPasses,
-              homePassingAccuracy: data.homePassingAccuracy,
-              awayPassingAccuracy: data.awayPassingAccuracy,
-              homeYellowCards: data.homeYellowCards,
-              awayYellowCards: data.awayYellowCards,
-              homeRedCards: data.homeRedCards,
-              awayRedCards: data.awayRedCards,
-              homeCorners: data.homeCorners,
-              awayCorners: data.awayCorners,
-              homeFouls: data.homeFouls,
-              awayFouls: data.awayFouls,
-              homeOffsides: data.homeOffsides,
-              awayOffsides: data.awayOffsides,
-            };
+            const newState = stateFromBroadcastData(data, matchId);
 
             setLiveState(newState);
             onStateChange?.(newState);
@@ -348,11 +318,14 @@ export function useLiveMatchRealtime({
           if (!mounted) return;
           const data = payload.payload?.data;
           if (data) {
-            setLiveState(prev => prev ? {
-              ...prev,
-              status: data.status ?? prev.status,
-              period: data.period ?? prev.period,
-            } : null);
+            setLiveState(prev => {
+              const nextState = mergeLiveState(
+                prev,
+                stateFromBroadcastData(data, matchId, prev),
+              );
+              onStateChange?.(nextState);
+              return nextState;
+            });
           }
         })
         .subscribe((status) => {
@@ -512,4 +485,123 @@ function isLiveScoreboardMatch(value: unknown): value is LiveScoreboardMatch {
       'matchId' in value &&
       typeof (value as { matchId?: unknown }).matchId === 'string'
   );
+}
+
+function stateFromLiveMatchRow(row: LiveMatchStateRow, fallbackMatchId: string): LiveRealtimeState {
+  return {
+    matchId: row.match_id ?? fallbackMatchId,
+    homeScore: row.home_score ?? 0,
+    awayScore: row.away_score ?? 0,
+    homePenaltyScore: row.home_penalty_score,
+    awayPenaltyScore: row.away_penalty_score,
+    minute: row.minute ?? 0,
+    stoppageMinute: row.stoppage_minute ?? row.stoppage_time ?? null,
+    period: row.phase ?? row.period ?? '',
+    status: row.status ?? '',
+    updatedAt: row.updated_at ?? null,
+    lastEventType: row.last_event_type ?? undefined,
+    homePossession: row.home_possession ?? undefined,
+    awayPossession: row.away_possession ?? undefined,
+    homeShots: row.home_shots ?? undefined,
+    awayShots: row.away_shots ?? undefined,
+    homeShotsOnTarget: row.home_shots_on_target ?? undefined,
+    awayShotsOnTarget: row.away_shots_on_target ?? undefined,
+    homeExpectedGoals: row.home_expected_goals ?? undefined,
+    awayExpectedGoals: row.away_expected_goals ?? undefined,
+    homePasses: row.home_passes ?? undefined,
+    awayPasses: row.away_passes ?? undefined,
+    homePassingAccuracy: row.home_passing_accuracy ?? undefined,
+    awayPassingAccuracy: row.away_passing_accuracy ?? undefined,
+    homeYellowCards: row.home_yellow_cards ?? undefined,
+    awayYellowCards: row.away_yellow_cards ?? undefined,
+    homeRedCards: row.home_red_cards ?? undefined,
+    awayRedCards: row.away_red_cards ?? undefined,
+    homeCorners: row.home_corners ?? undefined,
+    awayCorners: row.away_corners ?? undefined,
+    homeFouls: row.home_fouls ?? undefined,
+    awayFouls: row.away_fouls ?? undefined,
+    homeOffsides: row.home_offsides ?? undefined,
+    awayOffsides: row.away_offsides ?? undefined,
+  };
+}
+
+function stateFromBroadcastData(
+  data: LiveMatchBroadcastData,
+  fallbackMatchId: string,
+  previous?: LiveRealtimeState | null,
+): LiveRealtimeState {
+  return {
+    matchId: data.matchId ?? previous?.matchId ?? fallbackMatchId,
+    homeScore: data.homeScore ?? previous?.homeScore ?? 0,
+    awayScore: data.awayScore ?? previous?.awayScore ?? 0,
+    homePenaltyScore: data.homePenaltyScore ?? previous?.homePenaltyScore,
+    awayPenaltyScore: data.awayPenaltyScore ?? previous?.awayPenaltyScore,
+    minute: data.minute ?? previous?.minute ?? 0,
+    stoppageMinute: data.stoppageMinute ?? data.stoppageTime ?? previous?.stoppageMinute ?? null,
+    period: data.phase ?? data.period ?? previous?.period ?? '',
+    status: data.status ?? previous?.status ?? '',
+    updatedAt: data.updatedAt ?? previous?.updatedAt ?? null,
+    lastEventType: data.lastEventType ?? previous?.lastEventType,
+    homePossession: data.homePossession ?? previous?.homePossession,
+    awayPossession: data.awayPossession ?? previous?.awayPossession,
+    homeShots: data.homeShots ?? previous?.homeShots,
+    awayShots: data.awayShots ?? previous?.awayShots,
+    homeShotsOnTarget: data.homeShotsOnTarget ?? previous?.homeShotsOnTarget,
+    awayShotsOnTarget: data.awayShotsOnTarget ?? previous?.awayShotsOnTarget,
+    homeExpectedGoals: data.homeExpectedGoals ?? previous?.homeExpectedGoals,
+    awayExpectedGoals: data.awayExpectedGoals ?? previous?.awayExpectedGoals,
+    homePasses: data.homePasses ?? previous?.homePasses,
+    awayPasses: data.awayPasses ?? previous?.awayPasses,
+    homePassingAccuracy: data.homePassingAccuracy ?? previous?.homePassingAccuracy,
+    awayPassingAccuracy: data.awayPassingAccuracy ?? previous?.awayPassingAccuracy,
+    homeYellowCards: data.homeYellowCards ?? previous?.homeYellowCards,
+    awayYellowCards: data.awayYellowCards ?? previous?.awayYellowCards,
+    homeRedCards: data.homeRedCards ?? previous?.homeRedCards,
+    awayRedCards: data.awayRedCards ?? previous?.awayRedCards,
+    homeCorners: data.homeCorners ?? previous?.homeCorners,
+    awayCorners: data.awayCorners ?? previous?.awayCorners,
+    homeFouls: data.homeFouls ?? previous?.homeFouls,
+    awayFouls: data.awayFouls ?? previous?.awayFouls,
+    homeOffsides: data.homeOffsides ?? previous?.homeOffsides,
+    awayOffsides: data.awayOffsides ?? previous?.awayOffsides,
+  };
+}
+
+function mergeLiveState(
+  previous: LiveRealtimeState | null,
+  incoming: LiveRealtimeState,
+): LiveRealtimeState {
+  if (!previous) return incoming;
+
+  return {
+    ...previous,
+    ...incoming,
+    homePenaltyScore: incoming.homePenaltyScore ?? previous.homePenaltyScore,
+    awayPenaltyScore: incoming.awayPenaltyScore ?? previous.awayPenaltyScore,
+    stoppageMinute: incoming.stoppageMinute ?? previous.stoppageMinute,
+    updatedAt: incoming.updatedAt ?? previous.updatedAt,
+    lastEventType: incoming.lastEventType ?? previous.lastEventType,
+    homePossession: incoming.homePossession ?? previous.homePossession,
+    awayPossession: incoming.awayPossession ?? previous.awayPossession,
+    homeShots: incoming.homeShots ?? previous.homeShots,
+    awayShots: incoming.awayShots ?? previous.awayShots,
+    homeShotsOnTarget: incoming.homeShotsOnTarget ?? previous.homeShotsOnTarget,
+    awayShotsOnTarget: incoming.awayShotsOnTarget ?? previous.awayShotsOnTarget,
+    homeExpectedGoals: incoming.homeExpectedGoals ?? previous.homeExpectedGoals,
+    awayExpectedGoals: incoming.awayExpectedGoals ?? previous.awayExpectedGoals,
+    homePasses: incoming.homePasses ?? previous.homePasses,
+    awayPasses: incoming.awayPasses ?? previous.awayPasses,
+    homePassingAccuracy: incoming.homePassingAccuracy ?? previous.homePassingAccuracy,
+    awayPassingAccuracy: incoming.awayPassingAccuracy ?? previous.awayPassingAccuracy,
+    homeYellowCards: incoming.homeYellowCards ?? previous.homeYellowCards,
+    awayYellowCards: incoming.awayYellowCards ?? previous.awayYellowCards,
+    homeRedCards: incoming.homeRedCards ?? previous.homeRedCards,
+    awayRedCards: incoming.awayRedCards ?? previous.awayRedCards,
+    homeCorners: incoming.homeCorners ?? previous.homeCorners,
+    awayCorners: incoming.awayCorners ?? previous.awayCorners,
+    homeFouls: incoming.homeFouls ?? previous.homeFouls,
+    awayFouls: incoming.awayFouls ?? previous.awayFouls,
+    homeOffsides: incoming.homeOffsides ?? previous.homeOffsides,
+    awayOffsides: incoming.awayOffsides ?? previous.awayOffsides,
+  };
 }

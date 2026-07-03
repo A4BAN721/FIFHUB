@@ -526,11 +526,19 @@ function estimateDisplayClock(liveMatch: LiveMatch, now: number, fixture: Match)
     });
   }
 
+  const kickoffTime = getKickoffTime(liveMatch, fixture);
+  if (liveMatch.status === "live" && Number.isFinite(kickoffTime)) {
+    return fixtureClock(liveMatch, now, kickoffTime);
+  }
+
   if (liveMatch.status !== "scheduled") return null;
 
-  const kickoffTime = getKickoffTime(liveMatch, fixture);
   if (!Number.isFinite(kickoffTime)) return phaseFallbackClock(liveMatch);
 
+  return fixtureClock(liveMatch, now, kickoffTime);
+}
+
+function fixtureClock(liveMatch: LiveMatch, now: number, kickoffTime: number) {
   const elapsed = Math.floor((now - kickoffTime) / 60_000);
   if (elapsed < 0) return null;
 
@@ -817,6 +825,8 @@ function isSameTeam(eventTeamName: string | null | undefined, teamName: string) 
 function ExpandedScoreboard({ liveMatch }: { liveMatch: LiveMatch }) {
   const penaltyScore = getPenaltyShootoutScore(liveMatch);
   const showShootoutBoard = isPenaltyShootoutInProgress(liveMatch);
+  const timerLabel = getTimerLabel(liveMatch);
+  const showTimer = Boolean(timerLabel && isMatchInProgress(liveMatch));
 
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl border border-border/50 bg-background/45 p-3 sm:gap-5 sm:p-5">
@@ -826,16 +836,23 @@ function ExpandedScoreboard({ liveMatch }: { liveMatch: LiveMatch }) {
           <PenaltyAttemptDots attempts={getPenaltyShootoutAttempts(liveMatch, liveMatch.homeTeam)} align="left" />
         )}
       </div>
-      <span className={`flex min-w-[5.5rem] flex-col items-center justify-center rounded-xl border border-zinc-200 bg-white px-2 font-black tabular-nums leading-none text-zinc-950 shadow-lg dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:min-w-[6.25rem] sm:px-3 ${
-        penaltyScore && !showShootoutBoard ? "h-11 sm:h-12" : "h-10 sm:h-11"
-      }`}>
-        <span className="block text-[1.85rem] leading-none sm:text-[2.25rem]">{liveMatch.homeScore} - {liveMatch.awayScore}</span>
-        {penaltyScore && !showShootoutBoard && (
-          <span className="mt-0.5 block text-center text-[11px] font-black uppercase leading-none text-zinc-600 dark:text-zinc-300 sm:text-[13px]">
-            Pens {penaltyScore.home} - {penaltyScore.away}
+      <div className="flex flex-col items-center justify-center gap-1.5 sm:flex-row">
+        {showTimer && (
+          <span className="rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-1 text-center text-xs font-black uppercase tabular-nums leading-none text-red-600 shadow-sm sm:text-sm">
+            {timerLabel}
           </span>
         )}
-      </span>
+        <span className={`flex min-w-[5.5rem] flex-col items-center justify-center rounded-xl border border-zinc-200 bg-white px-2 font-black tabular-nums leading-none text-zinc-950 shadow-lg dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:min-w-[6.25rem] sm:px-3 ${
+          penaltyScore && !showShootoutBoard ? "h-11 sm:h-12" : "h-10 sm:h-11"
+        }`}>
+          <span className="block text-[1.85rem] leading-none sm:text-[2.25rem]">{liveMatch.homeScore} - {liveMatch.awayScore}</span>
+          {penaltyScore && !showShootoutBoard && (
+            <span className="mt-0.5 block text-center text-[11px] font-black uppercase leading-none text-zinc-600 dark:text-zinc-300 sm:text-[13px]">
+              Pens {penaltyScore.home} - {penaltyScore.away}
+            </span>
+          )}
+        </span>
+      </div>
       <div className="min-w-0 space-y-2">
         <ExpandedTeamName teamName={liveMatch.awayTeam} align="right" />
         {showShootoutBoard && (

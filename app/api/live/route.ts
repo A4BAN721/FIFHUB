@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     const db = createApiClient();
 
     // Try cache first
-    const cacheKey = `${CACHE_KEYS.liveMatches}:${competition || 'all'}`;
+    const cacheKey = CACHE_KEYS.liveMatchesByCompetition(competition);
     const cached = fresh ? null : await cache.get(cacheKey);
     
     if (cached) {

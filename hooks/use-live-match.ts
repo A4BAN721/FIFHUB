@@ -152,12 +152,41 @@ function chooseFreshestMatch(current: LiveMatch | null, incoming: LiveMatch): Li
   const incomingTime = getMatchUpdatedTime(incoming);
   if (incomingTime > 0 && currentTime > 0 && incomingTime < currentTime) return current;
 
-  return incoming;
+  return mergeLiveMatch(current, incoming);
 }
 
 function getMatchUpdatedTime(match: LiveMatch): number {
   const parsed = Date.parse(match.updatedAt ?? "");
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function mergeLiveMatch(current: LiveMatch, incoming: LiveMatch): LiveMatch {
+  return {
+    ...current,
+    ...incoming,
+    homePenaltyScore: incoming.homePenaltyScore ?? current.homePenaltyScore,
+    awayPenaltyScore: incoming.awayPenaltyScore ?? current.awayPenaltyScore,
+    minute: incoming.minute ?? current.minute,
+    stoppageMinute: incoming.stoppageMinute ?? current.stoppageMinute,
+    startedAt: incoming.startedAt ?? current.startedAt,
+    finalScoreConfirmedAt: incoming.finalScoreConfirmedAt ?? current.finalScoreConfirmedAt,
+    highlightsUrl: incoming.highlightsUrl ?? current.highlightsUrl,
+    highlightsTitle: incoming.highlightsTitle ?? current.highlightsTitle,
+    highlightsPublishedAt: incoming.highlightsPublishedAt ?? current.highlightsPublishedAt,
+    statistics: mergeDefinedMatchStatistics(current.statistics, incoming.statistics),
+    lineups: incoming.lineups ?? current.lineups,
+    events: incoming.events.length > 0 ? incoming.events : current.events,
+  };
+}
+
+function mergeDefinedMatchStatistics(
+  current: LiveMatch["statistics"],
+  incoming: LiveMatch["statistics"]
+): LiveMatch["statistics"] {
+  return {
+    ...current,
+    ...Object.fromEntries(Object.entries(incoming).filter(([, value]) => value != null)),
+  } as LiveMatch["statistics"];
 }
 
 function mergeDefinedStatistics(
