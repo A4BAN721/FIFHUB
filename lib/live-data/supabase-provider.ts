@@ -140,10 +140,12 @@ function mapLiveMatch(state: LiveMatchStateRow, eventRows: MatchEventRow[]): Liv
   const homeTeam = state.home_team ?? state.match?.home_team?.name ?? "Home";
   const awayTeam = state.away_team ?? state.match?.away_team?.name ?? "Away";
 
+  const status = normalizeMatchStatus(state.status);
+
   return {
     matchId: state.match_id,
-    status: normalizeMatchStatus(state.status),
-    phase: normalizeMatchPhase(state.phase ?? state.period),
+    status,
+    phase: normalizeSupabasePhase(status, state.phase ?? state.period),
     homeTeam,
     awayTeam,
     homeScore: state.home_score ?? 0,
@@ -162,6 +164,15 @@ function mapLiveMatch(state: LiveMatchStateRow, eventRows: MatchEventRow[]): Liv
     lineups: mapLineups(state),
     events,
   };
+}
+
+function normalizeSupabasePhase(status: LiveMatch["status"], phase?: string | null) {
+  const normalizedPhase = normalizeMatchPhase(phase);
+  if (status === "half_time") return normalizedPhase === "extra_time" ? "extra_time" : "half_time";
+  if (status === "finished") return "full_time";
+  if (status === "extra_time") return "extra_time";
+  if (status === "penalties") return "penalties";
+  return normalizedPhase;
 }
 
 function mapLineups(state: LiveMatchStateRow): MatchLineups | null {
@@ -202,5 +213,10 @@ function mapStatistics(state: LiveMatchStateRow): MatchStatistics {
 }
 
 function normalizeEventType(eventType: string): MatchEventType {
-  return eventType.toLowerCase() as MatchEventType;
+  const normalized = eventType.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (normalized === "subst" || normalized === "sub") return "substitution";
+  if (normalized === "yellow") return "yellow_card";
+  if (normalized === "red") return "red_card";
+  if (normalized === "penalty") return "penalty_goal";
+  return normalized as MatchEventType;
 }

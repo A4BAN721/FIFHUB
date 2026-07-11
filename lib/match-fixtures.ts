@@ -882,8 +882,8 @@ export const matchFixtures: Match[] = [
     date: "Saturday, 4 July 2026",
     time: "11:00 PM",
     stage: "ROUND OF 16",
-    homeTeam: "TBD",
-    awayTeam: "TBD",
+    homeTeam: "Canada",
+    awayTeam: "Morocco",
     stadium: "Philadelphia Stadium"
   },
   {
@@ -891,8 +891,8 @@ export const matchFixtures: Match[] = [
     date: "Sunday, 5 July 2026",
     time: "3:00 AM",
     stage: "ROUND OF 16",
-    homeTeam: "TBD",
-    awayTeam: "TBD",
+    homeTeam: "Paraguay",
+    awayTeam: "France",
     stadium: "Houston Stadium"
   },
   {
@@ -900,8 +900,8 @@ export const matchFixtures: Match[] = [
     date: "Monday, 6 July 2026",
     time: "2:00 AM",
     stage: "ROUND OF 16",
-    homeTeam: "TBD",
-    awayTeam: "TBD",
+    homeTeam: "Brazil",
+    awayTeam: "Norway",
     stadium: "New York New Jersey Stadium"
   },
   {
@@ -909,8 +909,8 @@ export const matchFixtures: Match[] = [
     date: "Monday, 6 July 2026",
     time: "6:00 AM",
     stage: "ROUND OF 16",
-    homeTeam: "TBD",
-    awayTeam: "TBD",
+    homeTeam: "Mexico",
+    awayTeam: "England",
     stadium: "Mexico City Stadium"
   },
   {
@@ -918,8 +918,8 @@ export const matchFixtures: Match[] = [
     date: "Tuesday, 7 July 2026",
     time: "1:00 AM",
     stage: "ROUND OF 16",
-    homeTeam: "TBD",
-    awayTeam: "TBD",
+    homeTeam: "Portugal",
+    awayTeam: "Spain",
     stadium: "Dallas Stadium"
   },
   {
@@ -927,8 +927,8 @@ export const matchFixtures: Match[] = [
     date: "Tuesday, 7 July 2026",
     time: "6:00 AM",
     stage: "ROUND OF 16",
-    homeTeam: "TBD",
-    awayTeam: "TBD",
+    homeTeam: "USA",
+    awayTeam: "Belgium",
     stadium: "Seattle Stadium"
   },
   {
@@ -955,26 +955,26 @@ export const matchFixtures: Match[] = [
     date: "Friday, 10 July 2026",
     time: "2:00 AM",
     stage: "QUARTER-FINALS",
-    homeTeam: "TBD",
-    awayTeam: "TBD",
+    homeTeam: "France",
+    awayTeam: "Morocco",
     stadium: "Boston Stadium"
   },
   {
     id: "98",
-    date: "Saturday, 11 July 2026",
-    time: "1:00 AM",
+    date: "Sunday, 12 July 2026",
+    time: "3:00 AM",
     stage: "QUARTER-FINALS",
-    homeTeam: "TBD",
-    awayTeam: "TBD",
+    homeTeam: "Norway",
+    awayTeam: "England",
     stadium: "Los Angeles Stadium"
   },
   {
     id: "99",
-    date: "Sunday, 12 July 2026",
-    time: "3:00 AM",
+    date: "Saturday, 11 July 2026",
+    time: "1:00 AM",
     stage: "QUARTER-FINALS",
-    homeTeam: "TBD",
-    awayTeam: "TBD",
+    homeTeam: "Spain",
+    awayTeam: "Belgium",
     stadium: "Miami Stadium"
   },
   {

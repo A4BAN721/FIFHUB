@@ -185,9 +185,6 @@ export function NationsGrid({ initialSelectedNationId, initialSelectedPlayerName
             className="pl-10 bg-card/80 backdrop-blur-sm border-border/50"
           />
         </div>
-        <p className="mt-2 text-center text-sm text-muted-foreground">
-          {t("clickNationToViewSquad")}
-        </p>
       </div>
 
       <div className="space-y-6 sm:space-y-10">

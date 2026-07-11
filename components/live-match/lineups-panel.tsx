@@ -107,8 +107,10 @@ function LineupSection({
   type: "starters" | "substitutes";
   events: MatchEvent[];
 }) {
-  const homePlayers = home[type];
-  const awayPlayers = away[type];
+  const homeTeamName = home.teamName || homeFallback;
+  const awayTeamName = away.teamName || awayFallback;
+  const homePlayers = type === "substitutes" ? orderBenchPlayers(home[type], homeTeamName, events) : home[type];
+  const awayPlayers = type === "substitutes" ? orderBenchPlayers(away[type], awayTeamName, events) : away[type];
   const maxRows = Math.max(homePlayers.length, awayPlayers.length);
 
   return (
@@ -136,20 +138,57 @@ function LineupSection({
             <PlayerLine
               player={homePlayers[index]}
               side="home"
-              teamName={home.teamName || homeFallback}
-              marks={getPlayerEventMarks(homePlayers[index], home.teamName || homeFallback, events)}
+              teamName={homeTeamName}
+              marks={getPlayerEventMarks(homePlayers[index], homeTeamName, events)}
             />
             <PlayerLine
               player={awayPlayers[index]}
               side="away"
-              teamName={away.teamName || awayFallback}
-              marks={getPlayerEventMarks(awayPlayers[index], away.teamName || awayFallback, events)}
+              teamName={awayTeamName}
+              marks={getPlayerEventMarks(awayPlayers[index], awayTeamName, events)}
             />
           </div>
         ))}
       </div>
     </section>
   );
+}
+
+function orderBenchPlayers(players: MatchLineupPlayer[], teamName: string, events: MatchEvent[]) {
+  return players
+    .map((player, index) => ({
+      player,
+      index,
+      subbedInMinute: getSubbedInMinute(player, teamName, events),
+    }))
+    .sort((a, b) => {
+      const aWasSubbedIn = a.subbedInMinute != null;
+      const bWasSubbedIn = b.subbedInMinute != null;
+      if (aWasSubbedIn !== bWasSubbedIn) return aWasSubbedIn ? -1 : 1;
+      if (a.subbedInMinute != null && b.subbedInMinute != null && a.subbedInMinute !== b.subbedInMinute) {
+        return a.subbedInMinute - b.subbedInMinute;
+      }
+      return a.index - b.index;
+    })
+    .map((entry) => entry.player);
+}
+
+function getSubbedInMinute(player: MatchLineupPlayer, teamName: string, events: MatchEvent[]) {
+  const playerKey = normalizePlayerName(player.name);
+  const teamKey = normalizeCountryName(teamName);
+
+  for (const event of events) {
+    if (event.eventType !== "substitution") continue;
+    const eventTeamKey = event.teamName ? normalizeCountryName(event.teamName) : teamKey;
+    if (eventTeamKey !== teamKey) continue;
+
+    const subbedInName = event.substitutePlayerName ?? event.assistPlayerName;
+    if (subbedInName && normalizePlayerName(subbedInName) === playerKey) {
+      return event.minute * 100 + (event.stoppageMinute ?? 0);
+    }
+  }
+
+  return null;
 }
 
 function PlayerLine({

@@ -1,5 +1,5 @@
 import { normalizeCountryName } from "@/lib/country-utils";
-import type { LiveMatch, MatchPhase, MatchStatistics, MatchStatus } from "./types";
+import type { LiveMatch, MatchEvent, MatchEventType, MatchPhase, MatchStatistics, MatchStatus } from "./types";
 
 type FotmobMatch = {
   id?: number | string;
@@ -67,6 +67,7 @@ async function fetchFotmobLiveRefresh(baseMatch: LiveMatch): Promise<LiveMatch |
 
   const details = await fotmobRequest("matchDetails", { matchId: String(match.id) }).catch(() => null);
   const statistics = details ? mapFotmobStatistics(details) : {};
+  const events = details ? mapFotmobEvents(details, String(match.id), baseMatch) : [];
   const score = parseFotmobScore(match);
   const minute = getFotmobMinute(match.status);
   const status = mapFotmobStatus(match.status, minute);
@@ -88,6 +89,7 @@ async function fetchFotmobLiveRefresh(baseMatch: LiveMatch): Promise<LiveMatch |
       ...baseMatch.statistics,
       ...statistics,
     },
+    events: events.length > 0 ? events : baseMatch.events,
   };
 }
 
@@ -230,8 +232,9 @@ function parseFotmobLocalTimestamp(value: unknown) {
 
 function mapFotmobStatus(status: FotmobStatus | undefined, minute: number | null): MatchStatus {
   const reason = String(status?.reason?.short ?? status?.reason?.long ?? "").toUpperCase();
+  const secondHalfStarted = parseFotmobLocalTimestamp(status?.halfs?.secondHalfStarted);
   if (status?.finished || ["FT", "AET", "PEN"].includes(reason)) return "finished";
-  if (reason === "HT") return "half_time";
+  if (reason === "HT" || (status?.started && minute === 45 && !Number.isFinite(secondHalfStarted))) return "half_time";
   if (typeof minute === "number" && minute > 90 && status?.started) return "extra_time";
   if (reason === "ET") return "extra_time";
   if (["P", "PENS", "PENALTIES"].includes(reason)) return "penalties";
@@ -242,14 +245,16 @@ function mapFotmobStatus(status: FotmobStatus | undefined, minute: number | null
 
 function mapFotmobPhase(status: FotmobStatus | undefined, minute: number | null): MatchPhase {
   const reason = String(status?.reason?.short ?? status?.reason?.long ?? "").toUpperCase();
+  const secondHalfStarted = parseFotmobLocalTimestamp(status?.halfs?.secondHalfStarted);
   if (["FT", "AET", "PEN"].includes(reason) || status?.finished) return "full_time";
-  if (reason === "HT") return "half_time";
+  if (reason === "HT" || (status?.started && minute === 45 && !Number.isFinite(secondHalfStarted))) return "half_time";
   if (reason === "1H") return "first_half";
   if (reason === "2H") return "second_half";
   if (typeof minute === "number" && minute > 90 && status?.started) return "extra_time";
   if (reason === "ET") return "extra_time";
   if (["P", "PENS", "PENALTIES"].includes(reason)) return "penalties";
-  return status?.started ? "second_half" : "pre_match";
+  if (typeof minute === "number") return minute >= 46 ? "second_half" : "first_half";
+  return status?.started ? "first_half" : "pre_match";
 }
 
 function mapFotmobStatistics(details: unknown): MatchStatistics {
@@ -279,6 +284,113 @@ function mapFotmobStatistics(details: unknown): MatchStatistics {
     homeOffsides: fotmobStat(rows, ["offsides", "offside"]),
     awayOffsides: fotmobStat(rows, ["offsides", "offside"], "away"),
   });
+}
+
+function mapFotmobEvents(details: unknown, providerMatchId: string, baseMatch: LiveMatch): MatchEvent[] {
+  const events = getNestedValue(details, ["content", "matchFacts", "events", "events"]);
+  if (!Array.isArray(events)) return [];
+
+  return events
+    .map((event, index) => mapFotmobEvent(event, providerMatchId, baseMatch, index))
+    .filter((event): event is MatchEvent => Boolean(event))
+    .sort(
+      (a, b) =>
+        (a.sequenceNumber ?? 0) - (b.sequenceNumber ?? 0) ||
+        a.minute - b.minute ||
+        (a.stoppageMinute ?? 0) - (b.stoppageMinute ?? 0),
+    );
+}
+
+function mapFotmobEvent(event: unknown, providerMatchId: string, baseMatch: LiveMatch, index: number): MatchEvent | null {
+  if (!event || typeof event !== "object") return null;
+  const row = event as Record<string, unknown>;
+  const eventType = mapFotmobEventType(row);
+  if (!eventType) return null;
+
+  const isHome = row.isHome === true;
+  const isAway = row.isHome === false;
+  const playerName =
+    stringValue(row.fullName) ??
+    stringValue(row.nameStr) ??
+    stringValue(getNestedValue(row, ["player", "name"])) ??
+    parseFotmobSubstitutedOutPlayer(row);
+
+  return {
+    id: `fotmob:${providerMatchId}:${row.eventId ?? row.reactKey ?? index}:${row.type ?? ""}`,
+    externalEventId: `fotmob:${providerMatchId}:${row.eventId ?? row.reactKey ?? index}:${row.type ?? ""}`,
+    matchId: baseMatch.matchId,
+    minute: Number(row.time) || 0,
+    stoppageMinute: Number.isFinite(Number(row.overloadTime)) ? Number(row.overloadTime) || null : null,
+    sequenceNumber: index + 1,
+    eventType,
+    teamName: isHome ? baseMatch.homeTeam : isAway ? baseMatch.awayTeam : null,
+    playerName,
+    assistPlayerName: stringValue(row.assistInput) ?? parseFotmobAssist(row.assistStr),
+    substitutePlayerName: parseFotmobSubstitutePlayer(row),
+    description: stringValue(row.goalDescription) ?? stringValue(row.card) ?? stringValue(row.type),
+    createdAt: baseMatch.startedAt ?? new Date().toISOString(),
+  };
+}
+
+function mapFotmobEventType(event: Record<string, unknown>): MatchEventType | null {
+  const type = String(event.type ?? "").toLowerCase();
+  const card = String(event.card ?? "").toLowerCase();
+  const goalDescription = String(event.goalDescription ?? event.suffix ?? "").toLowerCase();
+  const combined = `${type} ${goalDescription}`;
+
+  if (combined.includes("shootout") || combined.includes("shoot-out")) {
+    if (combined.includes("miss") || combined.includes("saved")) return "penalty_shootout_miss";
+    return "penalty_shootout_goal";
+  }
+  if (type.includes("injur")) return "injury";
+  if (type === "goal") {
+    if (event.ownGoal) return "own_goal";
+    if (goalDescription.includes("pen") || goalDescription.includes("penalty")) return "penalty_goal";
+    return "goal";
+  }
+  if (type === "card") {
+    if (card.includes("second")) return "second_yellow";
+    if (card.includes("red")) return "red_card";
+    if (card.includes("yellow")) return "yellow_card";
+  }
+  if (type === "substitution") return "substitution";
+  if (type === "var") return "var";
+  return null;
+}
+
+function parseFotmobAssist(value: unknown) {
+  const match = String(value ?? "").match(/assist\s+by\s+(.+)$/i);
+  return match?.[1]?.trim() ?? null;
+}
+
+function parseFotmobSubstitutePlayer(event: Record<string, unknown>) {
+  if (String(event.type ?? "").toLowerCase() !== "substitution") return null;
+
+  return (
+    stringValue(getNestedValue(event, ["swap", "0", "name"])) ??
+    stringValue(getNestedValue(event, ["swap", "0", "fullName"])) ??
+    stringValue(getNestedValue(event, ["substitute", "name"])) ??
+    stringValue(getNestedValue(event, ["substitute", "fullName"])) ??
+    stringValue(getNestedValue(event, ["playerIn", "name"])) ??
+    stringValue(getNestedValue(event, ["playerIn", "fullName"])) ??
+    stringValue(getNestedValue(event, ["onPlayer", "name"])) ??
+    stringValue(getNestedValue(event, ["onPlayer", "fullName"])) ??
+    stringValue(getNestedValue(event, ["swap", "name"])) ??
+    stringValue(getNestedValue(event, ["swap", "fullName"]))
+  );
+}
+
+function parseFotmobSubstitutedOutPlayer(event: Record<string, unknown>) {
+  if (String(event.type ?? "").toLowerCase() !== "substitution") return null;
+
+  return (
+    stringValue(getNestedValue(event, ["swap", "1", "name"])) ??
+    stringValue(getNestedValue(event, ["swap", "1", "fullName"])) ??
+    stringValue(getNestedValue(event, ["playerOut", "name"])) ??
+    stringValue(getNestedValue(event, ["playerOut", "fullName"])) ??
+    stringValue(getNestedValue(event, ["offPlayer", "name"])) ??
+    stringValue(getNestedValue(event, ["offPlayer", "fullName"]))
+  );
 }
 
 type FotmobStatRow = {
@@ -378,6 +490,12 @@ function firstFiniteNumber(...values: unknown[]) {
   }
 
   return null;
+}
+
+function stringValue(value: unknown) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 function getNestedValue(value: unknown, path: string[]) {

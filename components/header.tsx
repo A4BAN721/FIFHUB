@@ -1,14 +1,14 @@
 "use client";
 
 import { Moon, Sun } from "lucide-react";
-import { useTheme } from "next-themes";
 import { useLanguage } from "./language-provider";
 import { LanguageSelector } from "./language-selector";
+import { useAppTheme } from "./theme-provider";
 import { Button } from "@/components/ui/button";
 
 export function Header() {
   const { t } = useLanguage();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme } = useAppTheme();
   const activeTheme = theme === "light" ? "light" : "dark";
   const nextTheme = activeTheme === "dark" ? "light" : "dark";
 

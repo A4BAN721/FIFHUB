@@ -12,7 +12,7 @@ import { getFifaAbbreviation, getTeamDisplayName } from "@/lib/team-display";
 import { getMatchFixtures, getNations } from "@/lib/supabase/data";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useLanguage } from "./language-provider";
-import { useTheme } from "next-themes";
+import { useAppTheme } from "./theme-provider";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { LiveMatchCard } from "@/components/live-match";
@@ -43,7 +43,7 @@ export function MatchFixtures({
   showFloatingControls = false,
 }: MatchFixturesProps) {
   const { t, language } = useLanguage();
-  const { resolvedTheme } = useTheme();
+  const { resolvedTheme } = useAppTheme();
   const isMobile = useIsMobile();
   const shouldAnimate = !isMobile;
   const [search, setSearch] = useState(initialSearch);
@@ -128,6 +128,11 @@ export function MatchFixtures({
       }
       grouped[match.stage].push(match);
     });
+
+    for (const [stage, matches] of Object.entries(grouped)) {
+      grouped[stage] = sortStageMatchesForDisplay(stage, matches);
+    }
+
     return grouped;
   }, [filteredMatches]);
 
@@ -446,9 +451,6 @@ export function MatchFixtures({
             </button>
           ))}
         </div>
-        <p className="text-center text-sm text-muted-foreground">
-          {t("clickNationToViewSquad")}
-        </p>
       </div>
     </div>
   );
@@ -592,10 +594,7 @@ export function MatchFixtures({
                                     )}
                                   </div>
 
-                                  {/* VS */}
-                                  <div className="text-center text-[9px] font-bold text-muted-foreground sm:text-xs">
-                                    {t("vs")}
-                                  </div>
+                                  <div aria-hidden="true" />
 
                                   {/* Away Team */}
                                   <div className="min-w-0 flex-1">
@@ -770,10 +769,7 @@ export function MatchFixtures({
                               )}
                             </div>
 
-                            {/* VS */}
-                            <div className="text-center text-[9px] font-bold text-muted-foreground sm:text-xs">
-                              {t("vs")}
-                            </div>
+                            <div aria-hidden="true" />
 
                             {/* Away Team */}
                             <div className="min-w-0 flex-1">
@@ -858,6 +854,25 @@ function getAutoScrollTarget(matches: Match[]) {
   });
 
   return startedMatches[startedMatches.length - 1] ?? matches[0] ?? null;
+}
+
+function sortStageMatchesForDisplay(stage: string, matches: Match[]) {
+  if (stage !== "QUARTER-FINALS") return matches;
+
+  return [...matches].sort((a, b) => {
+    const aKickoff = parseFixtureDateTime(a.date, a.time);
+    const bKickoff = parseFixtureDateTime(b.date, b.time);
+
+    if (Number.isFinite(aKickoff) && Number.isFinite(bKickoff) && aKickoff !== bKickoff) {
+      return aKickoff - bKickoff;
+    }
+
+    if (Number.isFinite(aKickoff) !== Number.isFinite(bKickoff)) {
+      return Number.isFinite(aKickoff) ? -1 : 1;
+    }
+
+    return Number(a.id) - Number(b.id);
+  });
 }
 
 function parseFixtureDateTime(date: string, time: string) {

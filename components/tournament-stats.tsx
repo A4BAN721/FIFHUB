@@ -6,7 +6,6 @@ import { NationFlag } from "@/components/nation-flag";
 import { normalizeCountryName } from "@/lib/country-utils";
 import { createClient, getSupabaseConfig } from "@/lib/supabase/client";
 import { getNations } from "@/lib/supabase/data";
-import { completedMatchData } from "@/lib/live-data/completed-matches";
 import { nations as fallbackNations } from "@/lib/world-cup-data";
 import type { Nation } from "@/lib/world-cup-data";
 import type { CSSProperties } from "react";
@@ -57,6 +56,7 @@ type FotmobStatRow = {
 type StatCategory = "goals" | "assists" | "ga" | "minutes" | "distance" | "rating" | "yellow" | "red" | "offsides";
 
 type Leader = {
+  rowKey?: string;
   playerName: string;
   teamName: string | null;
   value: number;
@@ -84,13 +84,14 @@ const categories: Array<{ value: StatCategory; label: string; heading: string }>
 ];
 
 export function TournamentStats() {
-  const [events, setEvents] = useState<EventRow[]>(() => getFallbackEventRows());
+  const [events, setEvents] = useState<EventRow[]>([]);
   const [lineupRows, setLineupRows] = useState<LineupRow[]>([]);
   const [fotmobRatingRows, setFotmobRatingRows] = useState<FotmobStatRow[]>([]);
   const [fotmobMinutesRows, setFotmobMinutesRows] = useState<FotmobStatRow[]>([]);
   const [fifaDistanceRows, setFifaDistanceRows] = useState<FotmobStatRow[]>([]);
   const [fifaOffsidesRows, setFifaOffsidesRows] = useState<FotmobStatRow[]>([]);
   const [nations, setNations] = useState<Nation[]>(fallbackNations);
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
@@ -128,14 +129,16 @@ export function TournamentStats() {
         if (!isMounted) return;
 
         const databaseRows = preferFotmobEventRows(payload.events ?? []);
-        setEvents(databaseRows.length > 0 ? databaseRows : getFallbackEventRows());
+        setEvents(databaseRows);
         setLineupRows(payload.lineupRows ?? []);
         setFotmobRatingRows(payload.fotmobRatingRows ?? []);
         setFotmobMinutesRows(payload.fotmobMinutesRows ?? []);
         setFifaDistanceRows(payload.fifaDistanceRows ?? []);
         setFifaOffsidesRows(payload.fifaOffsidesRows ?? []);
+        setIsLoadingStats(false);
       } catch (error) {
         if (!isMounted) return;
+        setIsLoadingStats(false);
         console.warn("Failed to load tournament stats.", error);
       }
     };
@@ -187,14 +190,14 @@ export function TournamentStats() {
   }, [events, fifaDistanceRows, fifaOffsidesRows, fotmobMinutesRows, fotmobRatingRows, lineupRows, playerLookup]);
 
   return (
-    <div className="mx-auto max-w-5xl px-2 py-4 sm:px-4">
+    <div className="mx-auto max-w-7xl px-2 py-4 sm:px-4">
       <Tabs defaultValue="goals" className="w-full">
-        <TabsList className="mb-4 h-auto w-full justify-start overflow-x-auto rounded-none border-b border-border/50 bg-transparent p-0">
+        <TabsList className="mb-4 grid h-auto w-full grid-cols-2 rounded-none border-b border-border/50 bg-transparent p-0 sm:grid-cols-3 xl:grid-cols-9">
           {categories.map((category) => (
             <TabsTrigger
               key={category.value}
               value={category.value}
-              className="rounded-none border-b-2 border-transparent bg-transparent px-4 py-3 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+              className="min-h-12 whitespace-normal rounded-none border-b-2 border-transparent bg-transparent px-2 py-2 text-center text-xs leading-tight data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none sm:text-sm xl:px-3"
             >
               {category.label}
             </TabsTrigger>
@@ -206,6 +209,7 @@ export function TournamentStats() {
               leaders={leaders[category.value]}
               heading={category.heading}
               nations={nations}
+              isLoading={isLoadingStats}
               formatValue={category.value === "rating" ? formatRating : undefined}
             />
           </TabsContent>
@@ -219,11 +223,13 @@ function Leaderboard({
   leaders,
   heading,
   nations,
+  isLoading,
   formatValue = formatInteger,
 }: {
   leaders: Leader[];
   heading: string;
   nations: Nation[];
+  isLoading: boolean;
   formatValue?: (value: number) => string;
 }) {
   return (
@@ -234,10 +240,12 @@ function Leaderboard({
         <span className="text-right">{heading}</span>
       </div>
       <div>
-        {leaders.length > 0 ? (
-          leaders.map((leader) => (
+        {isLoading ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">Loading latest stats...</p>
+        ) : leaders.length > 0 ? (
+          leaders.map((leader, index) => (
             <LeaderRow
-              key={`${leader.playerName}-${leader.teamName}`}
+              key={leader.rowKey ?? `${leader.rank}-${leader.playerName}-${leader.teamName ?? "unknown"}-${index}`}
               leader={leader}
               nations={nations}
               formatValue={formatValue}
@@ -441,6 +449,12 @@ function buildFotmobStatLeaders(
     previousRank = rank;
 
     return {
+      rowKey: [
+        row.id ? `player-id:${row.id}` : `player-name:${normalizeName(row.playerName)}`,
+        row.teamId ? `team-id:${row.teamId}` : `team-name:${normalizeName(teamName ?? "")}`,
+        `rank:${rank}`,
+        `value:${row.value}`,
+      ].join("::"),
       playerName: row.playerName,
       teamName,
       value: row.value,
@@ -542,7 +556,7 @@ function formatInteger(value: number) {
 }
 
 function formatRating(value: number) {
-  return value.toFixed(1);
+  return value.toFixed(2);
 }
 
 function preferFotmobEventRows(rows: EventRow[]) {
@@ -579,20 +593,6 @@ function addLeaderValueOnce(
   if (countedEvents.has(key)) return;
   countedEvents.add(key);
   addLeaderValue(totals, playerName, teamName, 1);
-}
-
-function getFallbackEventRows(): EventRow[] {
-  return Object.values(completedMatchData).flatMap((match) =>
-    match.events.map((event) => ({
-      event_type: event.eventType,
-      match_id: match.matchId,
-      provider: "static",
-      team_name: event.teamName ?? null,
-      player_name: event.playerName ?? null,
-      assist_player_name: event.assistPlayerName ?? null,
-      minute: event.minute ?? null,
-    }))
-  );
 }
 
 function buildPlayerLookup(nations: Nation[], lineupRows: LineupRow[]) {

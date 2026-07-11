@@ -71,10 +71,12 @@ export function useLiveMatch(
 
       if (!base) return current;
 
+      const status = normalizeMatchStatus(state.status);
+
       return chooseFreshestMatch(base, {
         ...base,
-        status: normalizeMatchStatus(state.status),
-        phase: normalizeMatchPhase(state.period),
+        status,
+        phase: normalizeRealtimePhase(status, state.period),
         homeScore: state.homeScore,
         awayScore: state.awayScore,
         homePenaltyScore: state.homePenaltyScore,
@@ -143,6 +145,15 @@ function createLiveMatchShell(matchId: string, homeTeam: string, awayTeam: strin
     statistics: {},
     events: [],
   };
+}
+
+function normalizeRealtimePhase(status: LiveMatch["status"], period?: string | null): LiveMatch["phase"] {
+  const normalizedPhase = normalizeMatchPhase(period);
+  if (status === "half_time") return normalizedPhase === "extra_time" ? "extra_time" : "half_time";
+  if (status === "finished") return "full_time";
+  if (status === "extra_time") return "extra_time";
+  if (status === "penalties") return "penalties";
+  return normalizedPhase;
 }
 
 function chooseFreshestMatch(current: LiveMatch | null, incoming: LiveMatch): LiveMatch {

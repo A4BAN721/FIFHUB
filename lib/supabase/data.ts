@@ -47,7 +47,7 @@ const nationColorOverrides: Record<string, Nation["jerseyColors"]> = {
   ghana: { primary: "#FFFFFF", secondary: "#FCD116", accent: "#006B3F" },
   jordan: { primary: "#FFFFFF", secondary: "#CE1126", accent: "#000000" },
   "south-africa": { primary: "#FFB612", secondary: "#007A4D", accent: "#000000" },
-  spain: { primary: "#AA151B", secondary: "#F1BF00", accent: "#002B5C" },
+  spain: { primary: "#FF0000", secondary: "#F1BF00", accent: "#002B5C" },
   sweden: { primary: "#FECC00", secondary: "#006AA7", accent: "#FFFFFF" },
   usa: { primary: "#FFFFFF", secondary: "#BF0A30", accent: "#002868" },
 };

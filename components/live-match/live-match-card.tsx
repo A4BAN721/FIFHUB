@@ -233,7 +233,7 @@ function CompactScoreOverlay({ liveMatch, fixtureStage }: { liveMatch: LiveMatch
             </span>
           )}
           {timerLabel && isHalfTimeTimer && (
-            <span className="mt-0.5 rounded-full border border-zinc-200 bg-white/95 px-0.5 py-0 text-[7px] font-black uppercase tabular-nums leading-tight tracking-[0.08em] text-red-600 shadow-md dark:border-zinc-700 dark:bg-zinc-950/95 sm:px-1 sm:text-[8px] sm:tracking-[0.1em]">
+            <span className="mt-0.5 rounded-full border border-zinc-200 bg-white/95 px-1 py-0.5 text-[8px] font-black uppercase tabular-nums leading-tight tracking-[0.08em] text-red-600 shadow-md dark:border-zinc-700 dark:bg-zinc-950/95 sm:px-1.5 sm:text-[9px] sm:tracking-[0.1em]">
               {timerLabel}
             </span>
           )}
@@ -401,6 +401,7 @@ function MatchDetailsTabs({
 function getStatusLabel(liveMatch: LiveMatch) {
   if (isFinalMatchState(liveMatch)) return "FT";
   if (liveMatch.status === "penalties" || liveMatch.phase === "penalties") return "PEN";
+  if (isExtraTimeHalfTime(liveMatch)) return "ET HT";
   if (liveMatch.status === "half_time" || liveMatch.phase === "half_time") return "HT";
   if (liveMatch.status === "extra_time" || liveMatch.phase === "extra_time") {
     return `ET ${formatMatchMinute(liveMatch.minute, liveMatch.stoppageMinute)}`;
@@ -417,6 +418,7 @@ function getStatusLabel(liveMatch: LiveMatch) {
 function getPlayPeriodLabel(liveMatch: LiveMatch) {
   if (isFinalMatchState(liveMatch)) return "Full-time";
   if (liveMatch.status === "penalties" || liveMatch.phase === "penalties") return "Penalty shoot-out";
+  if (isExtraTimeHalfTime(liveMatch)) return "Extra-time half-time";
   if (liveMatch.status === "half_time" || liveMatch.phase === "half_time") {
     return (liveMatch.minute ?? 45) >= 90 ? "End of 90 minutes" : "Half-time";
   }
@@ -440,6 +442,7 @@ function getExtraTimeStageLabel(minute?: number | null) {
 
 function getTimerLabel(liveMatch: LiveMatch) {
   if (!isMatchInProgress(liveMatch)) return "";
+  if (isExtraTimeHalfTime(liveMatch)) return "ET Half Time";
   if (liveMatch.status === "half_time" || liveMatch.phase === "half_time") return "Half Time";
   if (liveMatch.status === "penalties" || liveMatch.phase === "penalties") return "PEN";
   if (liveMatch.status === "extra_time" || liveMatch.phase === "extra_time") {
@@ -465,6 +468,10 @@ function withDisplayClock(liveMatch: LiveMatch, now: number, fixture: Match): Li
 
 function sanitizeMatchClock(liveMatch: LiveMatch): LiveMatch {
   if (liveMatch.status === "half_time" || liveMatch.phase === "half_time") {
+    if (isExtraTimeHalfTime(liveMatch)) {
+      return extraTimeHalfTimeClock(liveMatch);
+    }
+
     return {
       ...liveMatch,
       status: "half_time",
@@ -492,6 +499,19 @@ function sanitizeMatchClock(liveMatch: LiveMatch): LiveMatch {
 
 function estimateDisplayClock(liveMatch: LiveMatch, now: number, fixture: Match) {
   if (!isMatchInProgress(liveMatch)) return null;
+
+  if (liveMatch.status === "half_time" || liveMatch.phase === "half_time") {
+    if (isExtraTimeHalfTime(liveMatch)) {
+      return extraTimeHalfTimeClock(liveMatch);
+    }
+
+    return {
+      status: "half_time" as const,
+      phase: "half_time" as const,
+      minute: 45,
+      stoppageMinute: null,
+    };
+  }
 
   if (liveMatch.status === "penalties" || liveMatch.phase === "penalties") {
     return typeof liveMatch.minute === "number" ? capInProgressClock(liveMatch) : null;
@@ -542,16 +562,11 @@ function fixtureClock(liveMatch: LiveMatch, now: number, kickoffTime: number) {
   const elapsed = Math.floor((now - kickoffTime) / 60_000);
   if (elapsed < 0) return null;
 
-  if (elapsed < 45) {
-    return {
-      status: "live" as const,
-      phase: "first_half" as const,
-      minute: Math.max(1, elapsed + 1),
-      stoppageMinute: null,
-    };
-  }
+  if (liveMatch.phase === "half_time" || liveMatch.status === "half_time") {
+    if (isExtraTimeHalfTime(liveMatch)) {
+      return extraTimeHalfTimeClock(liveMatch);
+    }
 
-  if (elapsed < 60) {
     return {
       status: "half_time" as const,
       phase: "half_time" as const,
@@ -560,16 +575,21 @@ function fixtureClock(liveMatch: LiveMatch, now: number, kickoffTime: number) {
     };
   }
 
-  if (elapsed < 105) {
+  if (liveMatch.phase === "second_half") {
     return {
       status: "live" as const,
       phase: "second_half" as const,
-      minute: Math.min(90, Math.max(46, elapsed - 14)),
-      stoppageMinute: null,
+      minute: Math.min(90, Math.max(46, liveMatch.minute ?? 46)),
+      stoppageMinute: capStoppageMinute(liveMatch.stoppageMinute),
     };
   }
 
-  return capInProgressClock(liveMatch);
+  return {
+    status: "live" as const,
+    phase: "first_half" as const,
+    minute: Math.min(45, Math.max(1, liveMatch.minute ?? elapsed + 1)),
+    stoppageMinute: capStoppageMinute(liveMatch.stoppageMinute),
+  };
 }
 
 function providerClock(
@@ -591,8 +611,22 @@ function providerClock(
   };
 }
 
+function extraTimeHalfTimeClock(liveMatch: LiveMatch) {
+  return {
+    ...liveMatch,
+    status: "half_time" as const,
+    phase: "extra_time" as const,
+    minute: Math.min(120, Math.max(105, liveMatch.minute ?? 105)),
+    stoppageMinute: null,
+  };
+}
+
 function phaseFallbackClock(liveMatch: LiveMatch) {
   if (liveMatch.status === "half_time" || liveMatch.phase === "half_time") {
+    if (isExtraTimeHalfTime(liveMatch)) {
+      return extraTimeHalfTimeClock(liveMatch);
+    }
+
     return {
       status: "half_time" as const,
       phase: "half_time" as const,
@@ -610,11 +644,20 @@ function phaseFallbackClock(liveMatch: LiveMatch) {
     };
   }
 
-  if (liveMatch.phase === "second_half" || liveMatch.status === "live") {
+  if (liveMatch.phase === "second_half") {
     return {
       status: "live" as const,
       phase: "second_half" as const,
       minute: Math.min(90, Math.max(46, liveMatch.minute ?? 46)),
+      stoppageMinute: capStoppageMinute(liveMatch.stoppageMinute),
+    };
+  }
+
+  if (liveMatch.status === "live") {
+    return {
+      status: "live" as const,
+      phase: "first_half" as const,
+      minute: Math.min(45, Math.max(1, liveMatch.minute ?? 1)),
       stoppageMinute: capStoppageMinute(liveMatch.stoppageMinute),
     };
   }
@@ -663,7 +706,7 @@ function createScheduledLiveMatch(match: Match, now: number, existingLiveMatch?:
   return {
     matchId: match.id,
     status: "live",
-    phase: elapsed < 45 ? "first_half" : elapsed < 60 ? "half_time" : "second_half",
+    phase: "first_half",
     homeTeam: match.homeTeam,
     awayTeam: match.awayTeam,
     homeScore: 0,
@@ -695,6 +738,13 @@ function isMatchInProgress(liveMatch: LiveMatch) {
 
 function shouldShowLiveIndicator(liveMatch: LiveMatch) {
   return isMatchInProgress(liveMatch);
+}
+
+function isExtraTimeHalfTime(liveMatch: LiveMatch) {
+  return (
+    liveMatch.status === "half_time" &&
+    (liveMatch.phase === "extra_time" || (typeof liveMatch.minute === "number" && liveMatch.minute >= 105))
+  );
 }
 
 function getPenaltyShootoutScore(liveMatch: LiveMatch) {
@@ -902,6 +952,9 @@ function TeamEventSummary({ liveMatch }: { liveMatch: LiveMatch }) {
       ["goal", "penalty_goal", "own_goal"].includes(event.eventType),
     ),
   );
+  const substitutions = sortEventsByMinute(
+    liveMatch.events.filter((event) => event.eventType === "substitution"),
+  );
   const redCards = liveMatch.events.filter((event) =>
     ["red_card", "second_yellow"].includes(event.eventType),
   );
@@ -911,12 +964,14 @@ function TeamEventSummary({ liveMatch }: { liveMatch: LiveMatch }) {
       <TeamEventColumn
         teamName={liveMatch.homeTeam}
         goals={sortEventsByMinute(goals.filter((event) => isSameTeam(event.teamName, liveMatch.homeTeam)))}
+        substitutions={substitutions.filter((event) => isSameTeam(event.teamName, liveMatch.homeTeam))}
         redCards={redCards.filter((event) => isSameTeam(event.teamName, liveMatch.homeTeam))}
         align="left"
       />
       <TeamEventColumn
         teamName={liveMatch.awayTeam}
         goals={sortEventsByMinute(goals.filter((event) => isSameTeam(event.teamName, liveMatch.awayTeam)))}
+        substitutions={substitutions.filter((event) => isSameTeam(event.teamName, liveMatch.awayTeam))}
         redCards={redCards.filter((event) => isSameTeam(event.teamName, liveMatch.awayTeam))}
         align="right"
       />
@@ -927,11 +982,13 @@ function TeamEventSummary({ liveMatch }: { liveMatch: LiveMatch }) {
 function TeamEventColumn({
   teamName,
   goals,
+  substitutions,
   redCards,
   align,
 }: {
   teamName: string;
   goals: MatchEvent[];
+  substitutions: MatchEvent[];
   redCards: MatchEvent[];
   align: "left" | "right";
 }) {
@@ -961,7 +1018,30 @@ function TeamEventColumn({
           ))}
         </div>
       )}
+      {substitutions.length > 0 && (
+        <div className="space-y-1">
+          {substitutions.map((substitution) => (
+            <SubstitutionRow key={substitution.id} substitution={substitution} align={align} />
+          ))}
+        </div>
+      )}
     </div>
+  );
+}
+
+function SubstitutionRow({ substitution, align }: { substitution: MatchEvent; align: "left" | "right" }) {
+  const playerIn = substitution.substitutePlayerName ?? substitution.assistPlayerName ?? "Player on";
+  const playerOut = substitution.playerName ?? "Player off";
+
+  return (
+    <p
+      className={`text-xs font-semibold leading-snug text-muted-foreground ${
+        align === "right" ? "text-right" : "text-left"
+      }`}
+    >
+      <span className="font-black text-emerald-600">IN</span> {playerIn}
+      <span className="mx-1 font-black text-red-500">OUT</span> {playerOut} {formatMinute(substitution)}
+    </p>
   );
 }
 

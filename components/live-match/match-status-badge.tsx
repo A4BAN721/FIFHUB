@@ -47,6 +47,7 @@ function getStatusLabel(
   stoppageMinute?: number | null
 ) {
   if (status === "finished" || phase === "full_time") return "FT";
+  if (isExtraTimeHalfTime(status, phase, minute)) return "ET HT";
   if (status === "half_time" || phase === "half_time") return (minute ?? 45) >= 90 ? "End 90" : "HT";
   if (status === "extra_time" || phase === "extra_time") {
     return `${extraTimeBadgeLabel(minute)} ${formatMatchMinute(minute, stoppageMinute)}`;
@@ -58,6 +59,10 @@ function getStatusLabel(
   if (status === "interrupted") return "Interrupted";
   if (status === "live") return `LIVE ${formatMatchMinute(minute, stoppageMinute)}`;
   return "Scheduled";
+}
+
+function isExtraTimeHalfTime(status: MatchStatus, phase: MatchPhase, minute?: number | null) {
+  return status === "half_time" && (phase === "extra_time" || (typeof minute === "number" && minute >= 105));
 }
 
 function extraTimeBadgeLabel(minute?: number | null) {

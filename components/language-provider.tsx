@@ -56,7 +56,6 @@ const translationOverrides: Record<Language, Record<string, string>> = {
     matchday: "Matchday",
     matches: "Matches",
     vs: "VS",
-    clickNationToViewSquad: "Click a nation to view their squad",
     groupTable: "Group Table",
     groupTableDescription: "Wins, draws, losses, goals, goal difference, and points by group",
     knockoutStage: "Knockout Stage",

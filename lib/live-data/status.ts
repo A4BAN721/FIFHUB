@@ -42,6 +42,13 @@ export function normalizeMatchPhase(phase?: string | null): MatchPhase {
 
   if (value === "in_progress") return "second_half";
   if (value === "1h" || value === "first_half") return "first_half";
+  if (
+    value === "extra_time_half_time" ||
+    value === "extra_time_halftime" ||
+    value === "et_half_time" ||
+    value === "et_halftime" ||
+    value === "extra_time_interval"
+  ) return "extra_time";
   if (value === "half_time" || value === "halftime" || value === "ht") return "half_time";
   if (value === "2h" || value === "second_half") return "second_half";
   if (value === "extra_time" || value === "et") return "extra_time";

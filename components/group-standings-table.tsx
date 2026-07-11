@@ -52,6 +52,12 @@ type NationHoverStyle = CSSProperties & {
   "--nation-primary": string;
 };
 
+type ConnectorPath = {
+  d: string;
+  matchId: string;
+  outcome?: "winner" | "loser";
+};
+
 type ScoreboardApiMatch = {
   id: string;
   matchDate: string;
@@ -93,6 +99,8 @@ type KnockoutTeam = {
 type KnockoutMatch = {
   matchId?: string;
   stage?: string;
+  date?: string;
+  time?: string;
   label: string;
   home: KnockoutTeam;
   away: KnockoutTeam;
@@ -124,20 +132,20 @@ const knockoutRoundOf32Ids = [
 ];
 
 const knockoutProgression = {
-  "89": ["75", "78"],
-  "90": ["73", "76"],
-  "91": ["84", "83"],
-  "92": ["82", "81"],
-  "93": ["74", "77"],
-  "94": ["79", "80"],
+  "89": ["73", "76"],
+  "90": ["75", "78"],
+  "91": ["74", "77"],
+  "92": ["79", "80"],
+  "93": ["84", "83"],
+  "94": ["82", "81"],
   "95": ["87", "86"],
   "96": ["85", "88"],
   "97": ["89", "90"],
   "98": ["91", "92"],
   "99": ["93", "94"],
   "100": ["95", "96"],
-  "101": ["97", "98"],
-  "102": ["99", "100"],
+  "101": ["97", "99"],
+  "102": ["98", "100"],
   "104": ["101", "102"],
 } satisfies Record<string, [string, string]>;
 
@@ -151,39 +159,23 @@ const leftKnockoutPlacements = [
     rowSpan: 2,
     matchId: knockoutRoundOf32Ids[index],
   })),
-  ...Array.from({ length: 4 }, (_, index) => ({
-    label: `Round of 16 ${index + 1}`,
-    column: 2,
-    rowStart: index * 4 + 1,
-    rowSpan: 4,
-    matchId: String(89 + index),
-  })),
-  ...Array.from({ length: 2 }, (_, index) => ({
-    label: `Quarter Finals ${index + 1}`,
-    column: 3,
-    rowStart: index * 8 + 1,
-    rowSpan: 8,
-    matchId: String(97 + index),
-  })),
+  { label: "Round of 16 2", column: 2, rowStart: 1, rowSpan: 4, matchId: "90" },
+  { label: "Round of 16 1", column: 2, rowStart: 5, rowSpan: 4, matchId: "89" },
+  { label: "Round of 16 5", column: 2, rowStart: 9, rowSpan: 4, matchId: "93" },
+  { label: "Round of 16 6", column: 2, rowStart: 13, rowSpan: 4, matchId: "94" },
+  { label: "Quarter Finals 1", column: 3, rowStart: 1, rowSpan: 8, matchId: "97" },
+  { label: "Quarter Finals 3", column: 3, rowStart: 9, rowSpan: 8, matchId: "99" },
   { label: "Semi Finals 1", column: 4, rowStart: 1, rowSpan: 16, matchId: "101" },
 ];
 
 const rightKnockoutPlacements = [
   { label: "Semi Finals 2", column: 6, rowStart: 1, rowSpan: 16, matchId: "102" },
-  ...Array.from({ length: 2 }, (_, index) => ({
-    label: `Quarter Finals ${index + 3}`,
-    column: 7,
-    rowStart: index * 8 + 1,
-    rowSpan: 8,
-    matchId: String(99 + index),
-  })),
-  ...Array.from({ length: 4 }, (_, index) => ({
-    label: `Round of 16 ${index + 5}`,
-    column: 8,
-    rowStart: index * 4 + 1,
-    rowSpan: 4,
-    matchId: String(93 + index),
-  })),
+  { label: "Quarter Finals 2", column: 7, rowStart: 1, rowSpan: 8, matchId: "98" },
+  { label: "Quarter Finals 4", column: 7, rowStart: 9, rowSpan: 8, matchId: "100" },
+  { label: "Round of 16 3", column: 8, rowStart: 1, rowSpan: 4, matchId: "91" },
+  { label: "Round of 16 4", column: 8, rowStart: 5, rowSpan: 4, matchId: "92" },
+  { label: "Round of 16 7", column: 8, rowStart: 9, rowSpan: 4, matchId: "95" },
+  { label: "Round of 16 8", column: 8, rowStart: 13, rowSpan: 4, matchId: "96" },
   ...Array.from({ length: 8 }, (_, index) => ({
     label: `Round of 32 ${index + 9}`,
     column: 9,
@@ -206,19 +198,19 @@ const mobileKnockoutPlacements = [
     rowSpan: 2,
     matchId: knockoutRoundOf32Ids[index],
   })),
-  ...Array.from({ length: 8 }, (_, index) => ({
+  ...["90", "89", "93", "94", "91", "92", "95", "96"].map((matchId, index) => ({
     label: `Round of 16 ${index + 1}`,
     column: 2,
     rowStart: index * 4 + 1,
     rowSpan: 4,
-    matchId: String(89 + index),
+    matchId,
   })),
-  ...Array.from({ length: 4 }, (_, index) => ({
+  ...["97", "99", "98", "100"].map((matchId, index) => ({
     label: `Quarter Finals ${index + 1}`,
     column: 3,
     rowStart: index * 8 + 1,
     rowSpan: 8,
-    matchId: String(97 + index),
+    matchId,
   })),
   ...Array.from({ length: 2 }, (_, index) => ({
     label: `Semi Finals ${index + 1}`,
@@ -394,11 +386,18 @@ function buildKnockoutMatch(
   const match = placement.matchId ? matchById.get(placement.matchId) : undefined;
   const score = match ? getMatchScore(match) : null;
   const outcome = getKnockoutOutcome(match);
+  const matchMeta = match
+    ? {
+        stage: match.stage,
+        date: match.date,
+        time: match.time,
+      }
+    : {};
 
   if (match && match.homeTeam !== "TBD" && match.awayTeam !== "TBD") {
     return {
       matchId: placement.matchId,
-      stage: match.stage,
+      ...matchMeta,
       label: placement.label,
       home: {
         name: match.homeTeam,
@@ -422,6 +421,7 @@ function buildKnockoutMatch(
 
     return {
       matchId: placement.matchId,
+      ...matchMeta,
       label: placement.label,
       home: { name: firstLoser?.name ?? "Loser Semi-Final 1" },
       away: { name: secondLoser?.name ?? "Loser Semi-Final 2" },
@@ -438,6 +438,7 @@ function buildKnockoutMatch(
 
     return {
       matchId: placement.matchId,
+      ...matchMeta,
       label: placement.label,
       home: { name: firstWinner?.name ?? `Winner Match ${sources[0]}` },
       away: { name: secondWinner?.name ?? `Winner Match ${sources[1]}` },
@@ -446,6 +447,7 @@ function buildKnockoutMatch(
 
   return {
     matchId: placement.matchId,
+    ...matchMeta,
     label: placement.label,
     home: { name: "TBD" },
     away: { name: "TBD" },
@@ -512,12 +514,35 @@ function formatKnockoutScore(team: KnockoutTeam) {
   return team.score;
 }
 
+function formatKnockoutKickoff(date: string | undefined, time: string | undefined) {
+  if (!date || !time) return null;
+
+  const dateWithoutWeekday = date.includes(",") ? date.split(",").slice(1).join(",").trim() : date;
+  const [day, month] = dateWithoutWeekday.split(" ");
+  const monthShortName = month ? month.slice(0, 3) : "";
+  const shortDate = [day, monthShortName].filter(Boolean).join(" ");
+
+  return shortDate ? `${shortDate} | ${time}` : time;
+}
+
 function getKnockoutTeamDisplayName(teamName: string) {
   const nationId = normalizeCountryName(teamName);
   if (nationId === "bosnia-herzegovina") return "Bosnia";
   if (nationId === "usa") return "USA";
   if (nationId === "cape-verde") return "Cape Verde";
   return getTeamDisplayName(teamName);
+}
+
+function getKnockoutTeamColor(teamName: string | undefined, nationMap: Map<string, Nation>) {
+  if (!teamName) return "#000000";
+  const nationId = normalizeCountryName(teamName);
+  const nation = nationMap.get(nationId) ?? localDataNations.get(nationId);
+  return nation?.jerseyColors.primary ?? "#000000";
+}
+
+function getKnockoutMatchWinnerColor(match: KnockoutMatch, nationMap: Map<string, Nation>) {
+  const winner = match.home.isWinner ? match.home : match.away.isWinner ? match.away : null;
+  return winner ? getKnockoutTeamColor(winner.name, nationMap) : null;
 }
 
 function KnockoutMatchCard({
@@ -532,10 +557,12 @@ function KnockoutMatchCard({
   onOpenNation: (nationId: string) => void;
 }) {
   const canOpenMatch = Boolean(match.matchId);
+  const winnerColor = getKnockoutMatchWinnerColor(match, nationMap);
+  const kickoffText = formatKnockoutKickoff(match.date, match.time);
 
   return (
     <div
-      className="w-full cursor-pointer overflow-hidden rounded-md border border-border/50 bg-background/90 text-left shadow-sm transition hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      className="w-full cursor-pointer overflow-hidden rounded-md border border-border/50 bg-background text-left shadow-sm transition hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       onClick={() => {
         if (canOpenMatch) onOpenMatch(match);
       }}
@@ -545,12 +572,18 @@ function KnockoutMatchCard({
         onOpenMatch(match);
       }}
       role={canOpenMatch ? "button" : undefined}
+      style={winnerColor ? { borderColor: winnerColor } : undefined}
       tabIndex={canOpenMatch ? 0 : undefined}
     >
       <div className="border-b border-border/40 px-1.5 py-1.5 leading-none sm:py-1 lg:px-2">
         <div className="truncate text-[8px] font-semibold uppercase text-muted-foreground sm:text-[9px] lg:text-[10px]">
           {match.label}
         </div>
+        {kickoffText && (
+          <div className="mt-1 truncate text-[8px] font-medium text-muted-foreground/80 sm:text-[9px]">
+            {kickoffText}
+          </div>
+        )}
       </div>
       <div className="divide-y divide-border/40">
         <KnockoutTeamRow team={match.home} nationMap={nationMap} onOpenNation={onOpenNation} />
@@ -573,6 +606,45 @@ function KnockoutStageBracket({
     ...rightKnockoutPlacements,
   ] as KnockoutPlacement[];
   const matchById = new Map(matchFixtures.map((match) => [match.id, match]));
+  const connectorPaths: ConnectorPath[] = [
+    { d: "M10.8 6.25H12.7V12.5H16.3", matchId: "75" },
+    { d: "M10.8 18.75H12.7V12.5H16.3", matchId: "78" },
+    { d: "M10.8 31.25H12.7V37.5H16.3", matchId: "73" },
+    { d: "M10.8 43.75H12.7V37.5H16.3", matchId: "76" },
+    { d: "M10.8 56.25H12.7V62.5H16.3", matchId: "84" },
+    { d: "M10.8 68.75H12.7V62.5H16.3", matchId: "83" },
+    { d: "M10.8 81.25H12.7V87.5H16.3", matchId: "82" },
+    { d: "M10.8 93.75H12.7V87.5H16.3", matchId: "81" },
+    { d: "M21.9 12.5H24V25H27.4", matchId: "90" },
+    { d: "M21.9 37.5H24V25H27.4", matchId: "89" },
+    { d: "M21.9 62.5H24V75H27.4", matchId: "93" },
+    { d: "M21.9 87.5H24V75H27.4", matchId: "94" },
+    { d: "M33 25H35.2V50H38.5", matchId: "97" },
+    { d: "M33 75H35.2V50H38.5", matchId: "99" },
+    { d: "M44.1 50H46.3V43.75H49.4", matchId: "101" },
+    { d: "M46.3 50V56.25H49.4", matchId: "101", outcome: "loser" },
+    { d: "M89.2 6.25H87.3V12.5H83.7", matchId: "74" },
+    { d: "M89.2 18.75H87.3V12.5H83.7", matchId: "77" },
+    { d: "M89.2 31.25H87.3V37.5H83.7", matchId: "79" },
+    { d: "M89.2 43.75H87.3V37.5H83.7", matchId: "80" },
+    { d: "M89.2 56.25H87.3V62.5H83.7", matchId: "87" },
+    { d: "M89.2 68.75H87.3V62.5H83.7", matchId: "86" },
+    { d: "M89.2 81.25H87.3V87.5H83.7", matchId: "85" },
+    { d: "M89.2 93.75H87.3V87.5H83.7", matchId: "88" },
+    { d: "M78.1 12.5H76V25H72.6", matchId: "91" },
+    { d: "M78.1 37.5H76V25H72.6", matchId: "92" },
+    { d: "M78.1 62.5H76V75H72.6", matchId: "95" },
+    { d: "M78.1 87.5H76V75H72.6", matchId: "96" },
+    { d: "M67 25H64.8V50H61.5", matchId: "98" },
+    { d: "M67 75H64.8V50H61.5", matchId: "100" },
+    { d: "M55.9 50H53.7V43.75H50.6", matchId: "102" },
+    { d: "M53.7 50V56.25H50.6", matchId: "102", outcome: "loser" },
+  ];
+  const connectorColor = (connector: ConnectorPath) => {
+    const outcome = getKnockoutOutcome(matchById.get(connector.matchId));
+    const teamName = connector.outcome === "loser" ? outcome?.loser.name : outcome?.winner.name;
+    return getKnockoutTeamColor(teamName, nationMap);
+  };
   const openMatch = (match: KnockoutMatch) => {
     const fixture = match.matchId ? matchById.get(match.matchId) : null;
     if (!match.matchId || !fixture) return;
@@ -597,7 +669,7 @@ function KnockoutStageBracket({
   return (
     <>
       <section className="overflow-x-auto rounded-lg border border-border/50 bg-card/75 p-2 backdrop-blur-xl sm:hidden">
-        <div className="relative grid h-[1120px] min-w-[660px] grid-cols-5 grid-rows-[repeat(32,minmax(0,1fr))] gap-x-2">
+        <div className="relative grid h-[1480px] min-w-[660px] grid-cols-5 grid-rows-[repeat(32,minmax(0,1fr))] gap-x-2">
           {mobileKnockoutPlacements.map((placement) => (
             <div
               key={placement.label}
@@ -621,24 +693,10 @@ function KnockoutStageBracket({
             preserveAspectRatio="none"
             viewBox="0 0 100 100"
           >
-            <g fill="none" stroke="rgb(59 130 246 / 0.72)" strokeLinecap="round" strokeWidth="0.35">
-              <path d="M10.8 6.25H12.7V12.5H16.3M10.8 18.75H12.7V12.5" />
-              <path d="M10.8 31.25H12.7V37.5H16.3M10.8 43.75H12.7V37.5" />
-              <path d="M10.8 56.25H12.7V62.5H16.3M10.8 68.75H12.7V62.5" />
-              <path d="M10.8 81.25H12.7V87.5H16.3M10.8 93.75H12.7V87.5" />
-              <path d="M21.9 12.5H24V25H27.4M21.9 37.5H24V25" />
-              <path d="M21.9 62.5H24V75H27.4M21.9 87.5H24V75" />
-              <path d="M33 25H35.2V50H38.5M33 75H35.2V50" />
-              <path d="M44.1 50H46.3V43.75H49.4M46.3 50V56.25H49.4" />
-
-              <path d="M89.2 6.25H87.3V12.5H83.7M89.2 18.75H87.3V12.5" />
-              <path d="M89.2 31.25H87.3V37.5H83.7M89.2 43.75H87.3V37.5" />
-              <path d="M89.2 56.25H87.3V62.5H83.7M89.2 68.75H87.3V62.5" />
-              <path d="M89.2 81.25H87.3V87.5H83.7M89.2 93.75H87.3V87.5" />
-              <path d="M78.1 12.5H76V25H72.6M78.1 37.5H76V25" />
-              <path d="M78.1 62.5H76V75H72.6M78.1 87.5H76V75" />
-              <path d="M67 25H64.8V50H61.5M67 75H64.8V50" />
-              <path d="M55.9 50H53.7V43.75H50.6M53.7 50V56.25H50.6" />
+            <g fill="none" strokeLinecap="round" strokeWidth="0.35">
+              {connectorPaths.map((connector) => (
+                <path key={`${connector.matchId}-${connector.outcome ?? "winner"}-${connector.d}`} d={connector.d} stroke={connectorColor(connector)} />
+              ))}
             </g>
           </svg>
 

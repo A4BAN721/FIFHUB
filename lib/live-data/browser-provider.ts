@@ -2,7 +2,7 @@
 
 import type { FootballDataProvider } from "./football-provider";
 import { normalizeMatchPhase, normalizeMatchStatus } from "./status";
-import type { LiveMatch } from "./types";
+import type { LiveMatch, MatchEvent, MatchEventType } from "./types";
 
 export function createBrowserFootballProvider(): FootballDataProvider | null {
   return new BrowserApiFootballProvider();
@@ -110,15 +110,44 @@ type ScoreboardMatchPayload = {
   } | null;
 };
 
+type ScoreboardEventPayload = {
+  id?: string | null;
+  externalEventId?: string | null;
+  external_event_id?: string | null;
+  matchId?: string | null;
+  match_id?: string | null;
+  minute?: number | null;
+  stoppageMinute?: number | null;
+  stoppage_minute?: number | null;
+  sequenceNumber?: number | null;
+  sequence_number?: number | null;
+  eventType?: string | null;
+  event_type?: string | null;
+  teamId?: string | null;
+  team_id?: string | null;
+  teamName?: string | null;
+  team_name?: string | null;
+  playerName?: string | null;
+  player_name?: string | null;
+  assistPlayerName?: string | null;
+  assist_player_name?: string | null;
+  substitutePlayerName?: string | null;
+  substitute_player_name?: string | null;
+  description?: string | null;
+  createdAt?: string | null;
+  created_at?: string | null;
+};
+
 function mapScoreboardPayload(payload: ScoreboardMatchPayload): LiveMatch | null {
   const matchId = payload.matchId ?? payload.id;
   if (!matchId || !payload.homeTeam || !payload.awayTeam) return null;
 
   const state = payload.live_state;
+  const status = normalizeMatchStatus(state?.status ?? payload.status);
   return {
     matchId,
-    status: normalizeMatchStatus(state?.status ?? payload.status),
-    phase: normalizeMatchPhase(state?.phase ?? state?.period ?? payload.period),
+    status,
+    phase: normalizeScoreboardPhase(status, state?.phase ?? state?.period ?? payload.period),
     homeTeam: payload.homeTeam,
     awayTeam: payload.awayTeam,
     homeScore: state?.home_score ?? payload.homeScore ?? 0,
@@ -154,6 +183,62 @@ function mapScoreboardPayload(payload: ScoreboardMatchPayload): LiveMatch | null
       awayOffsides: state?.away_offsides,
     },
     lineups: state?.lineups ?? null,
-    events: [],
+    events: mapScoreboardEvents(payload.events, matchId),
   };
+}
+
+function normalizeScoreboardPhase(status: LiveMatch["status"], phase?: string | null) {
+  const normalizedPhase = normalizeMatchPhase(phase);
+  if (status === "half_time") return normalizedPhase === "extra_time" ? "extra_time" : "half_time";
+  if (status === "finished") return "full_time";
+  if (status === "extra_time") return "extra_time";
+  if (status === "penalties") return "penalties";
+  return normalizedPhase;
+}
+
+function mapScoreboardEvents(events: unknown[] | undefined, fallbackMatchId: string): MatchEvent[] {
+  if (!Array.isArray(events)) return [];
+
+  return events
+    .map((event, index) => mapScoreboardEvent(event, fallbackMatchId, index))
+    .filter((event): event is MatchEvent => Boolean(event))
+    .sort(
+      (a, b) =>
+        (a.sequenceNumber ?? 0) - (b.sequenceNumber ?? 0) ||
+        a.minute - b.minute ||
+        (a.stoppageMinute ?? 0) - (b.stoppageMinute ?? 0),
+    );
+}
+
+function mapScoreboardEvent(event: unknown, fallbackMatchId: string, index: number): MatchEvent | null {
+  if (!event || typeof event !== "object") return null;
+  const row = event as ScoreboardEventPayload;
+  const eventType = row.eventType ?? row.event_type;
+  if (!eventType) return null;
+
+  return {
+    id: row.id ?? `${fallbackMatchId}-event-${index}`,
+    externalEventId: row.externalEventId ?? row.external_event_id ?? null,
+    matchId: row.matchId ?? row.match_id ?? fallbackMatchId,
+    minute: row.minute ?? 0,
+    stoppageMinute: row.stoppageMinute ?? row.stoppage_minute ?? null,
+    sequenceNumber: row.sequenceNumber ?? row.sequence_number ?? index + 1,
+    eventType: normalizeScoreboardEventType(eventType),
+    teamId: row.teamId ?? row.team_id ?? null,
+    teamName: row.teamName ?? row.team_name ?? null,
+    playerName: row.playerName ?? row.player_name ?? null,
+    assistPlayerName: row.assistPlayerName ?? row.assist_player_name ?? null,
+    substitutePlayerName: row.substitutePlayerName ?? row.substitute_player_name ?? null,
+    description: row.description ?? null,
+    createdAt: row.createdAt ?? row.created_at ?? new Date().toISOString(),
+  };
+}
+
+function normalizeScoreboardEventType(eventType: string): MatchEventType {
+  const normalized = eventType.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (normalized === "subst" || normalized === "sub") return "substitution";
+  if (normalized === "yellow") return "yellow_card";
+  if (normalized === "red") return "red_card";
+  if (normalized === "penalty") return "penalty_goal";
+  return normalized as MatchEventType;
 }

@@ -15,6 +15,7 @@ const FIFA_PLAYER_STATS_PAGE_URL =
   "https://cxm-api.fifa.com/fifaplusweb/api/pages/en/tournaments/mens/worldcup/canadamexicousa2026/statistics/player-statistics?locale=en";
 const FIFA_PLAYER_STATS_FALLBACK_SECTION_IDS = ["7J8zkJsvHm00KaQNhGcBCL"];
 const FIFA_GAMEDAY_STORIES_BASE_URL = "https://gameday-prod.fifa.mangodev.co.uk/1-0/stories";
+const FIFA_GAMEDAY_TOKEN_URL = "https://cxm-api.fifa.com/fifaplusweb/api/external/gameDay/token";
 const FIFA_WORLD_CUP_SEASON_ID = "285023";
 const FIFA_WORLD_CUP_STATS_ENDPOINTS = [
   "https://api.fifa.com/api/v3/statistics/tournament/17/season/285023/playerStatistics?language=en",
@@ -108,8 +109,9 @@ export async function GET() {
 
 async function fetchFifaStatRows(stat: FifaStatKind): Promise<FifaStatRow[]> {
   try {
+    const gameDayToken = await fetchFifaGameDayToken();
     const payloads = await Promise.allSettled([
-      ...((await fetchFifaGameDayStatPayloads(stat)).map((payload) => Promise.resolve(payload))),
+      ...((await fetchFifaGameDayStatPayloads(stat, gameDayToken)).map((payload) => Promise.resolve(payload))),
       ...FIFA_WORLD_CUP_STATS_ENDPOINTS.map((url) => fetchJson(url, `FIFA ${stat} stats`)),
       ...((await fetchFifaPlayerStatsSectionUrls()).map((url) => fetchJson(url, `FIFA ${stat} stats section`))),
     ]);
@@ -125,27 +127,36 @@ async function fetchFifaStatRows(stat: FifaStatKind): Promise<FifaStatRow[]> {
   }
 }
 
-async function fetchFifaGameDayStatPayloads(stat: FifaStatKind) {
+async function fetchFifaGameDayToken() {
+  const payload = (await fetchJson(FIFA_GAMEDAY_TOKEN_URL, "FIFA GameDay token")) as { token?: unknown };
+  return typeof payload.token === "string" ? payload.token : null;
+}
+
+async function fetchFifaGameDayStatPayloads(stat: FifaStatKind, token: string | null) {
   const classification = stat === "distance" ? "gcp_physical" : "gcp_discipline";
+  const rankedStat = stat === "distance" ? "total_distance" : "offsides";
   const payloads: unknown[] = [];
+  if (!token) return payloads;
 
   for (let page = 1; page <= 40; page += 1) {
-    const payload = await fetchJson(fifaGameDayStoriesUrl(classification, page), `FIFA GameDay ${classification} page ${page}`).catch(
-      () => null,
-    );
+    const payload = await fetchJson(
+      fifaGameDayStoriesUrl(classification, rankedStat, page),
+      `FIFA GameDay ${classification} ${rankedStat} page ${page}`,
+      { authorization: `Bearer ${token}` },
+    ).catch(() => null);
     if (!payload) break;
     payloads.push(payload);
-    if (!fifaPayloadHasResults(payload)) break;
+    if (!fifaPayloadHasResults(payload) || !fifaPayloadHasAnotherPage(payload)) break;
   }
 
   return payloads;
 }
 
-function fifaGameDayStoriesUrl(classification: string, page: number) {
+function fifaGameDayStoriesUrl(classification: string, rankedStat: string, page: number) {
   const url = new URL(FIFA_GAMEDAY_STORIES_BASE_URL);
   url.searchParams.set(
     "query",
-    `(and resourceStatus==\`urn:gd:resourceStatus:active\` _externalId~\`urn:gd:story:classification:${classification}:competitionId:${FIFA_WORLD_CUP_SEASON_ID}:(.*):rank_asc:page:${page}$\`)`,
+    `(and resourceStatus==\`urn:gd:resourceStatus:active\` _externalId~\`urn:gd:story:classification:${classification}:competitionId:${FIFA_WORLD_CUP_SEASON_ID}:${rankedStat}:rank_asc:page:${page}$\`)`,
   );
   url.searchParams.set("skip", "0");
   url.searchParams.set("limit", "1");
@@ -160,6 +171,12 @@ function fifaPayloadHasResults(payload: unknown) {
   return [entry.results, entry.Results, entry.items, entry.Items, entry.stories, entry.Stories, entry.data].some(
     (value) => Array.isArray(value) && value.length > 0,
   );
+}
+
+function fifaPayloadHasAnotherPage(payload: unknown) {
+  if (!payload || typeof payload !== "object") return false;
+  const entry = payload as Record<string, unknown>;
+  return entry.anotherPage === true || entry.AnotherPage === true;
 }
 
 async function fetchFotmobStatRows(stat: "rating" | "mins_played"): Promise<FotmobStatRow[]> {
@@ -236,12 +253,13 @@ async function fetchFifaPlayerStatsSectionUrls() {
   ]);
 }
 
-async function fetchJson(url: string, label: string) {
+async function fetchJson(url: string, label: string, extraHeaders: Record<string, string> = {}) {
   const response = await fetch(url, {
     cache: "no-store",
     headers: {
       accept: "application/json",
       "user-agent": "fifhub-tournament-stats/1.0",
+      ...extraHeaders,
     },
     signal: AbortSignal.timeout(8_000),
   });
@@ -266,6 +284,8 @@ function extractFifaStatRows(payload: unknown, stat: FifaStatKind): FifaStatRow[
     }
 
     const entry = value as Record<string, unknown>;
+    rows.push(...extractFifaGameDayActorRows(entry, stat));
+
     const objectMatchesStat = contextMatchesStat || objectMentionsStat(entry, statAliases);
     const playerName = fifaTextValue(
       entry.playerName ??
@@ -298,6 +318,51 @@ function extractFifaStatRows(payload: unknown, stat: FifaStatKind): FifaStatRow[
 
   visit(payload);
   return rows;
+}
+
+function extractFifaGameDayActorRows(entry: Record<string, unknown>, stat: FifaStatKind): FifaStatRow[] {
+  if (!Array.isArray(entry.actors)) return [];
+
+  const statTag = stat === "distance" ? "urn:gd:tag:football:stats:total_distance" : "urn:gd:tag:football:stats:offsides";
+
+  return entry.actors
+    .map((actor): FifaStatRow | null => {
+      if (!actor || typeof actor !== "object") return null;
+      const actorEntry = actor as Record<string, unknown>;
+      const tags = Array.isArray(actorEntry.tags) ? actorEntry.tags : [];
+      const value = fifaGameDayTagNumber(tags, statTag);
+      const playerName = fifaTextValue(actorEntry.name);
+      if (!playerName || value == null) return null;
+
+      return {
+        id: fifaTextValue((actorEntry.key as Record<string, unknown> | null)?.["_externalSportsPersonId"]),
+        teamId: fifaTextValue((actorEntry.key as Record<string, unknown> | null)?.["_externalTeamId"]),
+        teamName:
+          fifaGameDayTagText(tags, "urn:gd:tag:story:team:name:eng") ??
+          fifaGameDayTagText(tags, "urn:gd:tag:story:team:abbreviation"),
+        playerName,
+        value,
+        rank: fifaGameDayTagNumber(tags, "urn:gd:tag:story:staff:rank") ?? fifaNumberValue(actorEntry.number),
+      };
+    })
+    .filter((row): row is FifaStatRow => row != null);
+}
+
+function fifaGameDayTagNumber(tags: unknown[], name: string) {
+  return fifaNumberValue(fifaGameDayTagValue(tags, name));
+}
+
+function fifaGameDayTagText(tags: unknown[], name: string) {
+  return fifaTextValue(fifaGameDayTagValue(tags, name));
+}
+
+function fifaGameDayTagValue(tags: unknown[], name: string) {
+  for (const tag of tags) {
+    if (!tag || typeof tag !== "object") continue;
+    const entry = tag as Record<string, unknown>;
+    if (entry.name === name) return entry.value;
+  }
+  return null;
 }
 
 function fifaStatAliases(stat: FifaStatKind) {
@@ -342,7 +407,7 @@ function fifaTextValue(value: unknown): string | null {
   }
   if (value && typeof value === "object") {
     const entry = value as Record<string, unknown>;
-    return fifaTextValue(entry.Description ?? entry.description ?? entry.Name ?? entry.name ?? entry.DisplayName);
+    return fifaTextValue(entry.eng ?? entry.Description ?? entry.description ?? entry.Name ?? entry.name ?? entry.DisplayName);
   }
   return null;
 }

@@ -76,7 +76,6 @@ export const translations: Record<string, Record<string, string>> = {
     hosted: "Hosted by",
     groups: "Groups",
     fixtures: "Fixtures",
-    clickNationToViewSquad: "Click a nation to view their squad",
     mexico: "Mexico",
     usa: "United States",
     canada: "Canada",
@@ -1770,7 +1769,7 @@ export const nations: Nation[] = [
     confederation: "UEFA",
     headCoach: "Luis de la Fuente",
     totalSquadValue: "€1.1B",
-    jerseyColors: { primary: "#AA151B", secondary: "#F1BF00", accent: "#002B5C" },
+    jerseyColors: { primary: "#FF0000", secondary: "#F1BF00", accent: "#002B5C" },
     players: generatePlayers("spain", "Spain"),
   },
   {
@@ -1781,7 +1780,7 @@ export const nations: Nation[] = [
     confederation: "UEFA",
     headCoach: "Roberto Martínez",
     totalSquadValue: "€920M",
-    jerseyColors: { primary: "#FF0000", secondary: "#006600", accent: "#FFCC00" },
+    jerseyColors: { primary: "#AA151B", secondary: "#006600", accent: "#FFCC00" },
     players: generatePlayers("portugal", "Portugal"),
   },
   {
