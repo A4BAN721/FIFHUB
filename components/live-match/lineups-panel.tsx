@@ -118,16 +118,22 @@ function LineupSection({
       <div className="border-b border-black/20 bg-[#252627] px-3 py-2 text-center">
         <h4 className="text-lg font-semibold text-white">{title}</h4>
         {type === "starters" && (
-          <div className="mt-1 grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-xs font-black text-white/80">
-            <span className="truncate text-left">
-              {getTeamDisplayName(home.teamName || homeFallback)}
-              <span className="ml-2 tabular-nums text-white">{home.formation ?? "TBA"}</span>
-            </span>
-            <span className="text-white/40">vs</span>
-            <span className="truncate text-right">
-              <span className="mr-2 tabular-nums text-white">{away.formation ?? "TBA"}</span>
-              {getTeamDisplayName(away.teamName || awayFallback)}
-            </span>
+          <div className="mt-1 space-y-1">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-xs font-black text-white/80">
+              <span className="truncate text-left">
+                {getTeamDisplayName(home.teamName || homeFallback)}
+                <span className="ml-2 tabular-nums text-white">{home.formation ?? "TBA"}</span>
+              </span>
+              <span className="text-white/40">vs</span>
+              <span className="truncate text-right">
+                <span className="mr-2 tabular-nums text-white">{away.formation ?? "TBA"}</span>
+                {getTeamDisplayName(away.teamName || awayFallback)}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-[10px] font-semibold text-white/60 sm:text-xs">
+              <span className="truncate text-left">Head coach: {getHeadCoach(home, homeFallback)}</span>
+              <span className="truncate text-right">Head coach: {getHeadCoach(away, awayFallback)}</span>
+            </div>
           </div>
         )}
       </div>
@@ -212,7 +218,7 @@ function PlayerLine({
         isAway ? "justify-end border-l border-black/20 text-right" : ""
       }`}
     >
-      {!isAway && <NumberCircle player={player} marks={marks} />}
+      {!isAway && <NumberCircle player={player} marks={marks} side={side} />}
       <div className="min-w-0">
         <div className={`flex items-center gap-1.5 ${isAway ? "flex-row-reverse" : ""}`}>
           <button
@@ -230,7 +236,7 @@ function PlayerLine({
           {playerPositionLabel(player, teamName)}
         </p>
       </div>
-      {isAway && <NumberCircle player={player} marks={marks} />}
+      {isAway && <NumberCircle player={player} marks={marks} side={side} />}
     </div>
   );
 }
@@ -241,7 +247,11 @@ function RatingCluster({ player, marks, side }: { player: MatchLineupPlayer; mar
   if (rating == null && !hasMarkers) return null;
 
   return (
-    <span className={`flex shrink-0 items-center gap-1 ${side === "away" ? "flex-row-reverse" : ""}`}>
+    <span
+      className={`flex shrink-0 flex-col items-center gap-0.5 sm:flex-row sm:gap-1 ${
+        side === "away" ? "sm:flex-row-reverse" : ""
+      }`}
+    >
       {rating != null && <RatingBadge rating={rating} playerOfTheMatch={Boolean(player.playerOfTheMatch)} />}
       <PlayerEventMarkers marks={marks} />
     </span>
@@ -296,7 +306,15 @@ function AssistMarker() {
 
 function EventIcon({ src, alt }: { src: string; alt: string }) {
   return (
-    <Image src={src} alt={alt} width={16} height={16} className="h-4 w-4 object-contain" draggable={false} />
+    <Image
+      src={src}
+      alt={alt}
+      width={128}
+      height={128}
+      unoptimized
+      className="block h-4 w-4 max-w-none shrink-0 object-contain"
+      draggable={false}
+    />
   );
 }
 
@@ -334,13 +352,15 @@ function SuspendedMarker() {
   );
 }
 
-function SubstitutionCornerMarker({ type }: { type: "in" | "out" }) {
+function SubstitutionCornerMarker({ type, side }: { type: "in" | "out"; side: "home" | "away" }) {
   const isIn = type === "in";
 
   return (
     <span
       aria-label={isIn ? "Subbed in" : "Subbed out"}
-      className={`absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full text-white shadow-sm ring-1 ring-white/50 ${
+      className={`absolute -top-1 grid h-5 w-5 place-items-center rounded-full text-white shadow-sm ring-1 ring-white/50 ${
+        side === "away" ? "-left-1" : "-right-1"
+      } ${
         isIn ? "bg-emerald-600" : "bg-red-700"
       }`}
     >
@@ -428,7 +448,7 @@ function UnavailableStatusMarker({ player }: { player: MatchUnavailablePlayer })
 
 function UnavailableNumberCircle({ player }: { player: MatchUnavailablePlayer }) {
   return (
-    <div className="relative grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-slate-400/80 text-lg font-black tabular-nums text-white shadow-inner sm:h-12 sm:w-12 sm:rounded-xl">
+    <div className="relative grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-slate-400/80 text-lg font-black tabular-nums text-white shadow-inner sm:h-12 sm:w-12 sm:rounded-xl sm:text-2xl">
       <span className="absolute -left-1 -top-1">
         <UnavailableStatusMarker player={player} />
       </span>
@@ -437,24 +457,24 @@ function UnavailableNumberCircle({ player }: { player: MatchUnavailablePlayer })
   );
 }
 
-function NumberCircle({ player, marks }: { player: MatchLineupPlayer; marks: PlayerEventMarks }) {
+function NumberCircle({ player, marks, side }: { player: MatchLineupPlayer; marks: PlayerEventMarks; side: "home" | "away" }) {
   return (
-    <div className="relative grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-slate-400/80 text-lg font-black tabular-nums text-white shadow-inner sm:h-12 sm:w-12 sm:rounded-xl">
-      <CardEdgeMarkers marks={marks} />
+    <div className="relative grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-slate-400/80 text-lg font-black tabular-nums text-white shadow-inner sm:h-12 sm:w-12 sm:rounded-xl sm:text-2xl">
+      <CardEdgeMarkers marks={marks} side={side} />
       {marks.injured && (
         <span className="absolute -left-1 -top-1">
           <MedicalMarker />
         </span>
       )}
-      {marks.subbedIn && <SubstitutionCornerMarker type="in" />}
-      {marks.subbedOut && <SubstitutionCornerMarker type="out" />}
-      {player.captain && <CaptainBadge />}
+      {marks.subbedIn && <SubstitutionCornerMarker type="in" side={side} />}
+      {marks.subbedOut && <SubstitutionCornerMarker type="out" side={side} />}
+      {player.captain && <CaptainBadge side={side} />}
       {player.shirtNumber ?? "-"}
     </div>
   );
 }
 
-function CardEdgeMarkers({ marks }: { marks: PlayerEventMarks }) {
+function CardEdgeMarkers({ marks, side }: { marks: PlayerEventMarks; side: "home" | "away" }) {
   const cards = [
     ...Array.from({ length: marks.yellowCards }, (_, index) => <CardMarker key={`yellow-${index}`} color="yellow" />),
     ...Array.from({ length: marks.secondYellowCards }, (_, index) => <SecondYellowMarker key={`second-yellow-${index}`} />),
@@ -464,7 +484,11 @@ function CardEdgeMarkers({ marks }: { marks: PlayerEventMarks }) {
   if (cards.length === 0) return null;
 
   return (
-    <span className="absolute -left-1 top-1/2 z-10 flex -translate-y-1/2 -translate-x-1/2 flex-col items-center gap-0.5">
+    <span
+      className={`absolute top-1/2 z-10 flex -translate-y-1/2 flex-col items-center gap-0.5 ${
+        side === "away" ? "-right-1 translate-x-1/2" : "-left-1 -translate-x-1/2"
+      }`}
+    >
       {cards}
     </span>
   );
@@ -473,19 +497,23 @@ function CardEdgeMarkers({ marks }: { marks: PlayerEventMarks }) {
 function RatingBadge({ rating, playerOfTheMatch }: { rating: number; playerOfTheMatch: boolean }) {
   return (
     <span
-      className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-black tabular-nums text-zinc-950 ${
+      className={`inline-flex items-center gap-0.5 rounded-full px-1 py-px text-[9px] font-black leading-tight tabular-nums text-zinc-950 ${
         playerOfTheMatch ? "bg-sky-500" : rating >= 7 ? "bg-emerald-400" : "bg-orange-400"
       }`}
     >
       {rating.toFixed(1)}
-      {playerOfTheMatch && <Star className="h-2.5 w-2.5 fill-current" />}
+      {playerOfTheMatch && <Star className="h-2 w-2 fill-current" />}
     </span>
   );
 }
 
-function CaptainBadge() {
+function CaptainBadge({ side }: { side: "home" | "away" }) {
   return (
-    <span className="absolute -bottom-1 -right-1 grid h-4 w-4 place-items-center rounded-full bg-white text-[9px] font-black text-zinc-950 ring-1 ring-black/20">
+    <span
+      className={`absolute -bottom-1 grid h-4 w-4 place-items-center rounded-full bg-white text-[9px] font-black text-zinc-950 ring-1 ring-black/20 ${
+        side === "away" ? "-left-1" : "-right-1"
+      }`}
+    >
       C
     </span>
   );
@@ -596,6 +624,12 @@ function openSquadPlayer(teamName: string, playerName: string) {
 
 function getNationPrimaryColor(teamName: string) {
   return nationPrimaryColorById.get(normalizeCountryName(teamName)) ?? "#60a5fa";
+}
+
+function getHeadCoach(lineup: MatchTeamLineup, fallbackTeamName: string) {
+  if (lineup.coach) return lineup.coach;
+  const nationId = normalizeCountryName(lineup.teamName || fallbackTeamName);
+  return fallbackNations.find((nation) => nation.id === nationId)?.headCoach ?? "TBA";
 }
 
 function formatMobilePlayerName(name: string) {
