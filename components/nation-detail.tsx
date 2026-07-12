@@ -8,6 +8,7 @@ import { NationFlag } from "./nation-flag";
 import { ArrowLeft, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
+import { formatLocalizedNumber, formatLocalizedPlayerName } from "@/lib/bangla-format";
 
 interface NationDetailProps {
   nation: Nation;
@@ -195,7 +196,7 @@ export function NationDetail({ nation, initialSelectedPlayerName, onBack }: Nati
                 </span>
                 <span>|</span>
                 <span>
-                  {nation.players.length} {t("players")}
+                  {formatLocalizedNumber(nation.players.length, language)} {t("players")}
                 </span>
               </div>
             </div>
@@ -301,7 +302,7 @@ export function NationDetail({ nation, initialSelectedPlayerName, onBack }: Nati
                     style={{ backgroundColor: `${primaryColor}30` }}
                   />
                   <span className="text-sm text-muted-foreground">
-                    {players.length}
+                    {formatLocalizedNumber(players.length, language)}
                   </span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -311,6 +312,7 @@ export function NationDetail({ nation, initialSelectedPlayerName, onBack }: Nati
                       player={player}
                       nationColors={nation.jerseyColors}
                       index={index}
+                      language={language}
                       t={t}
                       onSelect={() => setSelectedPlayer(player)}
                     />
@@ -326,6 +328,7 @@ export function NationDetail({ nation, initialSelectedPlayerName, onBack }: Nati
           <PlayerDetailOverlay
             player={selectedPlayer}
             nationColors={nation.jerseyColors}
+            language={language}
             onClose={() => setSelectedPlayer(null)}
             t={t}
           />
@@ -339,11 +342,12 @@ interface PlayerCardProps {
   player: Player;
   nationColors: Nation["jerseyColors"];
   index: number;
+  language: "en" | "bn";
   t: (key: string) => string;
   onSelect: () => void;
 }
 
-function PlayerCard({ player, nationColors, index, t, onSelect }: PlayerCardProps) {
+function PlayerCard({ player, nationColors, index, language, t, onSelect }: PlayerCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -369,12 +373,12 @@ function PlayerCard({ player, nationColors, index, t, onSelect }: PlayerCardProp
                 backgroundColor: `${nationColors.secondary}15`,
               }}
             >
-              {player.jerseyNumber}
+              {formatLocalizedNumber(player.jerseyNumber, language)}
             </div>
 
             <div className="flex-1 min-w-0">
               <h3 className="truncate font-bold uppercase text-foreground">
-                {player.fullName}
+                {formatLocalizedPlayerName(player.fullName, language)}
               </h3>
               <p
                 className="text-sm font-medium"
@@ -394,13 +398,14 @@ function PlayerCard({ player, nationColors, index, t, onSelect }: PlayerCardProp
 interface PlayerDetailOverlayProps {
   player: Player;
   nationColors: Nation["jerseyColors"];
+  language: "en" | "bn";
   onClose: () => void;
   t: (key: string) => string;
 }
 
-function PlayerDetailOverlay({ player, nationColors, onClose, t }: PlayerDetailOverlayProps) {
+function PlayerDetailOverlay({ player, nationColors, language, onClose, t }: PlayerDetailOverlayProps) {
   const detailItems = [
-    player.age ? { label: t("age"), value: String(player.age) } : null,
+    player.age ? { label: t("age"), value: formatLocalizedNumber(player.age, language) } : null,
     { label: t("club"), value: player.club },
     { label: t("height"), value: player.height },
     { label: t("weight"), value: player.weight },
@@ -445,7 +450,7 @@ function PlayerDetailOverlay({ player, nationColors, onClose, t }: PlayerDetailO
               backgroundColor: `${nationColors.secondary}18`,
             }}
           >
-            {player.jerseyNumber}
+            {formatLocalizedNumber(player.jerseyNumber, language)}
           </div>
 
           <div className="min-w-0">
@@ -456,7 +461,7 @@ function PlayerDetailOverlay({ player, nationColors, onClose, t }: PlayerDetailO
               {t(player.position.toLowerCase())}
             </p>
             <h3 className="break-words text-3xl font-black uppercase text-foreground md:text-5xl">
-              {player.fullName}
+              {formatLocalizedPlayerName(player.fullName, language)}
             </h3>
 
             <div className="mt-8 grid gap-3 sm:grid-cols-2">

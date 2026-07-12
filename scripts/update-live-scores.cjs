@@ -216,20 +216,20 @@ function runHighlightsSyncAfterScores() {
 }
 
 const knockoutProgression = {
-  "89": ["75", "78"],
-  "90": ["73", "76"],
-  "91": ["84", "83"],
-  "92": ["82", "81"],
-  "93": ["74", "77"],
-  "94": ["79", "80"],
+  "89": ["73", "76"],
+  "90": ["75", "78"],
+  "91": ["74", "77"],
+  "92": ["79", "80"],
+  "93": ["84", "83"],
+  "94": ["82", "81"],
   "95": ["87", "86"],
   "96": ["85", "88"],
-  "97": ["89", "90"],
+  "97": ["90", "89"],
   "98": ["91", "92"],
   "99": ["93", "94"],
   "100": ["95", "96"],
-  "101": ["97", "98"],
-  "102": ["99", "100"],
+  "101": ["97", "99"],
+  "102": ["98", "100"],
   "104": ["101", "102"],
 };
 
@@ -325,8 +325,8 @@ function getKnockoutOutcome(matchId, fixtureById, stateByMatchId) {
     return null;
   }
 
-  const homeTeam = state.home_team ?? fixture.home_team;
-  const awayTeam = state.away_team ?? fixture.away_team;
+  const homeTeam = usableTeamName(state.home_team) ?? fixture.home_team;
+  const awayTeam = usableTeamName(state.away_team) ?? fixture.away_team;
 
   const homeWon = homeScore === awayScore ? homePenaltyScore > awayPenaltyScore : homeScore > awayScore;
 
@@ -337,31 +337,53 @@ function getKnockoutOutcome(matchId, fixtureById, stateByMatchId) {
 
 async function updateKnockoutFixtureTeams(matchId, homeTeam, awayTeam, fixtureById) {
   const fixture = fixtureById.get(String(matchId));
-  if (!fixture || (fixture.home_team === homeTeam && fixture.away_team === awayTeam)) {
+  if (!fixture) {
     return 0;
   }
 
   if (isDryRun) {
-    console.log(`Would advance knockout fixture ${matchId}: ${homeTeam} vs ${awayTeam}`);
+    if (fixture.home_team !== homeTeam || fixture.away_team !== awayTeam) {
+      console.log(`Would advance knockout fixture ${matchId}: ${homeTeam} vs ${awayTeam}`);
+    }
     return 1;
   }
 
-  const { error } = await supabase
-    .from("match_fixtures")
+  if (fixture.home_team !== homeTeam || fixture.away_team !== awayTeam) {
+    const { error } = await supabase
+      .from("match_fixtures")
+      .update({
+        home_team: homeTeam,
+        away_team: awayTeam,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", matchId);
+
+    if (error) {
+      throw new Error(`Failed to advance knockout fixture ${matchId}: ${error.message}`);
+    }
+
+    fixture.home_team = homeTeam;
+    fixture.away_team = awayTeam;
+  }
+
+  const { error: stateError } = await supabase
+    .from("live_match_state")
     .update({
       home_team: homeTeam,
       away_team: awayTeam,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", matchId);
+    .eq("match_id", matchId);
 
-  if (error) {
-    throw new Error(`Failed to advance knockout fixture ${matchId}: ${error.message}`);
+  if (stateError) {
+    throw new Error(`Failed to advance knockout live state ${matchId}: ${stateError.message}`);
   }
 
-  fixture.home_team = homeTeam;
-  fixture.away_team = awayTeam;
   return 1;
+}
+
+function usableTeamName(teamName) {
+  return teamName && teamName !== "TBD" ? teamName : null;
 }
 
 function resolveFixtureMatch(match, fixtureMap) {

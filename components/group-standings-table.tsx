@@ -52,6 +52,8 @@ type NationHoverStyle = CSSProperties & {
   "--nation-primary": string;
 };
 
+type TranslationFn = (key: string) => string;
+
 type ConnectorPath = {
   d: string;
   matchId: string;
@@ -140,7 +142,7 @@ const knockoutProgression = {
   "94": ["82", "81"],
   "95": ["87", "86"],
   "96": ["85", "88"],
-  "97": ["89", "90"],
+  "97": ["90", "89"],
   "98": ["91", "92"],
   "99": ["93", "94"],
   "100": ["95", "96"],
@@ -238,6 +240,14 @@ function convertToBanglaNumerals(value: string | number): string {
   };
 
   return String(value).replace(/\d/g, (digit) => banglaNumerals[digit] || digit);
+}
+
+function formatNumberForLanguage(value: string | number, language: "en" | "bn") {
+  return language === "bn" ? convertToBanglaNumerals(value) : String(value);
+}
+
+function translateTimeText(value: string, t: TranslationFn) {
+  return value.replace(/\b(AM|PM)\b/gi, (period) => t(period.toLowerCase()));
 }
 
 function createEmptyRow(nation: Nation): StandingRow {
@@ -458,10 +468,14 @@ function KnockoutTeamRow({
   team,
   nationMap,
   onOpenNation,
+  language,
+  t,
 }: {
   team: KnockoutTeam;
   nationMap: Map<string, Nation>;
   onOpenNation: (nationId: string) => void;
+  language: "en" | "bn";
+  t: TranslationFn;
 }) {
   const nationId = normalizeCountryName(team.name);
   const nation = nationMap.get(nationId) ?? localDataNations.get(nationId);
@@ -483,7 +497,7 @@ function KnockoutTeamRow({
         )}
         {isPlaceholder ? (
           <span className="truncate text-[10px] font-medium text-muted-foreground sm:text-xs">
-            {team.name}
+            {formatKnockoutPlaceholder(team.name, language, t)}
           </span>
         ) : (
           <button
@@ -497,12 +511,12 @@ function KnockoutTeamRow({
             style={{ "--nation-primary": nation.jerseyColors.primary } as NationHoverStyle}
             type="button"
           >
-            {getKnockoutTeamDisplayName(team.name)}
+            {getKnockoutTeamDisplayName(team.name, t)}
           </button>
         )}
       </div>
       <span className="shrink-0 text-[10px] font-semibold text-muted-foreground">
-        {scoreText}
+        {formatNumberForLanguage(scoreText, language)}
       </span>
     </div>
   );
@@ -514,23 +528,57 @@ function formatKnockoutScore(team: KnockoutTeam) {
   return team.score;
 }
 
-function formatKnockoutKickoff(date: string | undefined, time: string | undefined) {
+function formatKnockoutKickoff(date: string | undefined, time: string | undefined, language: "en" | "bn", t: TranslationFn) {
   if (!date || !time) return null;
 
   const dateWithoutWeekday = date.includes(",") ? date.split(",").slice(1).join(",").trim() : date;
   const [day, month] = dateWithoutWeekday.split(" ");
-  const monthShortName = month ? month.slice(0, 3) : "";
+  const translatedMonth = month && language === "bn" ? t(month.toLowerCase()) : month;
+  const monthShortName = translatedMonth ? translatedMonth.slice(0, language === "bn" ? undefined : 3) : "";
   const shortDate = [day, monthShortName].filter(Boolean).join(" ");
+  const translatedTime = language === "bn" ? translateTimeText(time, t) : time;
 
-  return shortDate ? `${shortDate} | ${time}` : time;
+  return formatNumberForLanguage(shortDate ? `${shortDate} | ${translatedTime}` : translatedTime, language);
 }
 
-function getKnockoutTeamDisplayName(teamName: string) {
+function getKnockoutTeamDisplayName(teamName: string, t: TranslationFn) {
   const nationId = normalizeCountryName(teamName);
+  const translationKey = nationId.replace(/-/g, "");
+  const translated = t(translationKey);
+  if (translated !== translationKey) return translated;
   if (nationId === "bosnia-herzegovina") return "Bosnia";
   if (nationId === "usa") return "USA";
   if (nationId === "cape-verde") return "Cape Verde";
   return getTeamDisplayName(teamName);
+}
+
+function formatKnockoutPlaceholder(text: string, language: "en" | "bn", t: TranslationFn) {
+  if (text === "TBD") return t("tbd");
+
+  const winnerMatch = text.match(/^Winner Match (\d+)$/);
+  if (winnerMatch) return `${t("winnerMatch")} ${formatNumberForLanguage(winnerMatch[1], language)}`;
+
+  const loserSemiFinal = text.match(/^Loser Semi-Final (\d+)$/);
+  if (loserSemiFinal) return `${t("loserSemiFinal")} ${formatNumberForLanguage(loserSemiFinal[1], language)}`;
+
+  return formatNumberForLanguage(text, language);
+}
+
+function formatKnockoutLabel(label: string, language: "en" | "bn", t: TranslationFn) {
+  if (label === "Final") return t("final");
+  if (label === "Bronze Final") return t("bronzeFinal");
+
+  const labelledRound = label.match(/^(Round of 32|Round of 16|Quarter Finals|Semi Finals) (\d+)$/);
+  if (!labelledRound) return formatNumberForLanguage(label, language);
+
+  const keyByRound: Record<string, string> = {
+    "Round of 32": "roundOf32",
+    "Round of 16": "roundOf16",
+    "Quarter Finals": "quarterFinals",
+    "Semi Finals": "semiFinals",
+  };
+
+  return `${t(keyByRound[labelledRound[1]])} ${formatNumberForLanguage(labelledRound[2], language)}`;
 }
 
 function getKnockoutTeamColor(teamName: string | undefined, nationMap: Map<string, Nation>) {
@@ -550,15 +598,19 @@ function KnockoutMatchCard({
   nationMap,
   onOpenMatch,
   onOpenNation,
+  language,
+  t,
 }: {
   match: KnockoutMatch;
   nationMap: Map<string, Nation>;
   onOpenMatch: (match: KnockoutMatch) => void;
   onOpenNation: (nationId: string) => void;
+  language: "en" | "bn";
+  t: TranslationFn;
 }) {
   const canOpenMatch = Boolean(match.matchId);
   const winnerColor = getKnockoutMatchWinnerColor(match, nationMap);
-  const kickoffText = formatKnockoutKickoff(match.date, match.time);
+  const kickoffText = formatKnockoutKickoff(match.date, match.time, language, t);
 
   return (
     <div
@@ -577,7 +629,7 @@ function KnockoutMatchCard({
     >
       <div className="border-b border-border/40 px-1.5 py-1.5 leading-none sm:py-1 lg:px-2">
         <div className="truncate text-[8px] font-semibold uppercase text-muted-foreground sm:text-[9px] lg:text-[10px]">
-          {match.label}
+          {formatKnockoutLabel(match.label, language, t)}
         </div>
         {kickoffText && (
           <div className="mt-1 truncate text-[8px] font-medium text-muted-foreground/80 sm:text-[9px]">
@@ -586,8 +638,8 @@ function KnockoutMatchCard({
         )}
       </div>
       <div className="divide-y divide-border/40">
-        <KnockoutTeamRow team={match.home} nationMap={nationMap} onOpenNation={onOpenNation} />
-        <KnockoutTeamRow team={match.away} nationMap={nationMap} onOpenNation={onOpenNation} />
+        <KnockoutTeamRow team={match.home} nationMap={nationMap} onOpenNation={onOpenNation} language={language} t={t} />
+        <KnockoutTeamRow team={match.away} nationMap={nationMap} onOpenNation={onOpenNation} language={language} t={t} />
       </div>
     </div>
   );
@@ -600,6 +652,7 @@ function KnockoutStageBracket({
   matchFixtures: MatchWithOptionalScore[];
   nationMap: Map<string, Nation>;
 }) {
+  const { t, language } = useLanguage();
   const bracketPlacements = [
     ...leftKnockoutPlacements,
     ...centerKnockoutPlacements,
@@ -679,7 +732,7 @@ function KnockoutStageBracket({
                 gridRow: `${placement.rowStart} / span ${placement.rowSpan}`,
               }}
             >
-              <KnockoutMatchCard match={buildKnockoutMatch(placement, matchById)} nationMap={nationMap} onOpenMatch={openMatch} onOpenNation={openNation} />
+              <KnockoutMatchCard match={buildKnockoutMatch(placement, matchById)} nationMap={nationMap} onOpenMatch={openMatch} onOpenNation={openNation} language={language} t={t} />
             </div>
           ))}
         </div>
@@ -709,7 +762,7 @@ function KnockoutStageBracket({
                 gridRow: `${placement.rowStart} / span ${placement.rowSpan}`,
               }}
             >
-              <KnockoutMatchCard match={buildKnockoutMatch(placement, matchById)} nationMap={nationMap} onOpenMatch={openMatch} onOpenNation={openNation} />
+              <KnockoutMatchCard match={buildKnockoutMatch(placement, matchById)} nationMap={nationMap} onOpenMatch={openMatch} onOpenNation={openNation} language={language} t={t} />
             </div>
             ))}
         </div>

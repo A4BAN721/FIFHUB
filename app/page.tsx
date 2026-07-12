@@ -167,7 +167,7 @@ export default function Home() {
               <TabsTrigger value="squads">{t("groups")}</TabsTrigger>
               <TabsTrigger value="fixtures">{t("fixtures")}</TabsTrigger>
               <TabsTrigger value="table">{t("table")}</TabsTrigger>
-              <TabsTrigger value="stats">Stats</TabsTrigger>
+              <TabsTrigger value="stats">{t("stats")}</TabsTrigger>
             </TabsList>
             <TabsContent value="squads" className="mt-0">
               <NationsGrid

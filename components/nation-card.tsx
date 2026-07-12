@@ -8,6 +8,7 @@ import { NationFlag } from "./nation-flag";
 import { motion } from "framer-motion";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { getFifaWorldRanking } from "@/lib/fifa-rankings";
+import { formatLocalizedNumber } from "@/lib/bangla-format";
 
 interface NationCardProps {
   nation: Nation;
@@ -134,13 +135,13 @@ export function NationCard({ nation, onClick, index, fifaRanking: fifaRankingOve
             <div className="relative rounded-lg border border-white/10 bg-black/75 p-2 shadow-[0_16px_45px_-28px_rgba(0,0,0,0.9)] sm:rounded-[1.5rem] sm:p-4">
               {fifaRanking && (
                 <div className="absolute right-2 top-2 rounded-full border border-white/10 bg-white/10 px-2 py-0.5 text-[9px] font-black leading-none text-white shadow-sm backdrop-blur-sm sm:right-3 sm:top-3 sm:text-xs">
-                  #{fifaRanking}
+                  #{formatLocalizedNumber(fifaRanking, language)}
                 </div>
               )}
               <div className="min-w-0 space-y-1.5">
                 <div>
                   <p className={`truncate text-[6px] leading-none text-white/70 sm:text-[10px] ${labelSpacingClass}`}>{t("players")}</p>
-                  <p className="truncate text-[9px] font-semibold text-white sm:text-sm">{nation.players.length}</p>
+                  <p className="truncate text-[9px] font-semibold text-white sm:text-sm">{formatLocalizedNumber(nation.players.length, language)}</p>
                 </div>
                 <div>
                   <p className={`truncate text-[6px] leading-none text-white/70 sm:text-[10px] ${labelSpacingClass}`}>{t("squadValue")}</p>

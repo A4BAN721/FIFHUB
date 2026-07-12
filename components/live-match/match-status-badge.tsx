@@ -1,6 +1,9 @@
+"use client";
+
 import { cn } from "@/lib/utils";
 import { formatMatchMinute } from "@/lib/live-data/status";
 import type { LiveMatch, MatchPhase, MatchStatus } from "@/lib/live-data/types";
+import { useLanguage } from "@/components/language-provider";
 
 type MatchStatusBadgeProps = {
   liveMatch?: LiveMatch | null;
@@ -19,7 +22,8 @@ export function MatchStatusBadge({
   stoppageMinute = liveMatch?.stoppageMinute,
   className,
 }: MatchStatusBadgeProps) {
-  const label = getStatusLabel(status, phase, minute, stoppageMinute);
+  const { t, language } = useLanguage();
+  const label = getStatusLabel(status, phase, minute, stoppageMinute, language, t);
 
   return (
     <span
@@ -44,28 +48,48 @@ function getStatusLabel(
   status: MatchStatus,
   phase: MatchPhase,
   minute?: number | null,
-  stoppageMinute?: number | null
+  stoppageMinute?: number | null,
+  language: "en" | "bn" = "en",
+  t: (key: string) => string = (key) => key,
 ) {
-  if (status === "finished" || phase === "full_time") return "FT";
-  if (isExtraTimeHalfTime(status, phase, minute)) return "ET HT";
-  if (status === "half_time" || phase === "half_time") return (minute ?? 45) >= 90 ? "End 90" : "HT";
+  if (status === "finished" || phase === "full_time") return t("fullTimeShort");
+  if (isExtraTimeHalfTime(status, phase, minute)) return t("extraTimeHalfTimeShort");
+  if (status === "half_time" || phase === "half_time") return (minute ?? 45) >= 90 ? t("endOf90Minutes") : t("halfTimeShort");
   if (status === "extra_time" || phase === "extra_time") {
-    return `${extraTimeBadgeLabel(minute)} ${formatMatchMinute(minute, stoppageMinute)}`;
+    return `${extraTimeBadgeLabel(minute, t)} ${formatLocalizedNumber(formatMatchMinute(minute, stoppageMinute), language)}`;
   }
-  if (status === "penalties" || phase === "penalties") return "PEN";
-  if (status === "postponed") return "Postponed";
-  if (status === "cancelled") return "Cancelled";
-  if (status === "suspended") return "Suspended";
-  if (status === "interrupted") return "Interrupted";
-  if (status === "live") return `LIVE ${formatMatchMinute(minute, stoppageMinute)}`;
-  return "Scheduled";
+  if (status === "penalties" || phase === "penalties") return t("penaltiesShort");
+  if (status === "postponed") return t("postponed");
+  if (status === "cancelled") return t("cancelled");
+  if (status === "suspended") return t("suspended");
+  if (status === "interrupted") return t("interrupted");
+  if (status === "live") return `${t("liveShort")} ${formatLocalizedNumber(formatMatchMinute(minute, stoppageMinute), language)}`;
+  return t("scheduled");
 }
 
 function isExtraTimeHalfTime(status: MatchStatus, phase: MatchPhase, minute?: number | null) {
   return status === "half_time" && (phase === "extra_time" || (typeof minute === "number" && minute >= 105));
 }
 
-function extraTimeBadgeLabel(minute?: number | null) {
-  if (typeof minute === "number" && minute > 105) return "ET 2H";
-  return "ET 1H";
+function extraTimeBadgeLabel(minute: number | null | undefined, t: (key: string) => string) {
+  if (typeof minute === "number" && minute > 105) return `${t("extraTimeShort")} 2H`;
+  return `${t("extraTimeShort")} 1H`;
 }
+
+function formatLocalizedNumber(value: string | number, language: "en" | "bn") {
+  if (language !== "bn") return String(value);
+  return String(value).replace(/\d/g, (digit) => banglaNumerals[digit] ?? digit);
+}
+
+const banglaNumerals: Record<string, string> = {
+  "0": "০",
+  "1": "১",
+  "2": "২",
+  "3": "৩",
+  "4": "৪",
+  "5": "৫",
+  "6": "৬",
+  "7": "৭",
+  "8": "৮",
+  "9": "৯",
+};

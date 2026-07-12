@@ -936,8 +936,8 @@ export const matchFixtures: Match[] = [
     date: "Tuesday, 7 July 2026",
     time: "10:00 PM",
     stage: "ROUND OF 16",
-    homeTeam: "TBD",
-    awayTeam: "TBD",
+    homeTeam: "Argentina",
+    awayTeam: "Egypt",
     stadium: "Atlanta Stadium"
   },
   {
@@ -945,8 +945,8 @@ export const matchFixtures: Match[] = [
     date: "Wednesday, 8 July 2026",
     time: "2:00 AM",
     stage: "ROUND OF 16",
-    homeTeam: "TBD",
-    awayTeam: "TBD",
+    homeTeam: "Switzerland",
+    awayTeam: "Colombia",
     stadium: "BC Place Vancouver"
   },
   // QUARTER-FINALS
@@ -982,8 +982,8 @@ export const matchFixtures: Match[] = [
     date: "Sunday, 12 July 2026",
     time: "7:00 AM",
     stage: "QUARTER-FINALS",
-    homeTeam: "TBD",
-    awayTeam: "TBD",
+    homeTeam: "Argentina",
+    awayTeam: "Switzerland",
     stadium: "Kansas City Stadium"
   },
   // SEMI-FINALS

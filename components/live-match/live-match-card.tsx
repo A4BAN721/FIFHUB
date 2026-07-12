@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NationFlag } from "@/components/nation-flag";
+import { useLanguage } from "@/components/language-provider";
 import { useLiveMatch } from "@/hooks/use-live-match";
 import { LineupsPanel } from "./lineups-panel";
 import { LiveStatsPanel } from "./live-stats-panel";
@@ -23,7 +24,10 @@ type LiveMatchCardProps = {
   enableLiveData?: boolean;
 };
 
+type TranslationFn = (key: string) => string;
+
 export function LiveMatchCard({ match, children, enableLiveData = true }: LiveMatchCardProps) {
+  const { t, language } = useLanguage();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isRefreshingDetails, setIsRefreshingDetails] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -101,8 +105,8 @@ export function LiveMatchCard({ match, children, enableLiveData = true }: LiveMa
         aria-label={`Open ${displayMatch.homeTeam} versus ${displayMatch.awayTeam} match details`}
       >
         {children}
-        <CompactScoreOverlay liveMatch={displayMatch} fixtureStage={match.stage} />
-        <CompactHighlightsLink liveMatch={displayMatch} />
+        <CompactScoreOverlay liveMatch={displayMatch} fixtureStage={match.stage} language={language} t={t} />
+        <CompactHighlightsLink liveMatch={displayMatch} t={t} />
       </div>
 
       {isExpanded && (
@@ -128,15 +132,17 @@ export function LiveMatchCard({ match, children, enableLiveData = true }: LiveMa
             </Button>
 
             <div className="space-y-5">
-              <ExpandedMatchHeader liveMatch={displayMatch} stadium={match.stadium} />
-              <ExpandedScoreboard liveMatch={displayMatch} />
-              <TeamEventSummary liveMatch={displayMatch} />
+              <ExpandedMatchHeader liveMatch={displayMatch} stadium={match.stadium} language={language} t={t} />
+              <ExpandedScoreboard liveMatch={displayMatch} language={language} t={t} />
+              <TeamEventSummary liveMatch={displayMatch} language={language} t={t} />
               <MatchDetailsTabs
                 liveMatch={displayMatch}
                 scrollContainerRef={detailsScrollRef}
                 isRefreshingStats={isRefreshingDetails}
+                language={language}
+                t={t}
               />
-              <MatchHighlightsLink liveMatch={displayMatch} />
+              <MatchHighlightsLink liveMatch={displayMatch} t={t} />
 
               <div className="flex items-center justify-between gap-2 border-t border-border/40 pt-3 text-xs text-muted-foreground">
                 <span className="truncate">
@@ -151,7 +157,7 @@ export function LiveMatchCard({ match, children, enableLiveData = true }: LiveMa
   );
 }
 
-function CompactHighlightsLink({ liveMatch }: { liveMatch: LiveMatch }) {
+function CompactHighlightsLink({ liveMatch, t }: { liveMatch: LiveMatch; t: TranslationFn }) {
   if (!liveMatch.highlightsUrl) return null;
 
   return (
@@ -163,12 +169,12 @@ function CompactHighlightsLink({ liveMatch }: { liveMatch: LiveMatch }) {
       aria-label={liveMatch.highlightsTitle ?? "Open match highlights"}
       onClick={(event) => event.stopPropagation()}
     >
-      MATCH HIGHLIGHTS
+      {t("matchHighlights")}
     </a>
   );
 }
 
-function MatchHighlightsLink({ liveMatch }: { liveMatch: LiveMatch }) {
+function MatchHighlightsLink({ liveMatch, t }: { liveMatch: LiveMatch; t: TranslationFn }) {
   if (!liveMatch.highlightsUrl) return null;
 
   return (
@@ -179,14 +185,24 @@ function MatchHighlightsLink({ liveMatch }: { liveMatch: LiveMatch }) {
       className="flex items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-black uppercase tracking-[0.22em] text-red-500 transition-colors hover:border-red-500/60 hover:bg-red-500/15 sm:px-4 sm:py-3 sm:text-sm"
       aria-label={liveMatch.highlightsTitle ?? "Open match highlights"}
     >
-      <span>MATCH HIGHLIGHTS</span>
+      <span>{t("matchHighlights")}</span>
       <Play className="h-4 w-4 shrink-0 fill-current" />
     </a>
   );
 }
 
-function CompactScoreOverlay({ liveMatch, fixtureStage }: { liveMatch: LiveMatch; fixtureStage: string }) {
-  const timerLabel = getTimerLabel(liveMatch);
+function CompactScoreOverlay({
+  liveMatch,
+  fixtureStage,
+  language,
+  t,
+}: {
+  liveMatch: LiveMatch;
+  fixtureStage: string;
+  language: "en" | "bn";
+  t: TranslationFn;
+}) {
+  const timerLabel = getTimerLabel(liveMatch, language, t);
   const isHalfTimeTimer = liveMatch.status === "half_time" || liveMatch.phase === "half_time";
   const showLiveIndicator = shouldShowLiveIndicator(liveMatch);
   const isGroupStage = fixtureStage === "GROUP STAGE";
@@ -208,7 +224,7 @@ function CompactScoreOverlay({ liveMatch, fixtureStage }: { liveMatch: LiveMatch
           isGroupStage ? "top-5 sm:top-2" : "top-2"
         }`}
       >
-        {getPlayPeriodLabel(liveMatch)}
+        {getPlayPeriodLabel(liveMatch, t)}
       </span>
       <div className={`absolute left-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center gap-0.5 sm:flex-row sm:gap-1.5 ${scoreGroupPosition}`}>
         {timerLabel && !isHalfTimeTimer && (
@@ -220,16 +236,16 @@ function CompactScoreOverlay({ liveMatch, fixtureStage }: { liveMatch: LiveMatch
           <span className={`flex w-full flex-col items-center justify-center rounded-md border border-zinc-200 bg-white px-0.5 text-center font-black tabular-nums leading-none text-zinc-950 shadow-lg dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:rounded-lg sm:px-1.5 ${
             showPenaltyInScorePill ? "h-[24px] sm:h-[31px]" : "h-[17px] sm:h-[24px]"
           }`}>
-            <span className="block text-[12px] leading-none sm:text-[17px]">{liveMatch.homeScore} - {liveMatch.awayScore}</span>
+            <span className="block text-[12px] leading-none sm:text-[17px]">{formatScore(liveMatch.homeScore, liveMatch.awayScore, language)}</span>
             {penaltyScore && showPenaltyInScorePill && (
               <span className="block text-[8px] font-black uppercase leading-none text-zinc-600 dark:text-zinc-300 sm:text-[9px]">
-                Pens {penaltyScore.home} - {penaltyScore.away}
+                {t("penaltyShootoutShort")} {formatScore(penaltyScore.home, penaltyScore.away, language)}
               </span>
             )}
           </span>
           {penaltyScore && !showShootoutBoard && !showPenaltyInScorePill && (
             <span className="-mt-0.5 rounded-full border border-zinc-200 bg-white/95 px-1.5 py-0.5 text-[8px] font-black uppercase tabular-nums text-zinc-700 shadow-md dark:border-zinc-700 dark:bg-zinc-950/95 dark:text-zinc-200 sm:px-2 sm:text-[9px]">
-              Pens {penaltyScore.home} - {penaltyScore.away}
+              {t("penaltyShootoutShort")} {formatScore(penaltyScore.home, penaltyScore.away, language)}
             </span>
           )}
           {timerLabel && isHalfTimeTimer && (
@@ -316,16 +332,26 @@ function hasMatchStatistics(statistics: LiveMatch["statistics"]) {
   return Object.values(statistics).some((value) => value != null);
 }
 
-function ExpandedMatchHeader({ liveMatch, stadium }: { liveMatch: LiveMatch; stadium: string }) {
+function ExpandedMatchHeader({
+  liveMatch,
+  stadium,
+  language,
+  t,
+}: {
+  liveMatch: LiveMatch;
+  stadium: string;
+  language: "en" | "bn";
+  t: TranslationFn;
+}) {
   return (
     <div className="px-10 text-center">
-      <p className="text-xs font-bold uppercase text-muted-foreground">{getStatusLabel(liveMatch)}</p>
+      <p className="text-xs font-bold uppercase text-muted-foreground">{getStatusLabel(liveMatch, language, t)}</p>
       <h3 className="mt-1 text-xl font-black tracking-normal text-foreground sm:text-2xl">
         <span className="sm:hidden">
-          {getFifaAbbreviation(liveMatch.homeTeam)} vs {getFifaAbbreviation(liveMatch.awayTeam)}
+          {getFifaAbbreviation(liveMatch.homeTeam)} {t("vs")} {getFifaAbbreviation(liveMatch.awayTeam)}
         </span>
         <span className="hidden sm:inline">
-          {getTeamDisplayName(liveMatch.homeTeam)} vs {getTeamDisplayName(liveMatch.awayTeam)}
+          {getTranslatedTeamName(liveMatch.homeTeam, t)} {t("vs")} {getTranslatedTeamName(liveMatch.awayTeam, t)}
         </span>
       </h3>
       <p className="mt-1 text-sm text-muted-foreground">{stadium}</p>
@@ -337,10 +363,14 @@ function MatchDetailsTabs({
   liveMatch,
   scrollContainerRef,
   isRefreshingStats,
+  language,
+  t,
 }: {
   liveMatch: LiveMatch;
   scrollContainerRef: RefObject<HTMLDivElement | null>;
   isRefreshingStats: boolean;
+  language: "en" | "bn";
+  t: TranslationFn;
 }) {
   const [activeDetailsTab, setActiveDetailsTab] = useState("stats");
   const tabPanelStartRef = useRef<HTMLDivElement | null>(null);
@@ -366,10 +396,10 @@ function MatchDetailsTabs({
     <Tabs value={activeDetailsTab} onValueChange={handleDetailsTabChange} className="border-t border-border/40 pt-3">
       <TabsList className="grid h-9 w-full grid-cols-2">
         <TabsTrigger value="stats" className="text-xs font-black uppercase">
-          Match Stats
+          {t("matchStats")}
         </TabsTrigger>
         <TabsTrigger value="lineups" className="text-xs font-black uppercase">
-          Line-ups
+          {t("lineups")}
         </TabsTrigger>
       </TabsList>
       <div ref={tabPanelStartRef} />
@@ -382,6 +412,8 @@ function MatchDetailsTabs({
             events={liveMatch.events}
             homeTeam={liveMatch.homeTeam}
             awayTeam={liveMatch.awayTeam}
+            language={language}
+            t={t}
           />
         )}
       </TabsContent>
@@ -398,60 +430,110 @@ function MatchDetailsTabs({
   );
 }
 
-function getStatusLabel(liveMatch: LiveMatch) {
-  if (isFinalMatchState(liveMatch)) return "FT";
-  if (liveMatch.status === "penalties" || liveMatch.phase === "penalties") return "PEN";
-  if (isExtraTimeHalfTime(liveMatch)) return "ET HT";
-  if (liveMatch.status === "half_time" || liveMatch.phase === "half_time") return "HT";
+function getStatusLabel(liveMatch: LiveMatch, language: "en" | "bn", t: TranslationFn) {
+  if (isFinalMatchState(liveMatch)) return t("fullTimeShort");
+  if (liveMatch.status === "penalties" || liveMatch.phase === "penalties") return t("penaltiesShort");
+  if (isExtraTimeHalfTime(liveMatch)) return t("extraTimeHalfTimeShort");
+  if (liveMatch.status === "half_time" || liveMatch.phase === "half_time") return t("halfTimeShort");
   if (liveMatch.status === "extra_time" || liveMatch.phase === "extra_time") {
-    return `ET ${formatMatchMinute(liveMatch.minute, liveMatch.stoppageMinute)}`;
+    return `${t("extraTimeShort")} ${formatLocalizedMatchMinute(liveMatch.minute, liveMatch.stoppageMinute, language)}`;
   }
 
-  const minute = formatMatchMinute(liveMatch.minute, liveMatch.stoppageMinute);
+  const minute = formatLocalizedMatchMinute(liveMatch.minute, liveMatch.stoppageMinute, language);
   if (minute && liveMatch.status !== "scheduled") return minute;
 
-  if (isMatchInProgress(liveMatch)) return "LIVE";
+  if (isMatchInProgress(liveMatch)) return t("liveShort");
 
-  return formatPhaseLabel(liveMatch.phase);
+  return getTranslatedPhaseLabel(liveMatch.phase, t);
 }
 
-function getPlayPeriodLabel(liveMatch: LiveMatch) {
-  if (isFinalMatchState(liveMatch)) return "Full-time";
-  if (liveMatch.status === "penalties" || liveMatch.phase === "penalties") return "Penalty shoot-out";
-  if (isExtraTimeHalfTime(liveMatch)) return "Extra-time half-time";
+function getPlayPeriodLabel(liveMatch: LiveMatch, t: TranslationFn) {
+  if (isFinalMatchState(liveMatch)) return t("fullTime");
+  if (liveMatch.status === "penalties" || liveMatch.phase === "penalties") return t("penaltyShootout");
+  if (isExtraTimeHalfTime(liveMatch)) return t("extraTimeHalfTime");
   if (liveMatch.status === "half_time" || liveMatch.phase === "half_time") {
-    return (liveMatch.minute ?? 45) >= 90 ? "End of 90 minutes" : "Half-time";
+    return (liveMatch.minute ?? 45) >= 90 ? t("endOf90Minutes") : t("halfTime");
   }
 
   if (liveMatch.status === "extra_time" || liveMatch.phase === "extra_time") {
-    return getExtraTimeStageLabel(liveMatch.minute);
+    return getExtraTimeStageLabel(liveMatch.minute, t);
   }
 
   if (liveMatch.status === "live") {
-    return liveMatch.phase === "first_half" ? "First Half" : "Second Half";
+    return liveMatch.phase === "first_half" ? t("firstHalf") : t("secondHalf");
   }
 
-  return formatPhaseLabel(liveMatch.phase);
+  return getTranslatedPhaseLabel(liveMatch.phase, t);
 }
 
-function getExtraTimeStageLabel(minute?: number | null) {
-  if (typeof minute === "number" && minute <= 90) return "End of 90 minutes";
-  if (typeof minute === "number" && minute > 105) return "Extra-time 2nd half";
-  return "Extra-time 1st half";
+function getExtraTimeStageLabel(minute: number | null | undefined, t: TranslationFn) {
+  if (typeof minute === "number" && minute <= 90) return t("endOf90Minutes");
+  if (typeof minute === "number" && minute > 105) return t("extraTimeSecondHalf");
+  return t("extraTimeFirstHalf");
 }
 
-function getTimerLabel(liveMatch: LiveMatch) {
+function getTimerLabel(liveMatch: LiveMatch, language: "en" | "bn", t: TranslationFn) {
   if (!isMatchInProgress(liveMatch)) return "";
-  if (isExtraTimeHalfTime(liveMatch)) return "ET Half Time";
-  if (liveMatch.status === "half_time" || liveMatch.phase === "half_time") return "Half Time";
-  if (liveMatch.status === "penalties" || liveMatch.phase === "penalties") return "PEN";
+  if (isExtraTimeHalfTime(liveMatch)) return t("extraTimeHalfTimeTimer");
+  if (liveMatch.status === "half_time" || liveMatch.phase === "half_time") return t("halfTimeTimer");
+  if (liveMatch.status === "penalties" || liveMatch.phase === "penalties") return t("penaltiesShort");
   if (liveMatch.status === "extra_time" || liveMatch.phase === "extra_time") {
-    return typeof liveMatch.minute === "number" ? formatMatchMinute(liveMatch.minute, liveMatch.stoppageMinute) : "ET";
+    return typeof liveMatch.minute === "number" ? formatLocalizedMatchMinute(liveMatch.minute, liveMatch.stoppageMinute, language) : t("extraTimeShort");
   }
-  if (typeof liveMatch.minute !== "number") return "LIVE";
+  if (typeof liveMatch.minute !== "number") return t("liveShort");
 
-  return formatMatchMinute(liveMatch.minute, liveMatch.stoppageMinute);
+  return formatLocalizedMatchMinute(liveMatch.minute, liveMatch.stoppageMinute, language);
 }
+
+function formatScore(home: number, away: number, language: "en" | "bn") {
+  return `${formatLocalizedNumber(home, language)} - ${formatLocalizedNumber(away, language)}`;
+}
+
+function formatLocalizedMatchMinute(
+  minute: number | null | undefined,
+  stoppageMinute: number | null | undefined,
+  language: "en" | "bn",
+) {
+  return formatLocalizedNumber(formatMatchMinute(minute, stoppageMinute), language);
+}
+
+function formatLocalizedNumber(value: string | number, language: "en" | "bn") {
+  if (language !== "bn") return String(value);
+  return String(value).replace(/\d/g, (digit) => banglaNumerals[digit] ?? digit);
+}
+
+function getTranslatedTeamName(teamName: string, t: TranslationFn) {
+  const nationKey = normalizeCountryName(teamName).replace(/-/g, "");
+  const translated = t(nationKey);
+  return translated !== nationKey ? translated : getTeamDisplayName(teamName);
+}
+
+function getTranslatedPhaseLabel(phase: LiveMatch["phase"], t: TranslationFn) {
+  const labels: Record<LiveMatch["phase"], string> = {
+    pre_match: t("scheduled"),
+    first_half: t("firstHalf"),
+    half_time: t("halfTimeTimer"),
+    second_half: t("secondHalf"),
+    extra_time: t("extraTimeShort"),
+    penalties: t("penaltiesShort"),
+    full_time: t("fullTime"),
+  };
+
+  return labels[phase] ?? formatPhaseLabel(phase);
+}
+
+const banglaNumerals: Record<string, string> = {
+  "0": "০",
+  "1": "১",
+  "2": "২",
+  "3": "৩",
+  "4": "৪",
+  "5": "৫",
+  "6": "৬",
+  "7": "৭",
+  "8": "৮",
+  "9": "৯",
+};
 
 function withDisplayClock(liveMatch: LiveMatch, now: number, fixture: Match): LiveMatch {
   const timer = estimateDisplayClock(liveMatch, now, fixture);
@@ -872,16 +954,16 @@ function isSameTeam(eventTeamName: string | null | undefined, teamName: string) 
   return normalizeCountryName(eventTeamName) === normalizeCountryName(teamName);
 }
 
-function ExpandedScoreboard({ liveMatch }: { liveMatch: LiveMatch }) {
+function ExpandedScoreboard({ liveMatch, language, t }: { liveMatch: LiveMatch; language: "en" | "bn"; t: TranslationFn }) {
   const penaltyScore = getPenaltyShootoutScore(liveMatch);
   const showShootoutBoard = isPenaltyShootoutInProgress(liveMatch);
-  const timerLabel = getTimerLabel(liveMatch);
+  const timerLabel = getTimerLabel(liveMatch, language, t);
   const showTimer = Boolean(timerLabel && isMatchInProgress(liveMatch));
 
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl border border-border/50 bg-background/45 p-3 sm:gap-5 sm:p-5">
       <div className="min-w-0 space-y-2">
-        <ExpandedTeamName teamName={liveMatch.homeTeam} align="left" />
+        <ExpandedTeamName teamName={liveMatch.homeTeam} align="left" t={t} />
         {showShootoutBoard && (
           <PenaltyAttemptDots attempts={getPenaltyShootoutAttempts(liveMatch, liveMatch.homeTeam)} align="left" />
         )}
@@ -895,16 +977,16 @@ function ExpandedScoreboard({ liveMatch }: { liveMatch: LiveMatch }) {
         <span className={`flex min-w-[5.5rem] flex-col items-center justify-center rounded-xl border border-zinc-200 bg-white px-2 font-black tabular-nums leading-none text-zinc-950 shadow-lg dark:border-zinc-700 dark:bg-zinc-950 dark:text-white sm:min-w-[6.25rem] sm:px-3 ${
           penaltyScore && !showShootoutBoard ? "h-11 sm:h-12" : "h-10 sm:h-11"
         }`}>
-          <span className="block text-[1.85rem] leading-none sm:text-[2.25rem]">{liveMatch.homeScore} - {liveMatch.awayScore}</span>
+          <span className="block text-[1.85rem] leading-none sm:text-[2.25rem]">{formatScore(liveMatch.homeScore, liveMatch.awayScore, language)}</span>
           {penaltyScore && !showShootoutBoard && (
             <span className="mt-0.5 block text-center text-[11px] font-black uppercase leading-none text-zinc-600 dark:text-zinc-300 sm:text-[13px]">
-              Pens {penaltyScore.home} - {penaltyScore.away}
+              {t("penaltyShootoutShort")} {formatScore(penaltyScore.home, penaltyScore.away, language)}
             </span>
           )}
         </span>
       </div>
       <div className="min-w-0 space-y-2">
-        <ExpandedTeamName teamName={liveMatch.awayTeam} align="right" />
+        <ExpandedTeamName teamName={liveMatch.awayTeam} align="right" t={t} />
         {showShootoutBoard && (
           <PenaltyAttemptDots attempts={getPenaltyShootoutAttempts(liveMatch, liveMatch.awayTeam)} align="right" />
         )}
@@ -913,7 +995,7 @@ function ExpandedScoreboard({ liveMatch }: { liveMatch: LiveMatch }) {
   );
 }
 
-function ExpandedTeamName({ teamName, align }: { teamName: string; align: "left" | "right" }) {
+function ExpandedTeamName({ teamName, align, t }: { teamName: string; align: "left" | "right"; t?: TranslationFn }) {
   const nationId = teamName === "TBD" ? null : normalizeCountryName(teamName);
 
   return (
@@ -932,7 +1014,7 @@ function ExpandedTeamName({ teamName, align }: { teamName: string; align: "left"
       )}
       <span className="min-w-0 truncate text-lg font-black text-foreground sm:text-2xl">
         <span className="sm:hidden">{getFifaAbbreviation(teamName)}</span>
-        <span className="hidden sm:inline">{getTeamDisplayName(teamName)}</span>
+        <span className="hidden sm:inline">{t ? getTranslatedTeamName(teamName, t) : getTeamDisplayName(teamName)}</span>
       </span>
       {align === "right" && (
         <NationFlag
@@ -946,7 +1028,7 @@ function ExpandedTeamName({ teamName, align }: { teamName: string; align: "left"
   );
 }
 
-function TeamEventSummary({ liveMatch }: { liveMatch: LiveMatch }) {
+function TeamEventSummary({ liveMatch, language, t }: { liveMatch: LiveMatch; language: "en" | "bn"; t: TranslationFn }) {
   const goals = sortEventsByMinute(
     liveMatch.events.filter((event) =>
       ["goal", "penalty_goal", "own_goal"].includes(event.eventType),
@@ -967,6 +1049,8 @@ function TeamEventSummary({ liveMatch }: { liveMatch: LiveMatch }) {
         substitutions={substitutions.filter((event) => isSameTeam(event.teamName, liveMatch.homeTeam))}
         redCards={redCards.filter((event) => isSameTeam(event.teamName, liveMatch.homeTeam))}
         align="left"
+        language={language}
+        t={t}
       />
       <TeamEventColumn
         teamName={liveMatch.awayTeam}
@@ -974,6 +1058,8 @@ function TeamEventSummary({ liveMatch }: { liveMatch: LiveMatch }) {
         substitutions={substitutions.filter((event) => isSameTeam(event.teamName, liveMatch.awayTeam))}
         redCards={redCards.filter((event) => isSameTeam(event.teamName, liveMatch.awayTeam))}
         align="right"
+        language={language}
+        t={t}
       />
     </div>
   );
@@ -985,12 +1071,16 @@ function TeamEventColumn({
   substitutions,
   redCards,
   align,
+  language,
+  t,
 }: {
   teamName: string;
   goals: MatchEvent[];
   substitutions: MatchEvent[];
   redCards: MatchEvent[];
   align: "left" | "right";
+  language: "en" | "bn";
+  t: TranslationFn;
 }) {
   const alignClass = align === "right" ? "text-right sm:items-end" : "text-left sm:items-start";
 
@@ -998,30 +1088,30 @@ function TeamEventColumn({
     <div className={`flex flex-col gap-3 ${alignClass}`}>
       <h4 className="text-xs font-black uppercase text-muted-foreground">
         <span className="sm:hidden">{getFifaAbbreviation(teamName)}</span>
-        <span className="hidden sm:inline">{getTeamDisplayName(teamName)}</span>
+        <span className="hidden sm:inline">{getTranslatedTeamName(teamName, t)}</span>
       </h4>
       <div className="space-y-1.5">
         {goals.length > 0 ? (
           goals.map((goal) => (
             <p key={goal.id} className="text-sm font-semibold text-foreground">
-              {formatGoalLine(goal)}
+              {formatGoalLine(goal, language, t)}
             </p>
           ))
         ) : (
-          <p className="text-sm text-muted-foreground">No goals</p>
+          <p className="text-sm text-muted-foreground">{t("noGoals")}</p>
         )}
       </div>
       {redCards.length > 0 && (
         <div className="space-y-1">
           {redCards.map((card) => (
-            <RedCardRow key={card.id} card={card} align={align} />
+            <RedCardRow key={card.id} card={card} align={align} language={language} t={t} />
           ))}
         </div>
       )}
       {substitutions.length > 0 && (
         <div className="space-y-1">
           {substitutions.map((substitution) => (
-            <SubstitutionRow key={substitution.id} substitution={substitution} align={align} />
+            <SubstitutionRow key={substitution.id} substitution={substitution} align={align} language={language} t={t} />
           ))}
         </div>
       )}
@@ -1029,9 +1119,19 @@ function TeamEventColumn({
   );
 }
 
-function SubstitutionRow({ substitution, align }: { substitution: MatchEvent; align: "left" | "right" }) {
-  const playerIn = substitution.substitutePlayerName ?? substitution.assistPlayerName ?? "Player on";
-  const playerOut = substitution.playerName ?? "Player off";
+function SubstitutionRow({
+  substitution,
+  align,
+  language,
+  t,
+}: {
+  substitution: MatchEvent;
+  align: "left" | "right";
+  language: "en" | "bn";
+  t: TranslationFn;
+}) {
+  const playerIn = substitution.substitutePlayerName ?? substitution.assistPlayerName ?? t("playerOn");
+  const playerOut = substitution.playerName ?? t("playerOff");
 
   return (
     <p
@@ -1039,13 +1139,13 @@ function SubstitutionRow({ substitution, align }: { substitution: MatchEvent; al
         align === "right" ? "text-right" : "text-left"
       }`}
     >
-      <span className="font-black text-emerald-600">IN</span> {playerIn}
-      <span className="mx-1 font-black text-red-500">OUT</span> {playerOut} {formatMinute(substitution)}
+      <span className="font-black text-emerald-600">{t("playerInShort")}</span> {playerIn}
+      <span className="mx-1 font-black text-red-500">{t("playerOutShort")}</span> {playerOut} {formatEventMinute(substitution, language)}
     </p>
   );
 }
 
-function RedCardRow({ card, align }: { card: MatchEvent; align: "left" | "right" }) {
+function RedCardRow({ card, align, language, t }: { card: MatchEvent; align: "left" | "right"; language: "en" | "bn"; t: TranslationFn }) {
   return (
     <p
       className={`flex items-center gap-2 text-sm font-bold text-red-500 ${
@@ -1054,25 +1154,25 @@ function RedCardRow({ card, align }: { card: MatchEvent; align: "left" | "right"
     >
       {align === "left" && <span className="h-4 w-2 rounded-[2px] bg-red-600" aria-label="Red card" />}
       <span>
-        {card.playerName ?? "Unknown player"} {formatMinute(card)}
+        {card.playerName ?? t("unknownPlayer")} {formatEventMinute(card, language)}
       </span>
       {align === "right" && <span className="h-4 w-2 rounded-[2px] bg-red-600" aria-label="Red card" />}
     </p>
   );
 }
 
-function formatGoalLine(goal: MatchEvent) {
+function formatGoalLine(goal: MatchEvent, language: "en" | "bn", t: TranslationFn) {
   if (goal.eventType === "own_goal") {
-    return `${goal.playerName ?? "Unknown player"} ${formatMinute(goal)} (OG)`;
+    return `${goal.playerName ?? t("unknownPlayer")} ${formatEventMinute(goal, language)} (${t("ownGoalShort")})`;
   }
 
-  const penaltyMarker = goal.eventType === "penalty_goal" ? " (P)" : "";
-  const assist = goal.assistPlayerName ? `, assist: ${goal.assistPlayerName}` : "";
-  return `${goal.playerName ?? "Unknown scorer"}${penaltyMarker} ${formatMinute(goal)}${assist}`;
+  const penaltyMarker = goal.eventType === "penalty_goal" ? ` (${t("penaltyShort")})` : "";
+  const assist = goal.assistPlayerName ? `, ${t("assist")}: ${goal.assistPlayerName}` : "";
+  return `${goal.playerName ?? t("unknownScorer")}${penaltyMarker} ${formatEventMinute(goal, language)}${assist}`;
 }
 
-function formatMinute(event: MatchEvent) {
-  return `${event.minute}${event.stoppageMinute ? `+${event.stoppageMinute}` : ""}'`;
+function formatEventMinute(event: MatchEvent, language: "en" | "bn") {
+  return formatLocalizedNumber(`${event.minute}${event.stoppageMinute ? `+${event.stoppageMinute}` : ""}'`, language);
 }
 
 function sortEventsByMinute(events: MatchEvent[]) {

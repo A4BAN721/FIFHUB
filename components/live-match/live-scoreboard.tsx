@@ -2,6 +2,7 @@ import { normalizeCountryName } from "@/lib/country-utils";
 import { formatPhaseLabel } from "@/lib/live-data/status";
 import type { LiveMatch } from "@/lib/live-data/types";
 import { getFifaAbbreviation, getTeamDisplayName } from "@/lib/team-display";
+import { useLanguage } from "@/components/language-provider";
 import { MatchStatusBadge } from "./match-status-badge";
 
 type LiveScoreboardProps = {
@@ -9,6 +10,7 @@ type LiveScoreboardProps = {
 };
 
 export function LiveScoreboard({ liveMatch }: LiveScoreboardProps) {
+  const { t, language } = useLanguage();
   const penaltyScore = getPenaltyShootoutScore(liveMatch);
   const showShootoutBoard = isPenaltyShootoutInProgress(liveMatch);
 
@@ -17,7 +19,7 @@ export function LiveScoreboard({ liveMatch }: LiveScoreboardProps) {
       <div className="flex items-center justify-between gap-2">
         <MatchStatusBadge liveMatch={liveMatch} />
         <span className="truncate text-[10px] font-medium text-muted-foreground">
-          {formatPhaseLabel(liveMatch.phase)}
+          {getTranslatedPhaseLabel(liveMatch.phase, t)}
         </span>
       </div>
 
@@ -25,24 +27,24 @@ export function LiveScoreboard({ liveMatch }: LiveScoreboardProps) {
         <div className="min-w-0 space-y-1">
           <span className="block truncate text-left text-xs font-semibold text-foreground">
             <span className="sm:hidden">{getFifaAbbreviation(liveMatch.homeTeam)}</span>
-            <span className="hidden sm:inline">{getTeamDisplayName(liveMatch.homeTeam)}</span>
+            <span className="hidden sm:inline">{getTranslatedTeamName(liveMatch.homeTeam, t)}</span>
           </span>
           {showShootoutBoard && (
             <PenaltyAttemptDots attempts={getPenaltyShootoutAttempts(liveMatch, liveMatch.homeTeam)} align="left" />
           )}
         </div>
         <span className="rounded-md bg-foreground px-3 py-1 text-center text-base font-black tabular-nums text-background">
-          <span className="block">{liveMatch.homeScore} - {liveMatch.awayScore}</span>
+          <span className="block">{formatScore(liveMatch.homeScore, liveMatch.awayScore, language)}</span>
           {penaltyScore && !showShootoutBoard && (
             <span className="block text-[9px] uppercase leading-tight opacity-75">
-              Pens {penaltyScore.home} - {penaltyScore.away}
+              {t("penaltyShootoutShort")} {formatScore(penaltyScore.home, penaltyScore.away, language)}
             </span>
           )}
         </span>
         <div className="min-w-0 space-y-1">
           <span className="block truncate text-right text-xs font-semibold text-foreground">
             <span className="sm:hidden">{getFifaAbbreviation(liveMatch.awayTeam)}</span>
-            <span className="hidden sm:inline">{getTeamDisplayName(liveMatch.awayTeam)}</span>
+            <span className="hidden sm:inline">{getTranslatedTeamName(liveMatch.awayTeam, t)}</span>
           </span>
           {showShootoutBoard && (
             <PenaltyAttemptDots attempts={getPenaltyShootoutAttempts(liveMatch, liveMatch.awayTeam)} align="right" />
@@ -52,6 +54,48 @@ export function LiveScoreboard({ liveMatch }: LiveScoreboardProps) {
     </div>
   );
 }
+
+function getTranslatedTeamName(teamName: string, t: (key: string) => string) {
+  const nationKey = normalizeCountryName(teamName).replace(/-/g, "");
+  const translated = t(nationKey);
+  return translated !== nationKey ? translated : getTeamDisplayName(teamName);
+}
+
+function getTranslatedPhaseLabel(phase: LiveMatch["phase"], t: (key: string) => string) {
+  const labels: Record<LiveMatch["phase"], string> = {
+    pre_match: t("scheduled"),
+    first_half: t("firstHalf"),
+    half_time: t("halfTimeTimer"),
+    second_half: t("secondHalf"),
+    extra_time: t("extraTimeShort"),
+    penalties: t("penaltiesShort"),
+    full_time: t("fullTime"),
+  };
+
+  return labels[phase] ?? formatPhaseLabel(phase);
+}
+
+function formatScore(home: number, away: number, language: "en" | "bn") {
+  return `${formatLocalizedNumber(home, language)} - ${formatLocalizedNumber(away, language)}`;
+}
+
+function formatLocalizedNumber(value: string | number, language: "en" | "bn") {
+  if (language !== "bn") return String(value);
+  return String(value).replace(/\d/g, (digit) => banglaNumerals[digit] ?? digit);
+}
+
+const banglaNumerals: Record<string, string> = {
+  "0": "০",
+  "1": "১",
+  "2": "২",
+  "3": "৩",
+  "4": "৪",
+  "5": "৫",
+  "6": "৬",
+  "7": "৭",
+  "8": "৮",
+  "9": "৯",
+};
 
 function isPenaltyShootoutInProgress(liveMatch: LiveMatch) {
   return (

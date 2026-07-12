@@ -8,6 +8,8 @@ import { createClient, getSupabaseConfig } from "@/lib/supabase/client";
 import { getNations } from "@/lib/supabase/data";
 import { nations as fallbackNations } from "@/lib/world-cup-data";
 import type { Nation } from "@/lib/world-cup-data";
+import { formatLocalizedNumber, formatLocalizedPlayerName } from "@/lib/bangla-format";
+import { useLanguage } from "./language-provider";
 import type { CSSProperties } from "react";
 
 type EventRow = {
@@ -71,19 +73,20 @@ type PlayerHoverStyle = CSSProperties & {
   "--player-nation-primary": string;
 };
 
-const categories: Array<{ value: StatCategory; label: string; heading: string }> = [
-  { value: "goals", label: "Goals", heading: "Goals" },
-  { value: "assists", label: "Assists", heading: "Assists" },
-  { value: "ga", label: "Goals + Assists (G/A)", heading: "G/A" },
-  { value: "minutes", label: "Minutes Played", heading: "Minutes" },
-  { value: "distance", label: "Distance Covered (m)", heading: "Distance (m)" },
-  { value: "rating", label: "Average Rating", heading: "Rating" },
-  { value: "yellow", label: "Yellow cards", heading: "Yellow cards" },
-  { value: "red", label: "Red cards", heading: "Red cards" },
-  { value: "offsides", label: "Offsides", heading: "Offsides" },
+const categories: Array<{ value: StatCategory; labelKey: string; headingKey: string }> = [
+  { value: "goals", labelKey: "goals", headingKey: "goals" },
+  { value: "assists", labelKey: "assists", headingKey: "assists" },
+  { value: "ga", labelKey: "goalsAssists", headingKey: "goalsAssists" },
+  { value: "minutes", labelKey: "minutesPlayed", headingKey: "minutes" },
+  { value: "distance", labelKey: "distanceCoveredMeters", headingKey: "distanceMetersShort" },
+  { value: "rating", labelKey: "averageRating", headingKey: "rating" },
+  { value: "yellow", labelKey: "yellowCards", headingKey: "yellowCards" },
+  { value: "red", labelKey: "redCards", headingKey: "redCards" },
+  { value: "offsides", labelKey: "offsides", headingKey: "offsides" },
 ];
 
 export function TournamentStats() {
+  const { t, language } = useLanguage();
   const [events, setEvents] = useState<EventRow[]>([]);
   const [lineupRows, setLineupRows] = useState<LineupRow[]>([]);
   const [fotmobRatingRows, setFotmobRatingRows] = useState<FotmobStatRow[]>([]);
@@ -199,7 +202,7 @@ export function TournamentStats() {
               value={category.value}
               className="min-h-12 whitespace-normal rounded-none border-b-2 border-transparent bg-transparent px-2 py-2 text-center text-xs leading-tight data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none sm:text-sm xl:px-3"
             >
-              {category.label}
+              {t(category.labelKey)}
             </TabsTrigger>
           ))}
         </TabsList>
@@ -207,9 +210,11 @@ export function TournamentStats() {
           <TabsContent key={category.value} value={category.value} className="mt-0">
             <Leaderboard
               leaders={leaders[category.value]}
-              heading={category.heading}
+              heading={t(category.headingKey)}
               nations={nations}
               isLoading={isLoadingStats}
+              language={language}
+              t={t}
               formatValue={category.value === "rating" ? formatRating : undefined}
             />
           </TabsContent>
@@ -224,35 +229,41 @@ function Leaderboard({
   heading,
   nations,
   isLoading,
+  language,
+  t,
   formatValue = formatInteger,
 }: {
   leaders: Leader[];
   heading: string;
   nations: Nation[];
   isLoading: boolean;
+  language: "en" | "bn";
+  t: (key: string) => string;
   formatValue?: (value: number) => string;
 }) {
   return (
     <div className="rounded-lg border border-border/40 bg-card/45 p-3 sm:p-5">
       <div className="grid grid-cols-[3rem_1fr_4rem] border-b border-border/50 px-1 pb-3 text-sm text-muted-foreground">
         <span />
-        <span>Player</span>
+        <span>{t("player")}</span>
         <span className="text-right">{heading}</span>
       </div>
       <div>
         {isLoading ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">Loading latest stats...</p>
+          <p className="py-6 text-center text-sm text-muted-foreground">{t("loadingLatestStats")}</p>
         ) : leaders.length > 0 ? (
           leaders.map((leader, index) => (
             <LeaderRow
               key={leader.rowKey ?? `${leader.rank}-${leader.playerName}-${leader.teamName ?? "unknown"}-${index}`}
               leader={leader}
               nations={nations}
+              language={language}
+              t={t}
               formatValue={formatValue}
             />
           ))
         ) : (
-          <p className="py-6 text-center text-sm text-muted-foreground">No data available yet.</p>
+          <p className="py-6 text-center text-sm text-muted-foreground">{t("noDataAvailableYet")}</p>
         )}
       </div>
     </div>
@@ -262,10 +273,14 @@ function Leaderboard({
 function LeaderRow({
   leader,
   nations,
+  language,
+  t,
   formatValue,
 }: {
   leader: Leader;
   nations: Nation[];
+  language: "en" | "bn";
+  t: (key: string) => string;
   formatValue: (value: number) => string;
 }) {
   const nationId = leader.teamName ? normalizeCountryName(leader.teamName) : null;
@@ -276,11 +291,11 @@ function LeaderRow({
 
   return (
     <div className="grid min-h-[70px] grid-cols-[3rem_1fr_4rem] items-center border-b border-border/30 px-1 py-2 last:border-b-0">
-      <span className="text-center text-sm font-black text-foreground">{leader.rank}</span>
+      <span className="text-center text-sm font-black text-foreground">{formatLocalizedNumber(leader.rank, language)}</span>
       <div className="flex min-w-0 items-center gap-3">
         <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-muted text-sm font-black text-foreground">
           <span className="text-xl leading-none tabular-nums">
-            {leader.jerseyNumber ?? "-"}
+            {leader.jerseyNumber != null ? formatLocalizedNumber(leader.jerseyNumber, language) : "-"}
           </span>
         </div>
         <div className="min-w-0">
@@ -290,21 +305,28 @@ function LeaderRow({
             style={playerStyle}
             type="button"
           >
-            {leader.playerName}
+            {formatLocalizedPlayerName(leader.playerName, language)}
           </button>
           {leader.teamName && (
             <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
               <NationFlag className="h-4 w-6" label={leader.teamName} nationId={nationId} fallbackClassName="text-base" />
-              <span className="truncate">{leader.teamName}</span>
+              <span className="truncate">{formatStatsTeamName(leader.teamName, t)}</span>
             </div>
           )}
         </div>
       </div>
       <span className="text-right text-lg font-semibold tabular-nums text-foreground">
-        {leader.valueLabel ?? formatValue(leader.value)}
+        {formatLocalizedNumber(leader.valueLabel ?? formatValue(leader.value), language)}
       </span>
     </div>
   );
+}
+
+function formatStatsTeamName(teamName: string | null, t: (key: string) => string) {
+  if (!teamName) return "";
+  const nationKey = normalizeCountryName(teamName).replace(/-/g, "");
+  const translated = t(nationKey);
+  return translated !== nationKey ? translated : teamName;
 }
 
 function openStatsPlayer(teamName: string | null, playerName: string) {
