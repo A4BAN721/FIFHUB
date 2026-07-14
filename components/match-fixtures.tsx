@@ -5,11 +5,13 @@ import { useEffect } from "react";
 import type { CSSProperties } from "react";
 import type { Match } from "@/lib/match-fixtures";
 import type { Nation } from "@/lib/world-cup-data";
+import type { LiveMatch } from "@/lib/live-data/types";
 import { matchFixtures as fallbackMatchFixtures } from "@/lib/match-fixtures";
 import { nations as fallbackNations } from "@/lib/world-cup-data";
 import { normalizeCountryName } from "@/lib/country-utils";
 import { getFifaAbbreviation, getTeamDisplayName } from "@/lib/team-display";
-import { getMatchFixtures, getNations } from "@/lib/supabase/data";
+import { normalizeMatchPhase, normalizeMatchStatus } from "@/lib/live-data/status";
+import { getNations } from "@/lib/supabase/data";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useLanguage } from "./language-provider";
 import { useAppTheme } from "./theme-provider";
@@ -34,6 +36,27 @@ type TeamAccentStyle = CSSProperties & {
   "--shadow-color": string;
 };
 
+type FixtureScoreboardMatch = {
+  id: string;
+  matchDate: string;
+  matchTime: string;
+  stage: string;
+  group?: string | null;
+  homeTeam: string;
+  awayTeam: string;
+  stadium: string;
+  status?: string | null;
+  period?: string | null;
+  homeScore?: number | null;
+  awayScore?: number | null;
+  homePenaltyScore?: number | null;
+  awayPenaltyScore?: number | null;
+  minute?: number | null;
+  stoppageTime?: number | null;
+  finalScoreConfirmedAt?: string | null;
+  updatedAt?: string | null;
+};
+
 export function MatchFixtures({
   initialSearch = "",
   initialSelectedStage = "ALL",
@@ -50,6 +73,8 @@ export function MatchFixtures({
   const [selectedStage, setSelectedStage] = useState<string>(initialSelectedStage);
   const [matchFixtures, setMatchFixtures] = useState<Match[]>(fallbackMatchFixtures);
   const [nations, setNations] = useState<Nation[]>(fallbackNations);
+  const [initialLiveMatches, setInitialLiveMatches] = useState<Record<string, LiveMatch>>({});
+  const [isLoadingFixtureData, setIsLoadingFixtureData] = useState(true);
   const [fixtureNow] = useState(() => Date.now());
   const matchCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const hasAutoScrolled = useRef(false);
@@ -57,12 +82,13 @@ export function MatchFixtures({
   useEffect(() => {
     let isMounted = true;
 
-    Promise.allSettled([getMatchFixtures(), getNations()])
+    Promise.allSettled([fetchUpdatedFixtureData(), getNations()])
       .then(([matchesResult, nationsResult]) => {
         if (!isMounted) return;
 
-        if (matchesResult.status === "fulfilled" && matchesResult.value.length > 0) {
-          setMatchFixtures(matchesResult.value);
+        if (matchesResult.status === "fulfilled" && matchesResult.value.fixtures.length > 0) {
+          setMatchFixtures(matchesResult.value.fixtures);
+          setInitialLiveMatches(matchesResult.value.liveMatches);
         }
 
         if (nationsResult.status === "fulfilled" && nationsResult.value.length > 0) {
@@ -75,6 +101,8 @@ export function MatchFixtures({
             nations: nationsResult.status === "rejected" ? nationsResult.reason : "loaded",
           });
         }
+
+        setIsLoadingFixtureData(false);
       });
 
     return () => {
@@ -137,7 +165,7 @@ export function MatchFixtures({
   }, [filteredMatches]);
 
   useEffect(() => {
-    if (!targetMatchId || filteredMatches.length === 0) return;
+    if (isLoadingFixtureData || !targetMatchId || filteredMatches.length === 0) return;
     const targetMatch = filteredMatches.find((match) => match.id === targetMatchId);
     if (!targetMatch) return;
 
@@ -147,10 +175,10 @@ export function MatchFixtures({
         behavior: "smooth",
       });
     });
-  }, [filteredMatches, targetMatchId]);
+  }, [filteredMatches, isLoadingFixtureData, targetMatchId]);
 
   useEffect(() => {
-    if (hasAutoScrolled.current || filteredMatches.length === 0) return;
+    if (isLoadingFixtureData || hasAutoScrolled.current || filteredMatches.length === 0) return;
 
     const targetMatch = getAutoScrollTarget(filteredMatches);
     if (!targetMatch) return;
@@ -162,7 +190,7 @@ export function MatchFixtures({
         behavior: "smooth",
       });
     });
-  }, [filteredMatches]);
+  }, [filteredMatches, isLoadingFixtureData]);
 
   const isLiveDataRelevant = (match: Match) => {
     if (!isMobile) return true;
@@ -455,6 +483,16 @@ export function MatchFixtures({
     </div>
   );
 
+  if (isLoadingFixtureData) {
+    return (
+      <div className="container mx-auto px-2 py-4 sm:px-4 sm:py-6">
+        <div className="rounded-lg border border-border/40 bg-card/45 px-4 py-12 text-center text-sm text-muted-foreground backdrop-blur-xl">
+          {t("loadingUpdatedFixtures")}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto px-2 py-4 sm:px-4 sm:py-6">
       {renderControls()}
@@ -515,7 +553,11 @@ export function MatchFixtures({
                             animate={shouldAnimate ? { opacity: 1, scale: 1 } : undefined}
                             transition={shouldAnimate ? { delay: stageIndex * 0.02 + mdIndex * 0.01 + matchIndex * 0.005, duration: 0.2 } : undefined}
                           >
-                            <LiveMatchCard match={match} enableLiveData={isLiveDataRelevant(match)}>
+                            <LiveMatchCard
+                              match={match}
+                              enableLiveData={isLiveDataRelevant(match)}
+                              initialLiveMatch={initialLiveMatches[match.id] ?? null}
+                            >
                               <Card 
                                 className="group relative overflow-hidden rounded-xl backdrop-blur-xl transition-all duration-300 hover:shadow-lg sm:rounded-2xl"
                                 style={{
@@ -700,7 +742,11 @@ export function MatchFixtures({
                       animate={shouldAnimate ? { opacity: 1, scale: 1 } : undefined}
                       transition={shouldAnimate ? { delay: stageIndex * 0.02 + matchIndex * 0.01, duration: 0.2 } : undefined}
                     >
-                      <LiveMatchCard match={match} enableLiveData={isLiveDataRelevant(match)}>
+                      <LiveMatchCard
+                        match={match}
+                        enableLiveData={isLiveDataRelevant(match)}
+                        initialLiveMatch={initialLiveMatches[match.id] ?? null}
+                      >
                         <Card 
                           className="group relative overflow-hidden rounded-xl backdrop-blur-xl transition-all duration-300 hover:shadow-lg sm:rounded-2xl"
                           style={{
@@ -854,6 +900,69 @@ function getAutoScrollTarget(matches: Match[]) {
   });
 
   return startedMatches[startedMatches.length - 1] ?? matches[0] ?? null;
+}
+
+async function fetchUpdatedFixtureData() {
+  const response = await fetch("/api/matches?limit=120&fresh=1", {
+    cache: "no-store",
+    headers: { "Cache-Control": "no-cache" },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Updated fixture request failed with ${response.status}`);
+  }
+
+  const payload = (await response.json()) as { matches?: FixtureScoreboardMatch[] };
+  const scoreboardMatches = payload.matches ?? [];
+  const fixtures = scoreboardMatches.map<Match>((match) => ({
+    id: match.id,
+    date: match.matchDate,
+    time: match.matchTime,
+    stage: match.stage,
+    group: match.group ?? undefined,
+    homeTeam: match.homeTeam,
+    awayTeam: match.awayTeam,
+    stadium: match.stadium,
+  }));
+  const liveMatches = Object.fromEntries(
+    scoreboardMatches.map((match) => {
+      const status = normalizeMatchStatus(match.status);
+      const normalizedPhase = normalizeMatchPhase(match.period);
+      const phase =
+        status === "finished"
+          ? "full_time"
+          : status === "half_time"
+            ? "half_time"
+            : status === "extra_time"
+              ? "extra_time"
+              : status === "penalties"
+                ? "penalties"
+                : normalizedPhase;
+
+      return [
+        match.id,
+        {
+          matchId: match.id,
+          status,
+          phase,
+          homeTeam: match.homeTeam,
+          awayTeam: match.awayTeam,
+          homeScore: match.homeScore ?? 0,
+          awayScore: match.awayScore ?? 0,
+          homePenaltyScore: match.homePenaltyScore ?? null,
+          awayPenaltyScore: match.awayPenaltyScore ?? null,
+          minute: match.minute ?? null,
+          stoppageMinute: match.stoppageTime ?? null,
+          finalScoreConfirmedAt: match.finalScoreConfirmedAt ?? null,
+          updatedAt: match.updatedAt ?? "",
+          statistics: {},
+          events: [],
+        } satisfies LiveMatch,
+      ];
+    }),
+  );
+
+  return { fixtures, liveMatches };
 }
 
 function sortStageMatchesForDisplay(stage: string, matches: Match[]) {

@@ -13,6 +13,7 @@ type UseLiveMatchOptions = {
   intervalMs?: number;
   provider?: FootballDataProvider | null;
   fallbackMatch?: Match;
+  initialLiveMatch?: LiveMatch | null;
 };
 
 type UseLiveMatchResult = {
@@ -25,10 +26,16 @@ type UseLiveMatchResult = {
 
 export function useLiveMatch(
   matchId: string,
-  { enabled = true, intervalMs = 20000, provider, fallbackMatch }: UseLiveMatchOptions = {}
+  {
+    enabled = true,
+    intervalMs = 20000,
+    provider,
+    fallbackMatch,
+    initialLiveMatch = null,
+  }: UseLiveMatchOptions = {}
 ): UseLiveMatchResult {
   const [defaultProvider] = useState<FootballDataProvider | null>(() => createBrowserFootballProvider());
-  const [liveMatch, setLiveMatch] = useState<LiveMatch | null>(null);
+  const [liveMatch, setLiveMatch] = useState<LiveMatch | null>(() => initialLiveMatch);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);

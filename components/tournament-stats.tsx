@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NationFlag } from "@/components/nation-flag";
 import { normalizeCountryName } from "@/lib/country-utils";
 import { createClient, getSupabaseConfig } from "@/lib/supabase/client";
@@ -85,8 +86,26 @@ const categories: Array<{ value: StatCategory; labelKey: string; headingKey: str
   { value: "offsides", labelKey: "offsides", headingKey: "offsides" },
 ];
 
+const statsTabSlideVariants = {
+  enter: (direction: number) => ({
+    x: direction > 0 ? 72 : -72,
+    opacity: 0,
+  }),
+  center: {
+    x: 0,
+    opacity: 1,
+  },
+  exit: (direction: number) => ({
+    x: direction > 0 ? -72 : 72,
+    opacity: 0,
+  }),
+};
+
 export function TournamentStats() {
   const { t, language } = useLanguage();
+  const prefersReducedMotion = useReducedMotion();
+  const [activeCategory, setActiveCategory] = useState<StatCategory>("goals");
+  const [categoryDirection, setCategoryDirection] = useState(1);
   const [events, setEvents] = useState<EventRow[]>([]);
   const [lineupRows, setLineupRows] = useState<LineupRow[]>([]);
   const [fotmobRatingRows, setFotmobRatingRows] = useState<FotmobStatRow[]>([]);
@@ -192,13 +211,28 @@ export function TournamentStats() {
     };
   }, [events, fifaDistanceRows, fifaOffsidesRows, fotmobMinutesRows, fotmobRatingRows, lineupRows, playerLookup]);
 
+  const handleCategoryChange = (value: string) => {
+    const nextCategory = value as StatCategory;
+    if (nextCategory === activeCategory) return;
+
+    const currentIndex = categories.findIndex((category) => category.value === activeCategory);
+    const nextIndex = categories.findIndex((category) => category.value === nextCategory);
+    setCategoryDirection(nextIndex >= currentIndex ? 1 : -1);
+    setActiveCategory(nextCategory);
+  };
+
+  const activeCategoryConfig =
+    categories.find((category) => category.value === activeCategory) ?? categories[0];
+
   return (
     <div className="mx-auto max-w-7xl px-2 py-4 sm:px-4">
-      <Tabs defaultValue="goals" className="w-full">
+      <Tabs value={activeCategory} onValueChange={handleCategoryChange} className="w-full">
         <TabsList className="mb-4 grid h-auto w-full grid-cols-2 rounded-none border-b border-border/50 bg-transparent p-0 sm:grid-cols-3 xl:grid-cols-9">
           {categories.map((category) => (
             <TabsTrigger
               key={category.value}
+              id={`stats-tab-${category.value}`}
+              aria-controls={`stats-tabpanel-${category.value}`}
               value={category.value}
               className="min-h-12 whitespace-normal rounded-none border-b-2 border-transparent bg-transparent px-2 py-2 text-center text-xs leading-tight data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none sm:text-sm xl:px-3"
             >
@@ -206,19 +240,39 @@ export function TournamentStats() {
             </TabsTrigger>
           ))}
         </TabsList>
-        {categories.map((category) => (
-          <TabsContent key={category.value} value={category.value} className="mt-0">
-            <Leaderboard
-              leaders={leaders[category.value]}
-              heading={t(category.headingKey)}
-              nations={nations}
-              isLoading={isLoadingStats}
-              language={language}
-              t={t}
-              formatValue={category.value === "rating" ? formatRating : undefined}
-            />
-          </TabsContent>
-        ))}
+
+        <div className="relative overflow-x-clip">
+          <AnimatePresence initial={false} custom={categoryDirection} mode="popLayout">
+            <motion.div
+              key={activeCategory}
+              id={`stats-tabpanel-${activeCategory}`}
+              role="tabpanel"
+              aria-labelledby={`stats-tab-${activeCategory}`}
+              tabIndex={0}
+              custom={categoryDirection}
+              variants={prefersReducedMotion ? undefined : statsTabSlideVariants}
+              initial={prefersReducedMotion ? { opacity: 0 } : "enter"}
+              animate={prefersReducedMotion ? { opacity: 1 } : "center"}
+              exit={prefersReducedMotion ? { opacity: 0 } : "exit"}
+              transition={
+                prefersReducedMotion
+                  ? { duration: 0.12 }
+                  : { type: "spring", stiffness: 360, damping: 34, mass: 0.8 }
+              }
+              className="w-full outline-none"
+            >
+              <Leaderboard
+                leaders={leaders[activeCategory]}
+                heading={t(activeCategoryConfig.headingKey)}
+                nations={nations}
+                isLoading={isLoadingStats}
+                language={language}
+                t={t}
+                formatValue={activeCategory === "rating" ? formatRating : undefined}
+              />
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </Tabs>
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type { Match } from "@/lib/match-fixtures";
 import type { Nation } from "@/lib/world-cup-data";
 import { matchFixtures as fallbackMatchFixtures } from "@/lib/match-fixtures";
@@ -22,7 +23,24 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+const TABLE_TABS = ["group-stage", "knockout-stage"] as const;
+
+const tableTabSlideVariants = {
+  enter: (direction: number) => ({
+    x: direction > 0 ? 72 : -72,
+    opacity: 0,
+  }),
+  center: {
+    x: 0,
+    opacity: 1,
+  },
+  exit: (direction: number) => ({
+    x: direction > 0 ? -72 : 72,
+    opacity: 0,
+  }),
+};
 
 type StandingRow = {
   nation: Nation;
@@ -773,8 +791,21 @@ function KnockoutStageBracket({
 
 export function GroupStandingsTable() {
   const { t, language } = useLanguage();
+  const prefersReducedMotion = useReducedMotion();
+  const [activeTableTab, setActiveTableTab] = useState("group-stage");
+  const [tableTabDirection, setTableTabDirection] = useState(1);
   const [matchFixtures, setMatchFixtures] = useState<MatchWithOptionalScore[]>(fallbackMatchFixtures);
   const [nations, setNations] = useState<Nation[]>(fallbackNations);
+  const [isLoadingStandings, setIsLoadingStandings] = useState(true);
+
+  const handleTableTabChange = (value: string) => {
+    if (value === activeTableTab) return;
+
+    const currentIndex = TABLE_TABS.indexOf(activeTableTab as (typeof TABLE_TABS)[number]);
+    const nextIndex = TABLE_TABS.indexOf(value as (typeof TABLE_TABS)[number]);
+    setTableTabDirection(nextIndex >= currentIndex ? 1 : -1);
+    setActiveTableTab(value);
+  };
 
   const fetchScoreboardMatches = useCallback(async () => {
     const response = await fetch("/api/matches?limit=120&fresh=1", {
@@ -829,6 +860,9 @@ export function GroupStandingsTable() {
       })
       .catch((error) => {
         console.warn("Using local standings data because Supabase data could not be loaded.", error);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingStandings(false);
       });
 
     return () => {
@@ -1093,17 +1127,31 @@ export function GroupStandingsTable() {
     </section>
   );
 
+  if (isLoadingStandings) {
+    return (
+      <div className="container mx-auto px-0 py-4 sm:px-4 sm:py-6">
+        <div className="rounded-lg border border-border/40 bg-card/45 px-4 py-12 text-center text-sm text-muted-foreground backdrop-blur-xl">
+          {t("loadingLatestStandings")}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto px-0 py-4 sm:px-4 sm:py-6">
-      <Tabs defaultValue="group-stage" className="w-full">
+      <Tabs value={activeTableTab} onValueChange={handleTableTabChange} className="w-full">
         <TabsList className="mb-4 h-auto w-full justify-start overflow-x-auto rounded-none border-b border-border/50 bg-transparent p-0">
           <TabsTrigger
+            id="table-tab-group-stage"
+            aria-controls="table-tabpanel-group-stage"
             value="group-stage"
             className="rounded-none border-b-2 border-transparent bg-transparent px-4 py-3 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
           >
             {t("groupStage")}
           </TabsTrigger>
           <TabsTrigger
+            id="table-tab-knockout-stage"
+            aria-controls="table-tabpanel-knockout-stage"
             value="knockout-stage"
             className="rounded-none border-b-2 border-transparent bg-transparent px-4 py-3 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
           >
@@ -1111,34 +1159,57 @@ export function GroupStandingsTable() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="group-stage" className="mt-0">
-          <div className="space-y-3 sm:space-y-6">
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-6">
-              {Object.entries(standingsByGroup).map(([groupName, rows]) => (
-                <div key={groupName}>
+        <div className="relative overflow-x-clip">
+          <AnimatePresence initial={false} custom={tableTabDirection} mode="popLayout">
+            <motion.div
+              key={activeTableTab}
+              id={`table-tabpanel-${activeTableTab}`}
+              role="tabpanel"
+              aria-labelledby={`table-tab-${activeTableTab}`}
+              tabIndex={0}
+              custom={tableTabDirection}
+              variants={prefersReducedMotion ? undefined : tableTabSlideVariants}
+              initial={prefersReducedMotion ? { opacity: 0 } : "enter"}
+              animate={prefersReducedMotion ? { opacity: 1 } : "center"}
+              exit={prefersReducedMotion ? { opacity: 0 } : "exit"}
+              transition={
+                prefersReducedMotion
+                  ? { duration: 0.12 }
+                  : { type: "spring", stiffness: 360, damping: 34, mass: 0.8 }
+              }
+              className="w-full outline-none"
+            >
+              {activeTableTab === "group-stage" && (
+                <div className="space-y-3 sm:space-y-6">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-6">
+                    {Object.entries(standingsByGroup).map(([groupName, rows]) => (
+                      <div key={groupName}>
+                        {renderStandingsTable(
+                          getTranslatedGroupName(groupName),
+                          rows,
+                          2,
+                          undefined,
+                          qualifiedThirdPlaceNationIds
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
                   {renderStandingsTable(
-                    getTranslatedGroupName(groupName),
-                    rows,
-                    2,
-                    undefined,
-                    qualifiedThirdPlaceNationIds
+                    t("bestThirdPlaceTeams"),
+                    thirdPlaceRows,
+                    8,
+                    t("bestThirdPlaceDescription")
                   )}
                 </div>
-              ))}
-            </div>
+              )}
 
-            {renderStandingsTable(
-              t("bestThirdPlaceTeams"),
-              thirdPlaceRows,
-              8,
-              t("bestThirdPlaceDescription")
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="knockout-stage" className="mt-0">
-          <KnockoutStageBracket matchFixtures={matchFixtures} nationMap={nationMap} />
-        </TabsContent>
+              {activeTableTab === "knockout-stage" && (
+                <KnockoutStageBracket matchFixtures={matchFixtures} nationMap={nationMap} />
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </Tabs>
     </div>
   );

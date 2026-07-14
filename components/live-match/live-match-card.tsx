@@ -22,11 +22,17 @@ type LiveMatchCardProps = {
   match: Match;
   children: ReactNode;
   enableLiveData?: boolean;
+  initialLiveMatch?: LiveMatch | null;
 };
 
 type TranslationFn = (key: string) => string;
 
-export function LiveMatchCard({ match, children, enableLiveData = true }: LiveMatchCardProps) {
+export function LiveMatchCard({
+  match,
+  children,
+  enableLiveData = true,
+  initialLiveMatch = null,
+}: LiveMatchCardProps) {
   const { t, language } = useLanguage();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isRefreshingDetails, setIsRefreshingDetails] = useState(false);
@@ -35,6 +41,7 @@ export function LiveMatchCard({ match, children, enableLiveData = true }: LiveMa
   const { liveMatch, refresh } = useLiveMatch(match.id, {
     enabled: enableLiveData,
     fallbackMatch: match,
+    initialLiveMatch,
     intervalMs: enableLiveData ? 5000 : 120000,
   });
   const completedMatch = getCompletedMatch(match.id);

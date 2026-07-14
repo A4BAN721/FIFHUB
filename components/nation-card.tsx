@@ -95,12 +95,15 @@ export function NationCard({ nation, onClick, index, fifaRanking: fifaRankingOve
     backgroundColor: nation.jerseyColors.primary,
   };
 
+  // Keep a visible animation target even when the mobile media query changes
+  // after hydration. Otherwise Framer Motion can retain the server-rendered
+  // opacity: 0 until the card is remounted (such as after changing tabs).
   return (
     <motion.div
-      className="[content-visibility:auto] [contain-intrinsic-size:150px]"
+      className="md:[content-visibility:auto] md:[contain-intrinsic-size:150px]"
       initial={shouldAnimate ? { opacity: 0, y: 20 } : false}
-      animate={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
-      transition={shouldAnimate ? { delay: index * 0.03, duration: 0.4 } : undefined}
+      animate={{ opacity: 1, y: 0 }}
+      transition={shouldAnimate ? { delay: index * 0.03, duration: 0.4 } : { duration: 0 }}
     >
       <Card
         onClick={onClick}

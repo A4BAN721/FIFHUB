@@ -1,19 +1,39 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Header } from "@/components/header";
 import { NationsGrid } from "@/components/nations-grid";
 import { TriondaBackground } from "@/components/trionda-background";
 import { MatchFixtures } from "@/components/match-fixtures";
 import { GroupStandingsTable } from "@/components/group-standings-table";
 import { TournamentStats } from "@/components/tournament-stats";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLanguage } from "@/components/language-provider";
 import { Instagram, Mail } from "lucide-react";
 
+const MAIN_TABS = ["squads", "fixtures", "table", "stats"] as const;
+
+const tabSlideVariants = {
+  enter: (direction: number) => ({
+    x: direction > 0 ? 72 : -72,
+    opacity: 0,
+  }),
+  center: {
+    x: 0,
+    opacity: 1,
+  },
+  exit: (direction: number) => ({
+    x: direction > 0 ? -72 : 72,
+    opacity: 0,
+  }),
+};
+
 export default function Home() {
   const { t } = useLanguage();
+  const prefersReducedMotion = useReducedMotion();
   const [activeTab, setActiveTab] = useState("squads");
+  const [tabDirection, setTabDirection] = useState(1);
   const [selectedNationId, setSelectedNationId] = useState<string | null>(null);
   const [selectedPlayerName, setSelectedPlayerName] = useState<string | null>(null);
   const [returnTab, setReturnTab] = useState<string | null>(null);
@@ -24,6 +44,18 @@ export default function Home() {
   const [hasScrolledAway, setHasScrolledAway] = useState(false);
   const [matchDetailsOpen, setMatchDetailsOpen] = useState(false);
   const tabsStartRef = useRef<HTMLDivElement | null>(null);
+  const activeTabRef = useRef(activeTab);
+
+  const transitionToTab = useCallback((value: string) => {
+    const currentTab = activeTabRef.current;
+    if (currentTab === value) return;
+
+    const currentIndex = MAIN_TABS.indexOf(currentTab as (typeof MAIN_TABS)[number]);
+    const nextIndex = MAIN_TABS.indexOf(value as (typeof MAIN_TABS)[number]);
+    setTabDirection(nextIndex >= currentIndex ? 1 : -1);
+    activeTabRef.current = value;
+    setActiveTab(value);
+  }, []);
 
   useEffect(() => {
     const handleNationSelection = (event: CustomEvent) => {
@@ -36,7 +68,7 @@ export default function Home() {
       setSelectedPlayerName(typeof detail === "string" ? null : detail.playerName ?? null);
       setReturnTab(typeof detail === "string" ? null : detail.returnTab ?? null);
       setReturnScrollY(typeof detail === "string" ? null : detail.returnScrollY ?? null);
-      setActiveTab("squads");
+      transitionToTab("squads");
     };
 
     window.addEventListener("nationSelected", handleNationSelection as EventListener);
@@ -44,7 +76,7 @@ export default function Home() {
     return () => {
       window.removeEventListener("nationSelected", handleNationSelection as EventListener);
     };
-  }, []);
+  }, [transitionToTab]);
 
   useEffect(() => {
     const handleFixtureSelection = (event: CustomEvent) => {
@@ -57,14 +89,14 @@ export default function Home() {
         selectedStage: typeof detail.selectedStage === "string" ? detail.selectedStage : "ALL",
       });
       setTargetFixtureId(matchId);
-      setActiveTab("fixtures");
+      transitionToTab("fixtures");
     };
 
     window.addEventListener("fixtureSelected", handleFixtureSelection as EventListener);
     return () => {
       window.removeEventListener("fixtureSelected", handleFixtureSelection as EventListener);
     };
-  }, []);
+  }, [transitionToTab]);
 
   useEffect(() => {
     let previousY = window.scrollY;
@@ -110,7 +142,7 @@ export default function Home() {
   }, []);
 
   const handleTabChange = (value: string) => {
-    setActiveTab(value);
+    transitionToTab(value);
     setReturnTab(null);
     setReturnScrollY(null);
     setShowFloatingChrome(false);
@@ -132,7 +164,7 @@ export default function Home() {
     setSelectedNationId(null);
     setSelectedPlayerName(null);
     if (returnTab) {
-      setActiveTab(returnTab);
+      transitionToTab(returnTab);
       const scrollY = returnScrollY;
       window.setTimeout(() => {
         window.scrollTo({ top: scrollY ?? 0, left: 0, behavior: "auto" });
@@ -164,34 +196,61 @@ export default function Home() {
                   : ""
               }`}
             >
-              <TabsTrigger value="squads">{t("groups")}</TabsTrigger>
-              <TabsTrigger value="fixtures">{t("fixtures")}</TabsTrigger>
-              <TabsTrigger value="table">{t("table")}</TabsTrigger>
-              <TabsTrigger value="stats">{t("stats")}</TabsTrigger>
+              <TabsTrigger id="main-tab-squads" aria-controls="main-tabpanel-squads" value="squads">
+                {t("groups")}
+              </TabsTrigger>
+              <TabsTrigger id="main-tab-fixtures" aria-controls="main-tabpanel-fixtures" value="fixtures">
+                {t("fixtures")}
+              </TabsTrigger>
+              <TabsTrigger id="main-tab-table" aria-controls="main-tabpanel-table" value="table">
+                {t("table")}
+              </TabsTrigger>
+              <TabsTrigger id="main-tab-stats" aria-controls="main-tabpanel-stats" value="stats">
+                {t("stats")}
+              </TabsTrigger>
             </TabsList>
-            <TabsContent value="squads" className="mt-0">
-              <NationsGrid
-                initialSelectedNationId={selectedNationId}
-                initialSelectedPlayerName={selectedPlayerName}
-                onNationBack={handleNationBack}
-              />
-            </TabsContent>
-            <TabsContent value="fixtures" className="mt-0">
-              <MatchFixtures
-                initialSearch={fixturesView.search}
-                initialSelectedStage={fixturesView.selectedStage}
-                targetMatchId={targetFixtureId}
-                onViewChange={setFixturesView}
-                mountFloatingControls={mountFloatingFixturesChrome}
-                showFloatingControls={showFloatingFixturesChrome}
-              />
-            </TabsContent>
-            <TabsContent value="table" className="mt-0">
-              <GroupStandingsTable />
-            </TabsContent>
-            <TabsContent value="stats" className="mt-0">
-              <TournamentStats />
-            </TabsContent>
+            <div className="relative overflow-x-clip">
+              <AnimatePresence initial={false} custom={tabDirection} mode="popLayout">
+                <motion.div
+                  key={activeTab}
+                  id={`main-tabpanel-${activeTab}`}
+                  role="tabpanel"
+                  aria-labelledby={`main-tab-${activeTab}`}
+                  tabIndex={0}
+                  custom={tabDirection}
+                  variants={prefersReducedMotion ? undefined : tabSlideVariants}
+                  initial={prefersReducedMotion ? { opacity: 0 } : "enter"}
+                  animate={prefersReducedMotion ? { opacity: 1 } : "center"}
+                  exit={prefersReducedMotion ? { opacity: 0 } : "exit"}
+                  transition={
+                    prefersReducedMotion
+                      ? { duration: 0.12 }
+                      : { type: "spring", stiffness: 360, damping: 34, mass: 0.8 }
+                  }
+                  className="w-full outline-none"
+                >
+                  {activeTab === "squads" && (
+                    <NationsGrid
+                      initialSelectedNationId={selectedNationId}
+                      initialSelectedPlayerName={selectedPlayerName}
+                      onNationBack={handleNationBack}
+                    />
+                  )}
+                  {activeTab === "fixtures" && (
+                    <MatchFixtures
+                      initialSearch={fixturesView.search}
+                      initialSelectedStage={fixturesView.selectedStage}
+                      targetMatchId={targetFixtureId}
+                      onViewChange={setFixturesView}
+                      mountFloatingControls={mountFloatingFixturesChrome}
+                      showFloatingControls={showFloatingFixturesChrome}
+                    />
+                  )}
+                  {activeTab === "table" && <GroupStandingsTable />}
+                  {activeTab === "stats" && <TournamentStats />}
+                </motion.div>
+              </AnimatePresence>
+            </div>
           </Tabs>
         </div>
         <footer className="border-t border-border/30 bg-card/60 backdrop-blur-xl">
