@@ -57,6 +57,20 @@ type FixtureScoreboardMatch = {
   updatedAt?: string | null;
 };
 
+const fixtureStageOrder = [
+  "GROUP STAGE",
+  "ROUND OF 32",
+  "ROUND OF 16",
+  "QUARTER-FINALS",
+  "SEMI-FINALS",
+  "BRONZE FINAL",
+  "FINAL",
+] as const;
+
+const fixtureStageRank = new Map<string, number>(
+  fixtureStageOrder.map((stage, index) => [stage, index]),
+);
+
 export function MatchFixtures({
   initialSearch = "",
   initialSelectedStage = "ALL",
@@ -129,7 +143,7 @@ export function MatchFixtures({
   }, []);
 
   const stages = useMemo(() => {
-    const uniqueStages = Array.from(new Set(matchFixtures.map((m) => m.stage)));
+    const uniqueStages = Array.from(new Set(matchFixtures.map((m) => m.stage))).sort(compareFixtureStages);
     return ["ALL", ...uniqueStages];
   }, [matchFixtures]);
 
@@ -163,6 +177,11 @@ export function MatchFixtures({
 
     return grouped;
   }, [filteredMatches]);
+
+  const orderedStageEntries = useMemo(
+    () => Object.entries(matchesByStage).sort(([leftStage], [rightStage]) => compareFixtureStages(leftStage, rightStage)),
+    [matchesByStage],
+  );
 
   useEffect(() => {
     if (isLoadingFixtureData || !targetMatchId || filteredMatches.length === 0) return;
@@ -500,7 +519,7 @@ export function MatchFixtures({
 
       {/* Matches by Stage */}
       <div className="space-y-5 sm:space-y-6">
-        {Object.entries(matchesByStage).map(([stage, matches], stageIndex) => {
+        {orderedStageEntries.map(([stage, matches], stageIndex) => {
           const isGroupStage = stage === "GROUP STAGE";
           
           if (isGroupStage) {
@@ -982,6 +1001,13 @@ function sortStageMatchesForDisplay(stage: string, matches: Match[]) {
 
     return Number(a.id) - Number(b.id);
   });
+}
+
+function compareFixtureStages(leftStage: string, rightStage: string) {
+  const leftRank = fixtureStageRank.get(leftStage) ?? Number.MAX_SAFE_INTEGER;
+  const rightRank = fixtureStageRank.get(rightStage) ?? Number.MAX_SAFE_INTEGER;
+
+  return leftRank - rightRank || leftStage.localeCompare(rightStage);
 }
 
 function parseFixtureDateTime(date: string, time: string) {

@@ -60,6 +60,8 @@ const fifaAbbreviationsByNationId: Record<string, string> = {
 };
 
 const displayNameByNationId: Record<string, string> = {
+  curacao: "Curaçao",
+  turkiye: "Türkiye",
   usa: "United States",
 };
 
