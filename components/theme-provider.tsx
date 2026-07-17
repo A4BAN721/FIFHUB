@@ -21,11 +21,19 @@ type ThemeContextValue = {
 const ThemeContext = React.createContext<ThemeContextValue | null>(null)
 const storageKey = 'fithub-theme'
 const themeChangeEvent = 'fithub-theme-change'
+const themeColors: Record<Theme, string> = {
+  light: '#faf9f5',
+  dark: '#1a1a1f',
+}
 
 function applyTheme(theme: Theme) {
   document.documentElement.classList.toggle('dark', theme === 'dark')
   document.documentElement.classList.toggle('light', theme === 'light')
   document.documentElement.style.colorScheme = theme
+
+  document
+    .querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')
+    .forEach((meta) => meta.setAttribute('content', themeColors[theme]))
 }
 
 function getStoredTheme(defaultTheme: Theme): Theme {
