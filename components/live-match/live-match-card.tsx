@@ -198,6 +198,14 @@ function MatchHighlightsLink({ liveMatch, t }: { liveMatch: LiveMatch; t: Transl
   );
 }
 
+function LiveScoreLap() {
+  return (
+    <svg className="live-score-lap" aria-hidden="true" focusable="false">
+      <rect className="live-score-lap-segment" pathLength="100" />
+    </svg>
+  );
+}
+
 function CompactScoreOverlay({
   liveMatch,
   fixtureStage,
@@ -233,7 +241,8 @@ function CompactScoreOverlay({
       >
         {getPlayPeriodLabel(liveMatch, t)}
       </span>
-      <div className={`absolute left-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center gap-0.5 sm:flex-row sm:gap-1.5 ${scoreGroupPosition}`}>
+      <div className={`absolute left-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center gap-0.5 rounded-lg p-0.5 sm:flex-row sm:gap-1.5 sm:rounded-xl sm:p-1 ${scoreGroupPosition}`}>
+        {isMatchInProgress(liveMatch) && <LiveScoreLap />}
         {timerLabel && !isHalfTimeTimer && (
           <span className="rounded-full border border-zinc-200 bg-white/95 px-1.5 py-0 text-center text-[8px] font-black uppercase tabular-nums leading-tight text-red-600 shadow-md dark:border-zinc-700 dark:bg-zinc-950/95 sm:rounded-lg sm:px-1.5 sm:py-1 sm:text-sm sm:shadow-lg">
             {timerLabel}
@@ -975,7 +984,8 @@ function ExpandedScoreboard({ liveMatch, language, t }: { liveMatch: LiveMatch; 
           <PenaltyAttemptDots attempts={getPenaltyShootoutAttempts(liveMatch, liveMatch.homeTeam)} align="left" />
         )}
       </div>
-      <div className="flex flex-col items-center justify-center gap-1.5 sm:flex-row">
+      <div className="relative flex flex-col items-center justify-center gap-1.5 rounded-xl p-1 sm:flex-row">
+        {isMatchInProgress(liveMatch) && <LiveScoreLap />}
         {showTimer && (
           <span className="rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-1 text-center text-xs font-black uppercase tabular-nums leading-none text-red-600 shadow-sm sm:text-sm">
             {timerLabel}

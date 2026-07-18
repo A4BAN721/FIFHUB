@@ -198,6 +198,45 @@
   transform-origin: center;
 }
 
+@keyframes live-score-lap {
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+
+.live-score-lap {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.live-score-lap-segment {
+  x: 2px;
+  y: 2px;
+  width: calc(100% - 4px);
+  height: calc(100% - 4px);
+  rx: 12px;
+  ry: 12px;
+  fill: none;
+  stroke: rgb(239 68 68);
+  stroke-width: 3px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 20 80;
+  filter: drop-shadow(0 0 2px rgb(239 68 68 / 70%));
+  animation: live-score-lap 3s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-score-lap-segment {
+    animation: none;
+  }
+}
+
 /* Smooth flowing gradient background */
 @keyframes background-flow {
   0%, 100% {
