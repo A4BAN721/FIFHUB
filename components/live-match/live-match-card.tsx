@@ -626,13 +626,31 @@ function estimateDisplayClock(liveMatch: LiveMatch, now: number, fixture: Match)
       : null;
   }
 
-  if (liveMatch.phase === "first_half" && typeof liveMatch.minute === "number") {
+  const hasFirstHalfClock =
+    liveMatch.phase === "first_half" ||
+    (liveMatch.phase === "second_half" && typeof liveMatch.minute === "number" && liveMatch.minute <= 45);
+
+  if (hasFirstHalfClock && typeof liveMatch.minute === "number") {
+    const kickoffTime = getKickoffTime(liveMatch, fixture);
+    const elapsedMinute = Number.isFinite(kickoffTime)
+      ? Math.floor((now - kickoffTime) / 60_000) + 1
+      : liveMatch.minute;
+
+    if (elapsedMinute > 60) {
+      return {
+        status: "half_time" as const,
+        phase: "half_time" as const,
+        minute: 45,
+        stoppageMinute: null,
+      };
+    }
+
     return providerClock(liveMatch, {
       status: "live",
       phase: "first_half",
       minMinute: 1,
       maxMinute: 45,
-    });
+    }, Math.max(liveMatch.minute, elapsedMinute));
   }
 
   if (liveMatch.phase === "second_half" && typeof liveMatch.minute === "number") {
@@ -682,11 +700,21 @@ function fixtureClock(liveMatch: LiveMatch, now: number, kickoffTime: number) {
     };
   }
 
+  if (elapsed >= 60) {
+    return {
+      status: "half_time" as const,
+      phase: "half_time" as const,
+      minute: 45,
+      stoppageMinute: null,
+    };
+  }
+
+  const firstHalfClock = normalizeFirstHalfClock(liveMatch.minute ?? elapsed + 1, liveMatch.stoppageMinute);
+
   return {
     status: "live" as const,
     phase: "first_half" as const,
-    minute: Math.min(45, Math.max(1, liveMatch.minute ?? elapsed + 1)),
-    stoppageMinute: capStoppageMinute(liveMatch.stoppageMinute),
+    ...firstHalfClock,
   };
 }
 
@@ -698,7 +726,16 @@ function providerClock(
     minMinute: number;
     maxMinute: number;
   },
+  displayMinute = liveMatch.minute ?? options.minMinute,
 ) {
+  if (options.phase === "first_half") {
+    return {
+      status: options.status,
+      phase: options.phase,
+      ...normalizeFirstHalfClock(displayMinute, liveMatch.stoppageMinute),
+    };
+  }
+
   const baseMinute = Math.min(options.maxMinute, Math.max(options.minMinute, liveMatch.minute ?? options.minMinute));
 
   return {
@@ -737,8 +774,7 @@ function phaseFallbackClock(liveMatch: LiveMatch) {
     return {
       status: "live" as const,
       phase: "first_half" as const,
-      minute: Math.min(45, Math.max(1, liveMatch.minute ?? 1)),
-      stoppageMinute: capStoppageMinute(liveMatch.stoppageMinute),
+      ...normalizeFirstHalfClock(liveMatch.minute ?? 1, liveMatch.stoppageMinute),
     };
   }
 
@@ -755,8 +791,7 @@ function phaseFallbackClock(liveMatch: LiveMatch) {
     return {
       status: "live" as const,
       phase: "first_half" as const,
-      minute: Math.min(45, Math.max(1, liveMatch.minute ?? 1)),
-      stoppageMinute: capStoppageMinute(liveMatch.stoppageMinute),
+      ...normalizeFirstHalfClock(liveMatch.minute ?? 1, liveMatch.stoppageMinute),
     };
   }
 
@@ -821,6 +856,17 @@ function createScheduledLiveMatch(match: Match, now: number, existingLiveMatch?:
 function capStoppageMinute(stoppageMinute?: number | null) {
   if (typeof stoppageMinute !== "number" || stoppageMinute <= 0) return null;
   return Math.min(stoppageMinute, 15);
+}
+
+function normalizeFirstHalfClock(minute: number, stoppageMinute?: number | null) {
+  const normalizedMinute = Math.max(1, minute);
+  const inferredStoppageMinute = normalizedMinute > 45 ? normalizedMinute - 45 : null;
+  const providerStoppageMinute = typeof stoppageMinute === "number" && stoppageMinute > 0 ? stoppageMinute : null;
+
+  return {
+    minute: Math.min(45, normalizedMinute),
+    stoppageMinute: capStoppageMinute(providerStoppageMinute ?? inferredStoppageMinute),
+  };
 }
 
 function isMatchInProgress(liveMatch: LiveMatch) {

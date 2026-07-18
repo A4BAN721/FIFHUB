@@ -88,6 +88,9 @@ export interface MatchLineupPlayer {
   shirtNumber?: number | null;
   status: MatchLineupPlayerStatus;
   rating?: number | null;
+  goals?: number | null;
+  ownGoals?: number | null;
+  assists?: number | null;
   minutesPlayed?: number | null;
   offsides?: number | null;
   grid?: string | null;

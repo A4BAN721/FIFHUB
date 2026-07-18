@@ -657,7 +657,7 @@ function mapFotmobMatch(match, league) {
     homePenaltyScore: score.homePenalty,
     awayPenaltyScore: score.awayPenalty,
     minute,
-    stoppageMinute: null,
+    stoppageMinute: match.status?.liveTime?.addedTime ?? null,
     status: mapFotmobStatus(match.status, minute),
     phase: mapFotmobPhase(match.status, minute),
     kickoffTime: match.status?.utcTime ?? match.timeTS ?? match.time ?? null,
@@ -716,6 +716,7 @@ function parsePenaltyScore(homeValue, awayValue, fallbackHomeValue, fallbackAway
 
 function firstFiniteNumber(...values) {
   for (const value of values) {
+    if (value == null || value === "") continue;
     const parsed = Number(value);
     if (Number.isFinite(parsed)) return parsed;
   }
@@ -769,7 +770,7 @@ function parseFotmobLocalTimestamp(value) {
 function mapFotmobStatus(status, minute) {
   const reason = String(status?.reason?.short ?? status?.reason?.long ?? "").toUpperCase();
   if (status?.finished || ["FT", "AET", "PEN"].includes(reason)) return "finished";
-  if (reason === "HT") return "half_time";
+  if (reason === "HT" || isFotmobHalfTimeFallback(status, reason)) return "half_time";
   if (typeof minute === "number" && minute > 90 && status?.started) return "extra_time";
   if (reason === "ET") return "extra_time";
   if (["P", "PENS", "PENALTIES"].includes(reason)) return "penalties";
@@ -781,13 +782,21 @@ function mapFotmobStatus(status, minute) {
 function mapFotmobPhase(status, minute) {
   const reason = String(status?.reason?.short ?? status?.reason?.long ?? "").toUpperCase();
   if (["FT", "AET", "PEN"].includes(reason) || status?.finished) return "full_time";
-  if (reason === "HT") return "half_time";
+  if (reason === "HT" || isFotmobHalfTimeFallback(status, reason)) return "half_time";
   if (reason === "1H") return "first_half";
   if (reason === "2H") return "second_half";
   if (typeof minute === "number" && minute > 90 && status?.started) return "extra_time";
   if (reason === "ET") return "extra_time";
   if (["P", "PENS", "PENALTIES"].includes(reason)) return "penalties";
-  return status?.started ? "second_half" : "pre_match";
+  if (typeof minute === "number") return minute >= 46 ? "second_half" : "first_half";
+  return status?.started ? "first_half" : "pre_match";
+}
+
+function isFotmobHalfTimeFallback(status, reason) {
+  if (!status?.started || reason === "2H" || status.halfs?.secondHalfStarted) return false;
+
+  const kickoffTime = Date.parse(status.utcTime ?? "");
+  return Number.isFinite(kickoffTime) && Date.now() - kickoffTime >= 60 * 60_000;
 }
 
 function shouldFetchFotmobDetails(match) {
@@ -1000,7 +1009,7 @@ function mapFotmobLineupPlayer(player, status, playerStats, playerOfTheMatch) {
   const id = player.id != null ? String(player.id) : null;
   const stats = id ? playerStats.get(id) : null;
   const shirtNumber = Number(player.shirtNumber);
-  const rating = Number(stats?.rating ?? player.performance?.rating ?? player.rating);
+  const rating = Number(player.performance?.rating ?? stats?.rating ?? player.rating);
   const minutesPlayed = Number(player.minutesPlayed ?? player.minutes ?? player.timePlayed ?? stats?.minutesPlayed);
   const offsides = Number(player.offsides ?? player.offside ?? stats?.offsides);
   const grid = fotmobGrid(player);
@@ -1012,12 +1021,23 @@ function mapFotmobLineupPlayer(player, status, playerStats, playerOfTheMatch) {
     shirtNumber: Number.isFinite(shirtNumber) ? shirtNumber : null,
     status,
     rating: Number.isFinite(rating) ? rating : null,
+    goals: countFotmobPerformanceEvents(player.performance, "goal"),
+    ownGoals: countFotmobPerformanceEvents(player.performance, "own_goal"),
+    assists: countFotmobPerformanceEvents(player.performance, "assist"),
     minutesPlayed: Number.isFinite(minutesPlayed) ? minutesPlayed : null,
     offsides: Number.isFinite(offsides) ? offsides : null,
     grid,
     captain: player.isCaptain === true,
     playerOfTheMatch: isSameFotmobPlayer({ id, name }, playerOfTheMatch),
   };
+}
+
+function countFotmobPerformanceEvents(performance, expectedType) {
+  return (performance?.events ?? []).filter((event) => {
+    const type = String(event?.type ?? "").toLowerCase().replace(/[^a-z]/g, "");
+    if (expectedType === "own_goal") return type === "owngoal";
+    return type === expectedType;
+  }).length;
 }
 
 function isSameFotmobPlayer(player, target) {

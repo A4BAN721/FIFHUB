@@ -1,5 +1,4 @@
 import type { CSSProperties } from "react";
-import Image from "next/image";
 import type { MatchEvent, MatchLineupPlayer, MatchLineups, MatchTeamLineup, MatchUnavailablePlayer } from "@/lib/live-data/types";
 import { normalizeCountryName } from "@/lib/country-utils";
 import { getTeamDisplayName } from "@/lib/team-display";
@@ -214,15 +213,21 @@ function PlayerLine({
 
   return (
     <div
-      className={`flex items-center gap-3 bg-[#242526] px-2 py-2 sm:px-3 ${
+      className={`flex min-w-0 items-center gap-2 bg-[#242526] px-2 py-2 sm:gap-3 sm:px-3 ${
         isAway ? "justify-end border-l border-black/20 text-right" : ""
       }`}
     >
       {!isAway && <NumberCircle player={player} marks={marks} side={side} />}
-      <div className="min-w-0">
-        <div className={`flex items-center gap-1.5 ${isAway ? "flex-row-reverse" : ""}`}>
+      <div className="min-w-0 flex-1">
+        <div
+          className={`flex w-fit min-w-0 max-w-full items-center gap-1.5 ${
+            isAway ? "ml-auto flex-row-reverse" : ""
+          }`}
+        >
           <button
-            className="min-w-0 cursor-pointer whitespace-normal break-words text-[11px] font-black leading-[1.05] text-white transition hover:text-[var(--player-team-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:truncate sm:text-base sm:leading-tight"
+            className={`min-w-0 shrink cursor-pointer whitespace-normal break-words text-[11px] font-black leading-[1.05] text-white transition hover:text-[var(--player-team-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:truncate sm:text-base sm:leading-tight ${
+              isAway ? "text-right" : "text-left"
+            }`}
             style={{ "--player-team-primary": getNationPrimaryColor(teamName) } as PlayerNameStyle}
             onClick={() => openSquadPlayer(teamName, player.name)}
             type="button"
@@ -230,7 +235,8 @@ function PlayerLine({
             <span className="sm:hidden">{formatMobilePlayerName(player.name)}</span>
             <span className="hidden sm:inline">{player.name}</span>
           </button>
-          <RatingCluster player={player} marks={marks} side={side} />
+          <RatingCluster player={player} />
+          <PlayerEventMarkers marks={marks} />
         </div>
         <p className="mt-0.5 truncate text-xs text-white/65">
           {playerPositionLabel(player, teamName)}
@@ -241,29 +247,14 @@ function PlayerLine({
   );
 }
 
-function RatingCluster({ player, marks, side }: { player: MatchLineupPlayer; marks: PlayerEventMarks; side: "home" | "away" }) {
+function RatingCluster({ player }: { player: MatchLineupPlayer }) {
   const rating = player.rating;
-  const hasMarkers = hasRatingSideMarkers(marks);
-  if (rating == null && !hasMarkers) return null;
+  if (rating == null) return null;
 
   return (
-    <span
-      className={`flex shrink-0 flex-col items-center gap-0.5 sm:flex-row sm:gap-1 ${
-        side === "away" ? "sm:flex-row-reverse" : ""
-      }`}
-    >
-      {rating != null && <RatingBadge rating={rating} playerOfTheMatch={Boolean(player.playerOfTheMatch)} />}
-      <PlayerEventMarkers marks={marks} />
+    <span className="shrink-0">
+      <RatingBadge rating={rating} playerOfTheMatch={Boolean(player.playerOfTheMatch)} />
     </span>
-  );
-}
-
-function hasRatingSideMarkers(marks: PlayerEventMarks) {
-  return (
-    marks.goals > 0 ||
-    marks.ownGoals > 0 ||
-    marks.assists > 0 ||
-    marks.suspended
   );
 }
 
@@ -277,12 +268,16 @@ function PlayerEventMarkers({ marks }: { marks: PlayerEventMarks }) {
 
   if (markers.length === 0) return null;
 
-  return <span className="flex shrink-0 items-center gap-1">{markers}</span>;
+  return (
+    <span className="relative z-10 inline-flex shrink-0 items-center gap-1 overflow-visible" aria-label="Player match events">
+      {markers}
+    </span>
+  );
 }
 
 function GoalMarker() {
   return (
-    <span aria-label="Goal" className="grid h-4 w-4 place-items-center">
+    <span aria-label="Goal" title="Goal" className="grid h-5 w-5 shrink-0 place-items-center">
       <EventIcon src="/icons/goal-symbol.png" alt="Goal" />
     </span>
   );
@@ -290,7 +285,7 @@ function GoalMarker() {
 
 function OwnGoalMarker() {
   return (
-    <span aria-label="Own goal" className="grid h-4 w-4 place-items-center">
+    <span aria-label="Own goal" title="Own goal" className="grid h-5 w-5 shrink-0 place-items-center">
       <EventIcon src="/icons/own-goal-symbol.png" alt="Own goal" />
     </span>
   );
@@ -298,7 +293,7 @@ function OwnGoalMarker() {
 
 function AssistMarker() {
   return (
-    <span aria-label="Assist" className="grid h-4 w-4 place-items-center">
+    <span aria-label="Assist" title="Assist" className="grid h-5 w-5 shrink-0 place-items-center">
       <EventIcon src="/icons/assist-symbol.png" alt="Assist" />
     </span>
   );
@@ -306,13 +301,15 @@ function AssistMarker() {
 
 function EventIcon({ src, alt }: { src: string; alt: string }) {
   return (
-    <Image
+    // These local transparent icons deliberately use a native image so their
+    // intrinsic pixels cannot collapse inside the compact lineup flex row.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
       src={src}
       alt={alt}
-      width={128}
-      height={128}
-      unoptimized
-      className="block h-4 w-4 max-w-none shrink-0 object-contain"
+      width={20}
+      height={20}
+      className="block h-5 w-5 shrink-0 object-contain drop-shadow-[0_0_1px_rgba(255,255,255,0.9)]"
       draggable={false}
     />
   );
@@ -605,6 +602,10 @@ function getPlayerEventMarks(player: MatchLineupPlayer | undefined, teamName: st
       marks.assists += 1;
     }
   }
+
+  marks.goals = Math.max(marks.goals, player.goals ?? 0);
+  marks.ownGoals = Math.max(marks.ownGoals, player.ownGoals ?? 0);
+  marks.assists = Math.max(marks.assists, player.assists ?? 0);
 
   return marks;
 }

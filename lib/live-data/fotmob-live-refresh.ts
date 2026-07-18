@@ -1,5 +1,15 @@
 import { normalizeCountryName } from "@/lib/country-utils";
-import type { LiveMatch, MatchEvent, MatchEventType, MatchPhase, MatchStatistics, MatchStatus } from "./types";
+import type {
+  LiveMatch,
+  MatchEvent,
+  MatchEventType,
+  MatchLineupPlayer,
+  MatchLineups,
+  MatchPhase,
+  MatchStatistics,
+  MatchStatus,
+  MatchTeamLineup,
+} from "./types";
 
 type FotmobMatch = {
   id?: number | string;
@@ -68,6 +78,7 @@ async function fetchFotmobLiveRefresh(baseMatch: LiveMatch): Promise<LiveMatch |
   const details = await fotmobRequest("matchDetails", { matchId: String(match.id) }).catch(() => null);
   const statistics = details ? mapFotmobStatistics(details) : {};
   const events = details ? mapFotmobEvents(details, String(match.id), baseMatch) : [];
+  const lineups = details ? mapFotmobLineups(details, baseMatch) : null;
   const score = parseFotmobScore(match);
   const minute = getFotmobMinute(match.status);
   const status = mapFotmobStatus(match.status, minute);
@@ -89,6 +100,7 @@ async function fetchFotmobLiveRefresh(baseMatch: LiveMatch): Promise<LiveMatch |
       ...baseMatch.statistics,
       ...statistics,
     },
+    lineups: lineups ?? baseMatch.lineups ?? null,
     events: events.length > 0 ? events : baseMatch.events,
   };
 }
@@ -232,9 +244,8 @@ function parseFotmobLocalTimestamp(value: unknown) {
 
 function mapFotmobStatus(status: FotmobStatus | undefined, minute: number | null): MatchStatus {
   const reason = String(status?.reason?.short ?? status?.reason?.long ?? "").toUpperCase();
-  const secondHalfStarted = parseFotmobLocalTimestamp(status?.halfs?.secondHalfStarted);
   if (status?.finished || ["FT", "AET", "PEN"].includes(reason)) return "finished";
-  if (reason === "HT" || (status?.started && minute === 45 && !Number.isFinite(secondHalfStarted))) return "half_time";
+  if (reason === "HT" || isFotmobHalfTimeFallback(status, reason)) return "half_time";
   if (typeof minute === "number" && minute > 90 && status?.started) return "extra_time";
   if (reason === "ET") return "extra_time";
   if (["P", "PENS", "PENALTIES"].includes(reason)) return "penalties";
@@ -245,9 +256,8 @@ function mapFotmobStatus(status: FotmobStatus | undefined, minute: number | null
 
 function mapFotmobPhase(status: FotmobStatus | undefined, minute: number | null): MatchPhase {
   const reason = String(status?.reason?.short ?? status?.reason?.long ?? "").toUpperCase();
-  const secondHalfStarted = parseFotmobLocalTimestamp(status?.halfs?.secondHalfStarted);
   if (["FT", "AET", "PEN"].includes(reason) || status?.finished) return "full_time";
-  if (reason === "HT" || (status?.started && minute === 45 && !Number.isFinite(secondHalfStarted))) return "half_time";
+  if (reason === "HT" || isFotmobHalfTimeFallback(status, reason)) return "half_time";
   if (reason === "1H") return "first_half";
   if (reason === "2H") return "second_half";
   if (typeof minute === "number" && minute > 90 && status?.started) return "extra_time";
@@ -255,6 +265,13 @@ function mapFotmobPhase(status: FotmobStatus | undefined, minute: number | null)
   if (["P", "PENS", "PENALTIES"].includes(reason)) return "penalties";
   if (typeof minute === "number") return minute >= 46 ? "second_half" : "first_half";
   return status?.started ? "first_half" : "pre_match";
+}
+
+function isFotmobHalfTimeFallback(status: FotmobStatus | undefined, reason: string) {
+  if (!status?.started || reason === "2H" || status.halfs?.secondHalfStarted) return false;
+
+  const kickoffTime = Date.parse(status.utcTime ?? "");
+  return Number.isFinite(kickoffTime) && Date.now() - kickoffTime >= 60 * 60_000;
 }
 
 function mapFotmobStatistics(details: unknown): MatchStatistics {
@@ -299,6 +316,172 @@ function mapFotmobEvents(details: unknown, providerMatchId: string, baseMatch: L
         a.minute - b.minute ||
         (a.stoppageMinute ?? 0) - (b.stoppageMinute ?? 0),
     );
+}
+
+type FotmobPlayerStats = {
+  rating: number | null;
+  minutesPlayed: number | null;
+  offsides: number | null;
+};
+
+function mapFotmobLineups(details: unknown, baseMatch: LiveMatch): MatchLineups | null {
+  const lineup = getNestedValue(details, ["content", "lineup"]);
+  const homeTeam = getNestedValue(lineup, ["homeTeam"]);
+  const awayTeam = getNestedValue(lineup, ["awayTeam"]);
+  if (!isRecord(homeTeam) || !isRecord(awayTeam)) return null;
+
+  const playerStats = mapFotmobPlayerStats(getNestedValue(details, ["content", "playerStats"]));
+  const home = mapFotmobTeamLineup(homeTeam, baseMatch.homeTeam, playerStats, baseMatch.lineups?.home);
+  const away = mapFotmobTeamLineup(awayTeam, baseMatch.awayTeam, playerStats, baseMatch.lineups?.away);
+  if (home.starters.length === 0 && home.substitutes.length === 0 && away.starters.length === 0 && away.substitutes.length === 0) {
+    return null;
+  }
+
+  return {
+    provider: "fotmob",
+    lastUpdated: new Date().toISOString(),
+    home,
+    away,
+  };
+}
+
+function mapFotmobTeamLineup(
+  team: Record<string, unknown>,
+  fallbackTeamName: string,
+  playerStats: Map<string, FotmobPlayerStats>,
+  fallback?: MatchTeamLineup,
+): MatchTeamLineup {
+  const starters = arrayValue(team.starters)
+    .map((player) => mapFotmobLineupPlayer(player, "starter", playerStats))
+    .filter((player): player is MatchLineupPlayer => Boolean(player));
+  const substitutes = arrayValue(team.subs ?? team.substitutes)
+    .map((player) => mapFotmobLineupPlayer(player, "substitute", playerStats))
+    .filter((player): player is MatchLineupPlayer => Boolean(player));
+
+  return {
+    teamName: stringValue(team.name) ?? fallbackTeamName,
+    formation: stringValue(team.formation) ?? fallback?.formation ?? null,
+    coach: stringValue(getNestedValue(team, ["coach", "name"])) ?? stringValue(team.coach) ?? fallback?.coach ?? null,
+    starters,
+    substitutes,
+    unavailable: fallback?.unavailable ?? [],
+  };
+}
+
+function mapFotmobLineupPlayer(
+  value: unknown,
+  status: MatchLineupPlayer["status"],
+  playerStats: Map<string, FotmobPlayerStats>,
+): MatchLineupPlayer | null {
+  if (!isRecord(value)) return null;
+
+  const name = stringValue(value.name) ?? [stringValue(value.firstName), stringValue(value.lastName)].filter(Boolean).join(" ");
+  if (!name) return null;
+
+  const id = value.id != null ? String(value.id) : null;
+  const stats = id ? playerStats.get(id) : null;
+  const performance = isRecord(value.performance) ? value.performance : null;
+  const rating = firstFiniteNumber(performance?.rating, stats?.rating, value.rating);
+  const minutesPlayed = firstFiniteNumber(value.minutesPlayed, value.minutes, value.timePlayed, stats?.minutesPlayed);
+  const offsides = firstFiniteNumber(value.offsides, value.offside, stats?.offsides);
+  const shirtNumber = firstFiniteNumber(value.shirtNumber);
+  const grid = fotmobGrid(value);
+
+  return {
+    id,
+    name,
+    position: fotmobPosition(value.positionId ?? value.usualPlayingPositionId) ?? fotmobPositionFromGrid(grid),
+    shirtNumber,
+    status,
+    rating,
+    goals: countFotmobPerformanceEvents(performance, "goal"),
+    ownGoals: countFotmobPerformanceEvents(performance, "own_goal"),
+    assists: countFotmobPerformanceEvents(performance, "assist"),
+    minutesPlayed,
+    offsides,
+    grid,
+    captain: value.isCaptain === true,
+  };
+}
+
+function countFotmobPerformanceEvents(
+  performance: Record<string, unknown> | null,
+  expectedType: "goal" | "own_goal" | "assist",
+) {
+  return arrayValue(performance?.events).filter((event) => {
+    if (!isRecord(event)) return false;
+    const type = String(event.type ?? "").toLowerCase().replace(/[^a-z]/g, "");
+    if (expectedType === "own_goal") return type === "owngoal";
+    return type === expectedType;
+  }).length;
+}
+
+function mapFotmobPlayerStats(value: unknown): Map<string, FotmobPlayerStats> {
+  const statsByPlayer = new Map<string, FotmobPlayerStats>();
+  if (!isRecord(value)) return statsByPlayer;
+
+  for (const [playerId, player] of Object.entries(value)) {
+    if (!isRecord(player)) continue;
+    const stats = extractFotmobPlayerStats(player);
+    if (stats.rating == null && stats.minutesPlayed == null && stats.offsides == null) continue;
+    statsByPlayer.set(String(player.id ?? playerId), stats);
+  }
+
+  return statsByPlayer;
+}
+
+function extractFotmobPlayerStats(player: Record<string, unknown>): FotmobPlayerStats {
+  const result: FotmobPlayerStats = {
+    rating: null,
+    minutesPlayed: firstFiniteNumber(player.minutesPlayed, player.minutes, player.timePlayed),
+    offsides: firstFiniteNumber(player.offsides, player.offside),
+  };
+
+  for (const group of arrayValue(player.stats)) {
+    if (!isRecord(group) || !isRecord(group.stats)) continue;
+    for (const value of Object.values(group.stats)) {
+      if (!isRecord(value)) continue;
+      const key = normalizeFotmobStatKey(value.key ?? value.title);
+      const stat = isRecord(value.stat) ? value.stat.value : value.stat;
+      const parsedValue = firstFiniteNumber(stat, value.value);
+      if (parsedValue == null) continue;
+
+      if (key === "ratingtitle" || key === "fotmobrating") result.rating = parsedValue;
+      else if (["minutesplayed", "minsplayed", "minutes", "mins"].includes(key)) result.minutesPlayed = parsedValue;
+      else if (key.includes("offside")) result.offsides = parsedValue;
+    }
+  }
+
+  return result;
+}
+
+function fotmobPosition(positionId: unknown) {
+  const value = Number(positionId);
+  if (!Number.isFinite(value)) return null;
+  if (value === 0 || value === 11) return "G";
+  if (value === 1 || value === 32 || value === 34 || value === 36) return "D";
+  if (value === 2 || value === 22 || value === 24 || value === 26) return "M";
+  if (value === 3 || value === 13 || value === 23 || value === 33) return "F";
+  return null;
+}
+
+function fotmobPositionFromGrid(grid: string | null) {
+  const y = Number(String(grid ?? "").split(":")[1]);
+  if (!Number.isFinite(y)) return null;
+  if (y <= 0.2) return "G";
+  if (y <= 0.45) return "D";
+  if (y <= 0.75) return "M";
+  return "F";
+}
+
+function fotmobGrid(player: Record<string, unknown>) {
+  const layout = isRecord(player.verticalLayout)
+    ? player.verticalLayout
+    : isRecord(player.horizontalLayout)
+      ? player.horizontalLayout
+      : null;
+  if (!layout || layout.x == null || layout.y == null) return null;
+  return `${Number(layout.x).toFixed(3)}:${Number(layout.y).toFixed(3)}`;
 }
 
 function mapFotmobEvent(event: unknown, providerMatchId: string, baseMatch: LiveMatch, index: number): MatchEvent | null {
@@ -485,11 +668,20 @@ function parseFotmobPercentage(value: unknown) {
 
 function firstFiniteNumber(...values: unknown[]) {
   for (const value of values) {
+    if (value == null || value === "") continue;
     const numberValue = Number(value);
     if (Number.isFinite(numberValue)) return numberValue;
   }
 
   return null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function arrayValue(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
 }
 
 function stringValue(value: unknown) {
