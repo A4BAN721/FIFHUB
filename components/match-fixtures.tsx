@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useMemo } from "react";
+import { useCallback, useRef, useState, useMemo } from "react";
 import { useEffect } from "react";
 import type { CSSProperties } from "react";
 import type { Match } from "@/lib/match-fixtures";
@@ -12,6 +12,7 @@ import { normalizeCountryName } from "@/lib/country-utils";
 import { getFifaAbbreviation, getTeamDisplayName } from "@/lib/team-display";
 import { normalizeMatchPhase, normalizeMatchStatus } from "@/lib/live-data/status";
 import { getNations } from "@/lib/supabase/data";
+import { createClient, getSupabaseConfig } from "@/lib/supabase/client";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useLanguage } from "./language-provider";
 import { useAppTheme } from "./theme-provider";
@@ -93,6 +94,12 @@ export function MatchFixtures({
   const matchCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const hasAutoScrolled = useRef(false);
 
+  const applyUpdatedFixtureData = useCallback((data: Awaited<ReturnType<typeof fetchUpdatedFixtureData>>) => {
+    if (data.fixtures.length === 0) return;
+    setMatchFixtures(data.fixtures);
+    setInitialLiveMatches(data.liveMatches);
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -101,8 +108,7 @@ export function MatchFixtures({
         if (!isMounted) return;
 
         if (matchesResult.status === "fulfilled" && matchesResult.value.fixtures.length > 0) {
-          setMatchFixtures(matchesResult.value.fixtures);
-          setInitialLiveMatches(matchesResult.value.liveMatches);
+          applyUpdatedFixtureData(matchesResult.value);
         }
 
         if (nationsResult.status === "fulfilled" && nationsResult.value.length > 0) {
@@ -122,7 +128,7 @@ export function MatchFixtures({
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [applyUpdatedFixtureData]);
 
   useEffect(() => {
     onViewChange?.({ search, selectedStage });
@@ -141,6 +147,44 @@ export function MatchFixtures({
       window.removeEventListener("fixtureSelected", handleFixtureSelection as EventListener);
     };
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    let refreshInFlight = false;
+
+    const refreshScoreboard = async () => {
+      if (!isMounted || refreshInFlight) return;
+      refreshInFlight = true;
+
+      try {
+        const data = await fetchUpdatedFixtureData();
+        if (isMounted) applyUpdatedFixtureData(data);
+      } catch (error) {
+        console.warn("Failed to refresh live fixture scores.", error);
+      } finally {
+        refreshInFlight = false;
+      }
+    };
+
+    const interval = window.setInterval(refreshScoreboard, 15_000);
+    const supabase = getSupabaseConfig() ? createClient() : null;
+    const channel = supabase
+      ?.channel("fixture-scoreboard-updates")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "live_match_state" },
+        () => void refreshScoreboard(),
+      )
+      .on("broadcast", { event: "match.update" }, () => void refreshScoreboard())
+      .on("broadcast", { event: "match.status" }, () => void refreshScoreboard())
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(interval);
+      if (supabase && channel) void supabase.removeChannel(channel);
+    };
+  }, [applyUpdatedFixtureData]);
 
   const stages = useMemo(() => {
     const uniqueStages = Array.from(new Set(matchFixtures.map((m) => m.stage))).sort(compareFixtureStages);

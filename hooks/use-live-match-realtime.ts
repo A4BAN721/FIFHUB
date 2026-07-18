@@ -423,21 +423,53 @@ export function useLiveScoreboard(options?: {
 
     const channel = supabase.channel('live-scores');
 
+    const fetchLatest = async () => {
+      try {
+        const response = await fetch('/api/live?fresh=1', {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+          },
+        });
+        if (!response.ok) {
+          throw new Error(`Live scoreboard request failed with ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (Array.isArray(data.matches)) {
+          const matches = data.matches.filter(isLiveScoreboardMatch);
+          setLiveMatches(matches);
+          onUpdate?.(matches);
+          setError(null);
+        }
+      } catch {
+        setError('Failed to fetch live matches');
+      }
+    };
+
     channel
       .on('broadcast', { event: 'match.update' }, (payload) => {
         const data = payload.payload?.data;
         if (isLiveScoreboardMatch(data)) {
           setLiveMatches(prev => {
             const index = prev.findIndex(m => m.matchId === data.matchId);
+            let updated: LiveScoreboardMatch[];
             if (index >= 0) {
-              const updated = [...prev];
+              updated = [...prev];
               updated[index] = { ...updated[index], ...data };
-              return updated;
+            } else {
+              updated = [...prev, data];
             }
-            return [...prev, data];
+            onUpdate?.(updated);
+            return updated;
           });
         }
       })
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'live_match_state' },
+        () => void fetchLatest(),
+      )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           setConnectionStatus('connected');
@@ -447,30 +479,11 @@ export function useLiveScoreboard(options?: {
         }
       });
 
-    // Fetch initial live matches
-    const fetchInitial = async () => {
-      try {
-        const response = await fetch('/api/live?fresh=1', {
-          cache: 'no-store',
-          headers: {
-            'Cache-Control': 'no-cache',
-          },
-        });
-        const data = await response.json();
-        if (Array.isArray(data.matches)) {
-          setLiveMatches(data.matches);
-          const matches = data.matches.filter(isLiveScoreboardMatch);
-          setLiveMatches(matches);
-          onUpdate?.(matches);
-        }
-      } catch {
-        setError('Failed to fetch initial live matches');
-      }
-    };
-
-    fetchInitial();
+    void fetchLatest();
+    const interval = window.setInterval(fetchLatest, 15_000);
 
     return () => {
+      window.clearInterval(interval);
       supabase.removeChannel(channel);
     };
   }, [enabled, onUpdate, supabase]);

@@ -35,12 +35,15 @@ export function useLiveMatch(
   }: UseLiveMatchOptions = {}
 ): UseLiveMatchResult {
   const [defaultProvider] = useState<FootballDataProvider | null>(() => createBrowserFootballProvider());
-  const [liveMatch, setLiveMatch] = useState<LiveMatch | null>(() => initialLiveMatch);
+  const [refreshedLiveMatch, setLiveMatch] = useState<LiveMatch | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const activeProvider = provider === undefined ? defaultProvider : provider;
+  const liveMatch = refreshedLiveMatch
+    ? chooseFreshestMatch(initialLiveMatch, refreshedLiveMatch)
+    : initialLiveMatch;
 
   const refresh = useCallback(async () => {
     if (!enabled || !activeProvider) {
