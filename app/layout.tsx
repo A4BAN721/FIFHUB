@@ -5,7 +5,7 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { LanguageProvider } from '@/components/language-provider'
 
 export const metadata: Metadata = {
-  title: 'FIFHUB | FIFA World Cup 2026',
+  title: 'FIFHUB | Football Competitions',
   description:
     'Follow the FIFA World Cup 2026 with FIFHUB: squads, fixtures, live scores, standings, player details, groups, knockout brackets, and English or Bangla support.',
   keywords: [

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getFotmobLiveRefresh } from "@/lib/live-data/fotmob-live-refresh";
+import { enrichLineupsWithEvents, getFotmobLiveRefresh } from "@/lib/live-data/fotmob-live-refresh";
 import { createServerFootballProvider } from "@/lib/live-data/server-provider";
 
 export const dynamic = "force-dynamic";
@@ -29,10 +29,14 @@ export async function GET(_request: Request, { params }: RouteContext) {
       return NextResponse.json({ match: null }, { status: 404 });
     }
 
-    const refreshedMatch = await getFotmobLiveRefresh(match);
+    const matchWithEventMarks = {
+      ...match,
+      lineups: enrichLineupsWithEvents(match.lineups, match.events),
+    };
+    const refreshedMatch = await getFotmobLiveRefresh(matchWithEventMarks);
 
     return NextResponse.json(
-      { match: refreshedMatch ?? match },
+      { match: refreshedMatch ?? matchWithEventMarks },
       {
         headers: {
           "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",

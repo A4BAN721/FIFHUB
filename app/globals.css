@@ -133,6 +133,27 @@
   * {
     @apply border-border outline-ring/50;
   }
+  :where(
+    a[href],
+    button,
+    select,
+    summary,
+    label[for],
+    input[type='button'],
+    input[type='submit'],
+    input[type='reset'],
+    input[type='checkbox'],
+    input[type='radio'],
+    input[type='range'],
+    [role='button'],
+    [role='link']
+  ) {
+    cursor: pointer;
+  }
+  :where(button, select, input, [role='button'], [role='link']):disabled,
+  :where([role='button'], [role='link'])[aria-disabled='true'] {
+    cursor: not-allowed;
+  }
   html {
     background-color: var(--background);
   }

@@ -10,6 +10,11 @@ import { GroupStandingsTable } from "@/components/group-standings-table";
 import { TournamentStats } from "@/components/tournament-stats";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLanguage } from "@/components/language-provider";
+import {
+  COMPETITIONS,
+  CompetitionSidebar,
+  type CompetitionId,
+} from "@/components/competition-sidebar";
 import { Instagram, Mail } from "lucide-react";
 
 const MAIN_TABS = ["squads", "fixtures", "table", "stats"] as const;
@@ -29,7 +34,7 @@ const tabSlideVariants = {
   }),
 };
 
-export default function Home() {
+function WorldCupExperience() {
   const { t } = useLanguage();
   const prefersReducedMotion = useReducedMotion();
   const [activeTab, setActiveTab] = useState("squads");
@@ -181,7 +186,6 @@ export default function Home() {
     <main className="min-h-screen relative">
       <TriondaBackground />
       <div className="relative z-10">
-        <Header />
         <div className="container mx-auto px-4 py-6">
           <div ref={tabsStartRef} />
           <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
@@ -276,5 +280,75 @@ export default function Home() {
         </footer>
       </div>
     </main>
+  );
+}
+
+export default function Home() {
+  const prefersReducedMotion = useReducedMotion();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [selectedCompetition, setSelectedCompetition] = useState<CompetitionId | null>(null);
+
+  const selectedCompetitionName = COMPETITIONS.find(
+    (competition) => competition.id === selectedCompetition,
+  )?.name;
+
+  const handleCompetitionSelect = (competition: CompetitionId) => {
+    setSelectedCompetition(competition);
+    window.scrollTo({ top: 0, left: 0, behavior: prefersReducedMotion ? "auto" : "smooth" });
+  };
+
+  return (
+    <div className="min-h-screen bg-black">
+      <div className="sticky top-0 z-[120] h-[93px] bg-background">
+        <Header />
+      </div>
+
+      <CompetitionSidebar
+        isOpen={isSidebarOpen}
+        selectedCompetition={selectedCompetition}
+        onOpenChange={setIsSidebarOpen}
+        onSelect={handleCompetitionSelect}
+      />
+
+      <div
+        className={`min-h-[calc(100dvh-93px)] transition-[padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          isSidebarOpen ? "md:pl-[272px]" : "md:pl-0"
+        }`}
+      >
+        <AnimatePresence mode="wait" initial={false}>
+          {selectedCompetition === "fifa-world-cup" ? (
+            <motion.div
+              key="fifa-world-cup"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.24 }}
+            >
+              <WorldCupExperience />
+            </motion.div>
+          ) : (
+            <motion.main
+              key={selectedCompetition ?? "competition-picker"}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
+              className="grid min-h-[calc(100dvh-93px)] place-items-center bg-black px-6 text-center text-white"
+            >
+              <div>
+                {selectedCompetitionName && (
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.28em] text-white/40">
+                    {selectedCompetitionName}
+                  </p>
+                )}
+                <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                  {selectedCompetition ? "Coming soon..." : "Choose a competition"}
+                </h1>
+              </div>
+            </motion.main>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
   );
 }

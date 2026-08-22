@@ -78,7 +78,8 @@ async function fetchFotmobLiveRefresh(baseMatch: LiveMatch): Promise<LiveMatch |
   const details = await fotmobRequest("matchDetails", { matchId: String(match.id) }).catch(() => null);
   const statistics = details ? mapFotmobStatistics(details) : {};
   const events = details ? mapFotmobEvents(details, String(match.id), baseMatch) : [];
-  const lineups = details ? mapFotmobLineups(details, baseMatch) : null;
+  const mappedLineups = details ? mapFotmobLineups(details, baseMatch) : null;
+  const lineups = enrichLineupsWithEvents(mappedLineups, events);
   const score = parseFotmobScore(match);
   const minute = getFotmobMinute(match.status);
   const status = mapFotmobStatus(match.status, minute);
@@ -343,6 +344,61 @@ function mapFotmobLineups(details: unknown, baseMatch: LiveMatch): MatchLineups 
     home,
     away,
   };
+}
+
+export function enrichLineupsWithEvents(lineups: MatchLineups | null | undefined, events: MatchEvent[]): MatchLineups | null {
+  if (!lineups || events.length === 0) return lineups ?? null;
+
+  const enrichTeam = (team: MatchTeamLineup): MatchTeamLineup => ({
+    ...team,
+    starters: team.starters.map((player) => enrichLineupPlayerWithEvents(player, team.teamName, events)),
+    substitutes: team.substitutes.map((player) => enrichLineupPlayerWithEvents(player, team.teamName, events)),
+  });
+
+  return {
+    ...lineups,
+    home: enrichTeam(lineups.home),
+    away: enrichTeam(lineups.away),
+  };
+}
+
+function enrichLineupPlayerWithEvents(player: MatchLineupPlayer, teamName: string, events: MatchEvent[]): MatchLineupPlayer {
+  const playerKey = normalizeFotmobPlayerName(player.name);
+  const teamKey = normalizeTeam(teamName);
+  let goals = 0;
+  let ownGoals = 0;
+  let assists = 0;
+
+  for (const event of events) {
+    const playerMatches = Boolean(event.playerName && normalizeFotmobPlayerName(event.playerName) === playerKey);
+    const eventTeamMatches = !event.teamName || normalizeTeam(event.teamName) === teamKey;
+
+    if (playerMatches && event.eventType === "own_goal") ownGoals += 1;
+    if (playerMatches && eventTeamMatches && (event.eventType === "goal" || event.eventType === "penalty_goal")) goals += 1;
+    if (
+      eventTeamMatches &&
+      event.assistPlayerName &&
+      normalizeFotmobPlayerName(event.assistPlayerName) === playerKey &&
+      (event.eventType === "goal" || event.eventType === "penalty_goal")
+    ) {
+      assists += 1;
+    }
+  }
+
+  return {
+    ...player,
+    goals: Math.max(player.goals ?? 0, goals),
+    ownGoals: Math.max(player.ownGoals ?? 0, ownGoals),
+    assists: Math.max(player.assists ?? 0, assists),
+  };
+}
+
+function normalizeFotmobPlayerName(name: string) {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/gi, "")
+    .toLowerCase();
 }
 
 function mapFotmobTeamLineup(
