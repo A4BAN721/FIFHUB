@@ -5,12 +5,12 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { LanguageProvider } from '@/components/language-provider'
 
 export const metadata: Metadata = {
-  title: 'FUTHUB | Football Competitions',
+  title: 'flick90 | Football Competitions',
   description:
-    'Follow the FIFA World Cup 2026 with FUTHUB: squads, fixtures, live scores, standings, player details, groups, knockout brackets, and English or Bangla support.',
+    'Follow the FIFA World Cup 2026 2026 with flick90: squads, fixtures, live scores, standings, player details, groups, knockout brackets, and English or Bangla support.',
   keywords: [
-    'FUTHUB',
-    'FIFA World Cup 2026',
+    'flick90',
+    'FIFA World Cup 2026 2026',
     'World Cup 2026',
     'Football',
     'Soccer',
@@ -22,25 +22,25 @@ export const metadata: Metadata = {
     'Bangla football',
   ],
   openGraph: {
-    title: 'FUTHUB | FIFA World Cup 2026',
+    title: 'flick90 | FIFA World Cup 2026 2026',
     description:
-      'The must-have FIFA World Cup 2026 companion for squads, fixtures, live scores, standings, player details, groups, knockout brackets, and bilingual coverage.',
-    siteName: 'FUTHUB',
+      'The must-have FIFA World Cup 2026 2026 companion for squads, fixtures, live scores, standings, player details, groups, knockout brackets, and bilingual coverage.',
+    siteName: 'flick90',
     type: 'website',
     images: [
       {
         url: '/fithub-social-preview.png',
         width: 204,
         height: 84,
-        alt: 'FUTHUB World Cup 2026',
+        alt: 'flick90 World Cup 2026',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'FUTHUB | FIFA World Cup 2026',
+    title: 'flick90 | FIFA World Cup 2026 2026',
     description:
-      'Track FIFA World Cup 2026 squads, fixtures, live scores, standings, player details, groups, and knockout brackets in one place.',
+      'Track FIFA World Cup 2026 2026 squads, fixtures, live scores, standings, player details, groups, and knockout brackets in one place.',
     images: ['/fithub-social-preview.png'],
   },
 }

@@ -130,7 +130,7 @@ async function fotmobRequest(endpoint: string, params: Record<string, string>) {
     cache: "no-store",
     headers: {
       accept: "application/json",
-      "user-agent": "futhub-live-score/1.0",
+      "user-agent": "flick90-live-score/1.0",
     },
     signal: AbortSignal.timeout(8_000),
   });

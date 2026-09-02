@@ -13,7 +13,7 @@ async function main() {
   const response = await fetch(`https://www.fotmob.com/api/data/matchDetails?matchId=${matchId}`, {
     headers: {
       accept: "application/json",
-      "user-agent": "futhub-live-score-updater/1.0",
+      "user-agent": "flick90-live-score-updater/1.0",
     },
   });
 

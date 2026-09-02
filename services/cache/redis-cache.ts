@@ -85,7 +85,7 @@ export class RedisCache {
 
   private constructor(config: CacheConfig) {
     this.config = {
-      keyPrefix: 'futhub:',
+      keyPrefix: 'flick90:',
       defaultTTL: CACHE_TTL.API_RESPONSE,
       ...config,
     };
@@ -104,7 +104,7 @@ export class RedisCache {
           host: process.env.REDIS_HOST || 'localhost',
           port: parseInt(process.env.REDIS_PORT || '6379', 10),
           password: process.env.REDIS_PASSWORD,
-          keyPrefix: 'futhub:',
+          keyPrefix: 'flick90:',
           defaultTTL: CACHE_TTL.API_RESPONSE,
         });
       }
@@ -431,7 +431,7 @@ export function createCache(config?: Partial<CacheConfig>): {
     host: process.env.REDIS_HOST || 'localhost',
     port: parseInt(process.env.REDIS_PORT || '6379', 10),
     password: process.env.REDIS_PASSWORD,
-    keyPrefix: 'futhub:',
+    keyPrefix: 'flick90:',
     defaultTTL: CACHE_TTL.API_RESPONSE,
   };
 

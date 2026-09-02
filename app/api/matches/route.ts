@@ -21,7 +21,7 @@ import { RedisCache, CACHE_TTL } from '../../../services/cache/redis-cache';
 const cache = RedisCache.getInstance({
   host: process.env.REDIS_HOST || 'localhost',
   port: parseInt(process.env.REDIS_PORT || '6379', 10),
-  keyPrefix: 'futhub:',
+  keyPrefix: 'flick90:',
 });
 
 type FixtureScoreboardRow = {

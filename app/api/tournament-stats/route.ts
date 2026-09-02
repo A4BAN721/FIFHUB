@@ -191,7 +191,7 @@ async function fetchFotmobStatRows(stat: "rating" | "mins_played"): Promise<Fotm
       cache: "no-store",
       headers: {
         accept: "application/json",
-        "user-agent": "futhub-tournament-stats/1.0",
+        "user-agent": "flick90-tournament-stats/1.0",
       },
       signal: AbortSignal.timeout(8_000),
     });
@@ -258,7 +258,7 @@ async function fetchJson(url: string, label: string, extraHeaders: Record<string
     cache: "no-store",
     headers: {
       accept: "application/json",
-      "user-agent": "futhub-tournament-stats/1.0",
+      "user-agent": "flick90-tournament-stats/1.0",
       ...extraHeaders,
     },
     signal: AbortSignal.timeout(8_000),

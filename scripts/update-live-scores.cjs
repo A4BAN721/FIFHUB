@@ -828,7 +828,7 @@ async function fotmobRequest(endpoint, params) {
   const response = await fetchWithRetry(url, {
     headers: {
       accept: "application/json",
-      "user-agent": "futhub-live-score-updater/1.0",
+      "user-agent": "flick90-live-score-updater/1.0",
     },
   }, `FotMob ${endpoint}`);
 
@@ -1322,7 +1322,7 @@ async function apiFootballRequest(endpoint, params) {
     headers: {
       "x-rapidapi-key": apiFootballKey,
       "x-rapidapi-host": "v3.football.api-sports.io",
-      "user-agent": "futhub-live-score-updater/1.0",
+      "user-agent": "flick90-live-score-updater/1.0",
     },
   }, `API-Football ${endpoint}`);
 
@@ -1653,7 +1653,7 @@ async function footballDataRequest(endpoint, params) {
   const response = await fetchWithRetry(url, {
     headers: {
       "X-Auth-Token": footballDataKey,
-      "user-agent": "futhub-live-score-updater/1.0",
+      "user-agent": "flick90-live-score-updater/1.0",
     },
   }, `Football-Data.org ${endpoint}`);
 
@@ -1892,7 +1892,7 @@ async function espnScoreboardRequest(date) {
 
   const response = await fetchWithRetry(
     url,
-    { headers: { "user-agent": "futhub-completed-match-updater/1.0" } },
+    { headers: { "user-agent": "flick90-completed-match-updater/1.0" } },
     `ESPN scoreboard ${date}`,
   );
 

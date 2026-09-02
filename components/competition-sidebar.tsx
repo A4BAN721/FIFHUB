@@ -23,22 +23,23 @@ export type CompetitionId =
   | "serie-a"
   | "europa-league";
 
-type Competition = {
+export type Competition = {
   id: CompetitionId;
   name: string;
+  category: "International" | "Club";
   icon: ComponentType<{ className?: string; strokeWidth?: number }>;
   iconClassName: string;
 };
 
 export const COMPETITIONS: Competition[] = [
-  { id: "premier-league", name: "Premier League", icon: Crown, iconClassName: "text-violet-300" },
-  { id: "champions-league", name: "Champions League", icon: Sparkles, iconClassName: "text-slate-100" },
-  { id: "la-liga", name: "La Liga", icon: Flame, iconClassName: "text-rose-500" },
-  { id: "fifa-world-cup", name: "FIFA World Cup", icon: Trophy, iconClassName: "text-amber-300" },
-  { id: "bundesliga", name: "Bundesliga", icon: Badge, iconClassName: "text-red-500" },
-  { id: "ligue-1", name: "Ligue 1", icon: CircleDotDashed, iconClassName: "text-lime-300" },
-  { id: "serie-a", name: "Serie A", icon: Shield, iconClassName: "text-sky-400" },
-  { id: "europa-league", name: "Europa League", icon: CircleDotDashed, iconClassName: "text-orange-500" },
+  { id: "premier-league", name: "Premier League", category: "Club", icon: Crown, iconClassName: "text-violet-300" },
+  { id: "champions-league", name: "Champions League", category: "Club", icon: Sparkles, iconClassName: "text-slate-100" },
+  { id: "la-liga", name: "La Liga", category: "Club", icon: Flame, iconClassName: "text-rose-500" },
+  { id: "fifa-world-cup", name: "FIFA World Cup 2026", category: "International", icon: Trophy, iconClassName: "text-amber-300" },
+  { id: "bundesliga", name: "Bundesliga", category: "Club", icon: Badge, iconClassName: "text-red-500" },
+  { id: "ligue-1", name: "Ligue 1", category: "Club", icon: CircleDotDashed, iconClassName: "text-lime-300" },
+  { id: "serie-a", name: "Serie A", category: "Club", icon: Shield, iconClassName: "text-sky-400" },
+  { id: "europa-league", name: "Europa League", category: "Club", icon: CircleDotDashed, iconClassName: "text-orange-500" },
 ];
 
 type CompetitionSidebarProps = {
@@ -131,13 +132,13 @@ export function CompetitionSidebar({
         aria-controls="competition-sidebar"
         aria-expanded={isOpen}
         tabIndex={showOpenButton ? 0 : -1}
-        className={`fixed left-0 top-[109px] z-[109] flex h-11 items-center gap-1 rounded-r-xl border border-l-0 border-white/10 bg-[#171719] px-3 text-sm font-semibold text-white shadow-xl transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
+        className={`fixed left-0 top-[93px] z-[109] flex h-9 items-center gap-0.5 rounded-r-lg border border-l-0 border-white/10 bg-[#171719] px-2 text-xs font-semibold text-white shadow-xl transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
           showOpenButton
             ? "translate-x-0 opacity-100"
             : "pointer-events-none -translate-x-4 opacity-0"
         }`}
       >
-        <ChevronRight className="h-5 w-5" strokeWidth={2.2} />
+        <ChevronRight className="h-4 w-4" strokeWidth={2.2} />
         <span className="hidden sm:inline">Competitions</span>
       </button>
     </>

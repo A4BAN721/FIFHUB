@@ -6,7 +6,7 @@ const worldCupDataPath = path.join(rootDir, "lib", "world-cup-data.ts");
 const outputPath = path.join(rootDir, "lib", "player-ages.json");
 const asOfDate = new Date("2026-06-20T00:00:00Z");
 const requestHeaders = {
-  "user-agent": "FUTHUB26 player age updater (local development)",
+  "user-agent": "flick9026 player age updater (local development)",
 };
 
 function getAgeFromDob(dobValue) {

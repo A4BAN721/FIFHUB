@@ -510,7 +510,7 @@ export function MatchFixtures({
     <div
       className={
         floating
-          ? `fixed left-0 right-0 top-0 z-[80] border-b border-border/40 bg-background/95 px-3 pb-4 pt-16 shadow-2xl backdrop-blur-xl transition-all duration-200 ease-out sm:pt-20 ${
+          ? `fixed left-0 right-0 top-[93px] z-[80] border-b border-border/40 bg-background/95 px-3 pb-4 pt-16 shadow-2xl backdrop-blur-xl transition-all duration-200 ease-out sm:pt-20 ${
               showFloatingControls ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0"
             }`
           : "mb-4 space-y-3"

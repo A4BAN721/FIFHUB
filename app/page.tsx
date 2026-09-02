@@ -11,12 +11,16 @@ import { TournamentStats } from "@/components/tournament-stats";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLanguage } from "@/components/language-provider";
 import {
+  COMPETITIONS,
   CompetitionSidebar,
+  type Competition,
   type CompetitionId,
 } from "@/components/competition-sidebar";
 import { Instagram, Mail } from "lucide-react";
 
 const MAIN_TABS = ["squads", "fixtures", "table", "stats"] as const;
+const MAIN_TAB_TRIGGER_CLASS =
+  "relative h-12 flex-none rounded-none border-0 bg-transparent px-1 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:origin-center after:scale-x-0 after:bg-emerald-400 after:transition-transform data-[state=active]:bg-transparent data-[state=active]:after:scale-x-100 dark:data-[state=active]:border-transparent dark:data-[state=active]:bg-transparent sm:px-2";
 
 const tabSlideVariants = {
   enter: (direction: number) => ({
@@ -34,11 +38,13 @@ const tabSlideVariants = {
 };
 
 type CompetitionExperienceProps = {
-  hasData: boolean;
+  competition: Competition;
 };
 
-function CompetitionExperience({ hasData }: CompetitionExperienceProps) {
+function CompetitionExperience({ competition }: CompetitionExperienceProps) {
   const { t } = useLanguage();
+  const CompetitionIcon = competition.icon;
+  const hasData = competition.id === "fifa-world-cup";
   const prefersReducedMotion = useReducedMotion();
   const [activeTab, setActiveTab] = useState("squads");
   const [tabDirection, setTabDirection] = useState(1);
@@ -189,33 +195,85 @@ function CompetitionExperience({ hasData }: CompetitionExperienceProps) {
     <main className="min-h-screen relative">
       <TriondaBackground />
       <div className="relative z-10">
-        <div className="container mx-auto px-4 py-6">
-          <div ref={tabsStartRef} />
-          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-            <TabsList
-              className={`mx-auto mb-6 transition-all duration-200 ${
-                mountFloatingFixturesChrome
-                  ? `fixed left-1/2 top-3 z-[90] border border-border/50 bg-background/95 shadow-2xl backdrop-blur-xl ${
-                      showFloatingFixturesChrome
-                        ? "-translate-x-1/2 translate-y-0 opacity-100"
-                        : "-translate-x-1/2 -translate-y-24 opacity-0"
-                    }`
-                  : ""
-              }`}
-            >
-              <TabsTrigger id="main-tab-squads" aria-controls="main-tabpanel-squads" value="squads">
-                {t("groups")}
-              </TabsTrigger>
-              <TabsTrigger id="main-tab-fixtures" aria-controls="main-tabpanel-fixtures" value="fixtures">
-                {t("fixtures")}
-              </TabsTrigger>
-              <TabsTrigger id="main-tab-table" aria-controls="main-tabpanel-table" value="table">
-                {t("table")}
-              </TabsTrigger>
-              <TabsTrigger id="main-tab-stats" aria-controls="main-tabpanel-stats" value="stats">
-                {t("stats")}
-              </TabsTrigger>
-            </TabsList>
+        <div ref={tabsStartRef} />
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full gap-0">
+          <section className="relative overflow-hidden border-b border-border/40 bg-card/55 backdrop-blur-xl">
+            <div
+              aria-hidden="true"
+              className="absolute -left-24 -top-52 h-80 w-[30rem] rounded-full bg-gradient-to-r from-emerald-500/25 via-amber-500/20 to-red-500/30 blur-2xl"
+            />
+            <div
+              aria-hidden="true"
+              className="absolute inset-y-0 right-0 w-2/3 bg-gradient-to-l from-blue-950/35 to-transparent dark:from-blue-950/45"
+            />
+            <div className="container relative mx-auto px-4 pt-5 sm:pt-6">
+              <div className="flex items-center gap-3 pb-6 sm:gap-4 sm:pb-7">
+                <span
+                  aria-hidden="true"
+                  className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-border/50 bg-background/75 shadow-lg backdrop-blur-sm sm:h-14 sm:w-14"
+                >
+                  <CompetitionIcon
+                    className={`h-7 w-7 sm:h-8 sm:w-8 ${competition.iconClassName}`}
+                    strokeWidth={2.2}
+                  />
+                </span>
+                <div className="min-w-0">
+                  <h1 className="truncate text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+                    {competition.name}
+                  </h1>
+                  <p className="mt-0.5 text-sm font-medium text-muted-foreground sm:text-base">
+                    {competition.category}
+                  </p>
+                </div>
+              </div>
+              <TabsList
+                aria-label={`${competition.name} sections`}
+                className={`transition-all duration-200 ${
+                  mountFloatingFixturesChrome
+                    ? `fixed left-1/2 top-[105px] z-[90] h-12 w-fit border border-border/50 bg-background/95 p-[3px] shadow-2xl backdrop-blur-xl ${
+                        showFloatingFixturesChrome
+                          ? "-translate-x-1/2 translate-y-0 opacity-100"
+                          : "-translate-x-1/2 -translate-y-24 opacity-0"
+                      }`
+                    : "h-12 w-full justify-start gap-6 rounded-none bg-transparent p-0 sm:gap-10"
+                }`}
+              >
+                <TabsTrigger
+                  className={MAIN_TAB_TRIGGER_CLASS}
+                  id="main-tab-squads"
+                  aria-controls="main-tabpanel-squads"
+                  value="squads"
+                >
+                  {t("groups")}
+                </TabsTrigger>
+                <TabsTrigger
+                  className={MAIN_TAB_TRIGGER_CLASS}
+                  id="main-tab-fixtures"
+                  aria-controls="main-tabpanel-fixtures"
+                  value="fixtures"
+                >
+                  {t("fixtures")}
+                </TabsTrigger>
+                <TabsTrigger
+                  className={MAIN_TAB_TRIGGER_CLASS}
+                  id="main-tab-table"
+                  aria-controls="main-tabpanel-table"
+                  value="table"
+                >
+                  {t("table")}
+                </TabsTrigger>
+                <TabsTrigger
+                  className={MAIN_TAB_TRIGGER_CLASS}
+                  id="main-tab-stats"
+                  aria-controls="main-tabpanel-stats"
+                  value="stats"
+                >
+                  {t("stats")}
+                </TabsTrigger>
+              </TabsList>
+            </div>
+          </section>
+          <div className="container mx-auto px-4 py-6">
             <div className="relative overflow-x-clip">
               <AnimatePresence initial={false} custom={tabDirection} mode="popLayout">
                 <motion.div
@@ -258,27 +316,36 @@ function CompetitionExperience({ hasData }: CompetitionExperienceProps) {
                 </motion.div>
               </AnimatePresence>
             </div>
-          </Tabs>
-        </div>
+          </div>
+        </Tabs>
         <footer className="border-t border-border/30 bg-card/60 backdrop-blur-xl">
-          <div className="container mx-auto flex flex-col items-center justify-center gap-3 px-4 py-5 text-sm text-muted-foreground sm:flex-row sm:gap-6">
-            <a
-              className="inline-flex items-center gap-2 transition-colors hover:text-foreground"
-              href="mailto:md.aaban080511@gmail.com"
-            >
-              <Mail className="h-4 w-4" />
-              md.aaban080511@gmail.com
-            </a>
-            <span className="hidden h-4 w-px bg-border/60 sm:block" />
-            <a
-              className="inline-flex items-center gap-2 transition-colors hover:text-foreground"
-              href="https://www.instagram.com/md.aaban721"
-              rel="noreferrer"
-              target="_blank"
-            >
-              <Instagram className="h-4 w-4" />
-              md.aaban721
-            </a>
+          <div className="container mx-auto flex flex-col gap-6 px-4 py-6 text-sm text-muted-foreground sm:flex-row sm:items-start sm:justify-between">
+            <p className="max-w-3xl text-xs leading-relaxed sm:text-sm">
+              <strong className="font-semibold text-foreground">Legal Disclaimer:</strong>{" "}
+              FLICK90 is an independent, unofficial fan platform dedicated to football. This website is not
+              affiliated with, associated with, endorsed by, or in any way officially connected to any official
+              football governing bodies, leagues, or individual clubs. All registered trademarks, logos, and
+              competition names displayed on this site are the sole property of their respective intellectual
+              property holders.
+            </p>
+            <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
+              <a
+                className="inline-flex items-center gap-2 transition-colors hover:text-foreground"
+                href="mailto:md.aaban080511@gmail.com"
+              >
+                <Mail className="h-4 w-4" />
+                md.aaban080511@gmail.com
+              </a>
+              <a
+                className="inline-flex items-center gap-2 transition-colors hover:text-foreground"
+                href="https://www.instagram.com/md.aaban721"
+                rel="noreferrer"
+                target="_blank"
+              >
+                <Instagram className="h-4 w-4" />
+                md.aaban721
+              </a>
+            </div>
           </div>
         </footer>
       </div>
@@ -290,6 +357,9 @@ export default function Home() {
   const prefersReducedMotion = useReducedMotion();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [selectedCompetition, setSelectedCompetition] = useState<CompetitionId | null>(null);
+  const selectedCompetitionDetails = COMPETITIONS.find(
+    (competition) => competition.id === selectedCompetition,
+  ) ?? null;
 
   const handleCompetitionSelect = (competition: CompetitionId) => {
     setSelectedCompetition(competition);
@@ -311,19 +381,19 @@ export default function Home() {
 
       <div
         className={`min-h-[calc(100dvh-93px)] transition-[padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-          isSidebarOpen ? "md:pl-[272px]" : "md:pl-0"
+          isSidebarOpen ? "pt-0 md:pl-[272px]" : "pt-9 md:pl-0"
         }`}
       >
         <AnimatePresence mode="wait" initial={false}>
-          {selectedCompetition ? (
+          {selectedCompetitionDetails ? (
             <motion.div
-              key={selectedCompetition}
+              key={selectedCompetitionDetails.id}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: prefersReducedMotion ? 0 : 0.24 }}
             >
-              <CompetitionExperience hasData={selectedCompetition === "fifa-world-cup"} />
+              <CompetitionExperience competition={selectedCompetitionDetails} />
             </motion.div>
           ) : (
             <motion.main

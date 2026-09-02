@@ -51,7 +51,7 @@ export interface Nation {
 
 export const translations: Record<string, Record<string, string>> = {
   en: {
-    title: "FUTHUB",
+    title: "flick90",
     subtitle: "World Cup 2026",
     allNationsSubtitle: "12 Groups, 48 Nations",
     players: "Players",
@@ -89,7 +89,7 @@ export const translations: Record<string, Record<string, string>> = {
     untilWorldCup: "UNTIL WORLD CUP 2026",
     // Match fixtures
     matchFixtures: "Match Fixtures",
-    schedule: "FIFA World Cup 2026 Schedule",
+    schedule: "FIFA World Cup 2026 2026 Schedule",
     searchMatches: "Search matches, teams, or stadiums...",
     groupStage: "Group Stage",
     roundOf32: "ROUND OF 32",

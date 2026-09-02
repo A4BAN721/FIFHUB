@@ -106,7 +106,7 @@ function getFifaFeedUrl() {
 
 async function loadFifaVideos(feedUrl) {
   const response = await fetch(feedUrl, {
-    headers: { "user-agent": "futhub-fifa-highlights-sync/1.0" },
+    headers: { "user-agent": "flick90-fifa-highlights-sync/1.0" },
   });
 
   if (!response.ok) {
@@ -149,7 +149,7 @@ async function searchFifaHighlightVideosWithApi(fixture) {
   url.searchParams.set("channelId", OFFICIAL_FIFA_CHANNEL_ID);
 
   const response = await fetch(url, {
-    headers: { "user-agent": "futhub-fifa-highlights-sync/1.0" },
+    headers: { "user-agent": "flick90-fifa-highlights-sync/1.0" },
   });
 
   if (!response.ok) {
@@ -194,7 +194,7 @@ async function searchFifaHighlightVideosFromPage(fixture) {
         signal: controller.signal,
         headers: {
           "accept-language": "en-US,en;q=0.9",
-          "user-agent": "Mozilla/5.0 (compatible; futhub-fifa-highlights-sync/1.0)",
+          "user-agent": "Mozilla/5.0 (compatible; flick90-fifa-highlights-sync/1.0)",
         },
       });
     } catch {
@@ -234,14 +234,14 @@ function buildHighlightSearchQueries(fixture) {
 
   for (const homeAlias of homeNames.slice(0, 4)) {
     for (const awayAlias of awayNames.slice(0, 4)) {
-      queries.push(`${homeAlias} v ${awayAlias} FIFA World Cup 26 highlights`);
+      queries.push(`${homeAlias} v ${awayAlias} FIFA World Cup 2026 26 highlights`);
       queries.push(`FIFA ${homeAlias} vs ${awayAlias} highlights World Cup 2026`);
       queries.push(`FIFA ${homeAlias} ${awayAlias} highlights`);
     }
   }
 
-  queries.push(`${fixture.home_team} v ${fixture.away_team} FIFA World Cup 26 highlights`);
-  queries.push(`${fixture.home_team} vs ${fixture.away_team} FIFA World Cup 2026 highlights`);
+  queries.push(`${fixture.home_team} v ${fixture.away_team} FIFA World Cup 2026 26 highlights`);
+  queries.push(`${fixture.home_team} vs ${fixture.away_team} FIFA World Cup 2026 2026 highlights`);
   queries.push(`${fixture.home_team} ${fixture.away_team} FIFA highlights`);
   queries.push(`FIFA ${fixture.home_team} ${fixture.away_team} highlights`);
   queries.push(`FIFA ${fixture.away_team} ${fixture.home_team} highlights`);
@@ -471,7 +471,7 @@ function findHighlightVideo(videos, fixture) {
 function isHighlightTitle(title) {
   if (!title) return false;
   if (isRejectedHighlightTitle(title)) return false;
-  return title.includes("highlight") && title.includes("fifa world cup 2026");
+  return title.includes("highlight") && title.includes("fifa world cup 2026 2026");
 }
 
 function isRejectedHighlightTitle(title) {
@@ -501,7 +501,7 @@ function scoreHighlightVideo(video, home, away) {
 
   let score = 0;
   score += 6;
-  if (title.includes("fifa world cup 2026")) score += 3;
+  if (title.includes("fifa world cup 2026 2026")) score += 3;
   if (title.includes("fifa")) score += 1;
   if (/\b(v|vs)\b/.test(title)) score += 1;
   if (isOfficialFifaVideo(video)) score += 2;
@@ -529,7 +529,7 @@ function titleHasTeam(title, team) {
  * into unrecognizable fragments (e.g., "Ã¼" → "a 1 4").
  */
 function fixMojibake(text) {
-  // Common FIFA World Cup 2026 team name encoding corruptions
+  // Common FIFA World Cup 2026 2026 team name encoding corruptions
   // These match the raw text as it appears in the database (before normalization)
   const mojibakeMap = {
     "tã¼rkiye": "turkiye",
