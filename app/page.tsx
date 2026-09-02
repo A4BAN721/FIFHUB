@@ -8,15 +8,18 @@ import { TriondaBackground } from "@/components/trionda-background";
 import { MatchFixtures } from "@/components/match-fixtures";
 import { GroupStandingsTable } from "@/components/group-standings-table";
 import { TournamentStats } from "@/components/tournament-stats";
+import { ClubCompetitionContent } from "@/components/club-competition-content";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLanguage } from "@/components/language-provider";
 import {
   COMPETITIONS,
+  CompetitionLogo,
   CompetitionSidebar,
   type Competition,
   type CompetitionId,
 } from "@/components/competition-sidebar";
 import { Instagram, Mail } from "lucide-react";
+import type { ClubCompetitionId } from "@/lib/fotmob-competition-types";
 
 const MAIN_TABS = ["squads", "fixtures", "table", "stats"] as const;
 const MAIN_TAB_TRIGGER_CLASS =
@@ -43,7 +46,6 @@ type CompetitionExperienceProps = {
 
 function CompetitionExperience({ competition }: CompetitionExperienceProps) {
   const { t } = useLanguage();
-  const CompetitionIcon = competition.icon;
   const hasData = competition.id === "fifa-world-cup";
   const prefersReducedMotion = useReducedMotion();
   const [activeTab, setActiveTab] = useState("squads");
@@ -210,12 +212,9 @@ function CompetitionExperience({ competition }: CompetitionExperienceProps) {
               <div className="flex items-center gap-3 pb-6 sm:gap-4 sm:pb-7">
                 <span
                   aria-hidden="true"
-                  className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-border/50 bg-background/75 shadow-lg backdrop-blur-sm sm:h-14 sm:w-14"
+                  className="grid h-12 w-12 shrink-0 place-items-center sm:h-14 sm:w-14"
                 >
-                  <CompetitionIcon
-                    className={`h-7 w-7 sm:h-8 sm:w-8 ${competition.iconClassName}`}
-                    strokeWidth={2.2}
-                  />
+                  <CompetitionLogo competition={competition} className="h-7 w-7 sm:h-8 sm:w-8" />
                 </span>
                 <div className="min-w-0">
                   <h1 className="truncate text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
@@ -313,6 +312,12 @@ function CompetitionExperience({ competition }: CompetitionExperienceProps) {
                   )}
                   {hasData && activeTab === "table" && <GroupStandingsTable />}
                   {hasData && activeTab === "stats" && <TournamentStats />}
+                  {!hasData && (
+                    <ClubCompetitionContent
+                      competitionId={competition.id as ClubCompetitionId}
+                      activeTab={activeTab}
+                    />
+                  )}
                 </motion.div>
               </AnimatePresence>
             </div>

@@ -1,17 +1,8 @@
 "use client";
 
-import { useEffect, useState, type ComponentType } from "react";
-import {
-  Badge,
-  ChevronLeft,
-  ChevronRight,
-  CircleDotDashed,
-  Crown,
-  Flame,
-  Shield,
-  Sparkles,
-  Trophy,
-} from "lucide-react";
+import Image from "next/image";
+import { useEffect, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export type CompetitionId =
   | "premier-league"
@@ -27,20 +18,52 @@ export type Competition = {
   id: CompetitionId;
   name: string;
   category: "International" | "Club";
-  icon: ComponentType<{ className?: string; strokeWidth?: number }>;
-  iconClassName: string;
+  logoSrc: string;
+  darkLogoSrc?: string;
+  logoClassName?: string;
+  logoScaleClassName?: string;
 };
 
 export const COMPETITIONS: Competition[] = [
-  { id: "premier-league", name: "Premier League", category: "Club", icon: Crown, iconClassName: "text-violet-300" },
-  { id: "champions-league", name: "Champions League", category: "Club", icon: Sparkles, iconClassName: "text-slate-100" },
-  { id: "la-liga", name: "La Liga", category: "Club", icon: Flame, iconClassName: "text-rose-500" },
-  { id: "fifa-world-cup", name: "FIFA World Cup 2026", category: "International", icon: Trophy, iconClassName: "text-amber-300" },
-  { id: "bundesliga", name: "Bundesliga", category: "Club", icon: Badge, iconClassName: "text-red-500" },
-  { id: "ligue-1", name: "Ligue 1", category: "Club", icon: CircleDotDashed, iconClassName: "text-lime-300" },
-  { id: "serie-a", name: "Serie A", category: "Club", icon: Shield, iconClassName: "text-sky-400" },
-  { id: "europa-league", name: "Europa League", category: "Club", icon: CircleDotDashed, iconClassName: "text-orange-500" },
+  { id: "premier-league", name: "Premier League", category: "Club", logoSrc: "/competition-logos/premier-league.png", logoClassName: "competition-logo--dark-outline", logoScaleClassName: "scale-[1.45]" },
+  { id: "champions-league", name: "Champions League", category: "Club", logoSrc: "/competition-logos/champions-league.png", logoClassName: "competition-logo--dark-outline" },
+  { id: "la-liga", name: "La Liga", category: "Club", logoSrc: "/competition-logos/la-liga.png" },
+  { id: "fifa-world-cup", name: "FIFA World Cup 2026", category: "International", logoSrc: "/competition-logos/fifa-world-cup-light.png", darkLogoSrc: "/competition-logos/fifa-world-cup-dark.png", logoScaleClassName: "scale-[1.65]" },
+  { id: "bundesliga", name: "Bundesliga", category: "Club", logoSrc: "/competition-logos/bundesliga.jpg" },
+  { id: "ligue-1", name: "Ligue 1", category: "Club", logoSrc: "/competition-logos/ligue-1-transparent.png", logoClassName: "competition-logo--dark-invert" },
+  { id: "serie-a", name: "Serie A", category: "Club", logoSrc: "/competition-logos/serie-a-transparent.png" },
+  { id: "europa-league", name: "Europa League", category: "Club", logoSrc: "/competition-logos/europa-league.png" },
 ];
+
+type CompetitionLogoProps = {
+  competition: Competition;
+  className: string;
+};
+
+export function CompetitionLogo({ competition, className }: CompetitionLogoProps) {
+  const logoClassName = `${className} object-contain ${competition.logoClassName ?? ""} ${competition.logoScaleClassName ?? ""}`;
+
+  return (
+    <>
+      <Image
+        src={competition.logoSrc}
+        alt=""
+        width={64}
+        height={64}
+        className={`${logoClassName} ${competition.darkLogoSrc ? "dark:hidden" : ""}`}
+      />
+      {competition.darkLogoSrc ? (
+        <Image
+          src={competition.darkLogoSrc}
+          alt=""
+          width={64}
+          height={64}
+          className={`${logoClassName} hidden dark:block`}
+        />
+      ) : null}
+    </>
+  );
+}
 
 type CompetitionSidebarProps = {
   isOpen: boolean;
@@ -73,7 +96,7 @@ export function CompetitionSidebar({
         id="competition-sidebar"
         aria-label="Football competitions"
         aria-hidden={!isOpen}
-        className={`fixed bottom-0 left-0 top-[93px] z-[110] w-[272px] border-r border-t border-white/10 bg-[#171719] text-white shadow-2xl transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        className={`fixed bottom-0 left-0 top-[93px] z-[110] w-[272px] border-r border-t border-border/60 bg-background text-foreground shadow-2xl transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -87,7 +110,7 @@ export function CompetitionSidebar({
               aria-controls="competition-sidebar"
               aria-expanded={isOpen}
               tabIndex={isOpen ? 0 : -1}
-              className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[0.06] text-white/75 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+              className="grid h-9 w-9 place-items-center rounded-xl border border-border/60 bg-muted/50 text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <ChevronLeft className="h-5 w-5" strokeWidth={2.2} />
             </button>
@@ -95,7 +118,6 @@ export function CompetitionSidebar({
 
           <nav aria-label="Select a competition" className="space-y-1">
             {COMPETITIONS.map((competition) => {
-              const Icon = competition.icon;
               const isActive = selectedCompetition === competition.id;
 
               return (
@@ -105,17 +127,15 @@ export function CompetitionSidebar({
                   onClick={() => onSelect(competition.id)}
                   aria-current={isActive ? "page" : undefined}
                   tabIndex={isOpen ? 0 : -1}
-                  className={`group flex min-h-12 w-full items-center gap-4 rounded-xl px-3 text-left text-[16px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
-                    isActive ? "bg-white/10 text-white" : "text-white/90 hover:bg-white/[0.06] hover:text-white"
+                  className={`group flex min-h-12 w-full items-center gap-4 rounded-xl px-3 text-left text-[16px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                    isActive ? "bg-muted text-foreground" : "text-foreground/90 hover:bg-muted/70 hover:text-foreground"
                   }`}
                 >
                   <span
-                    className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg transition-transform group-hover:scale-105 ${
-                      isActive ? "bg-white/10" : "bg-white/[0.04]"
-                    }`}
+                    className="grid h-7 w-7 shrink-0 place-items-center transition-transform group-hover:scale-105"
                     aria-hidden="true"
                   >
-                    <Icon className={`h-[19px] w-[19px] ${competition.iconClassName}`} strokeWidth={2.35} />
+                    <CompetitionLogo competition={competition} className="h-[19px] w-[19px]" />
                   </span>
                   <span>{competition.name}</span>
                 </button>
@@ -132,7 +152,7 @@ export function CompetitionSidebar({
         aria-controls="competition-sidebar"
         aria-expanded={isOpen}
         tabIndex={showOpenButton ? 0 : -1}
-        className={`fixed left-0 top-[93px] z-[109] flex h-9 items-center gap-0.5 rounded-r-lg border border-l-0 border-white/10 bg-[#171719] px-2 text-xs font-semibold text-white shadow-xl transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
+        className={`fixed left-0 top-[93px] z-[109] flex h-9 items-center gap-0.5 rounded-r-lg border border-l-0 border-border/60 bg-background px-2 text-xs font-semibold text-foreground shadow-xl transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
           showOpenButton
             ? "translate-x-0 opacity-100"
             : "pointer-events-none -translate-x-4 opacity-0"

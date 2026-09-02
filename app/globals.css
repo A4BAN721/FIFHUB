@@ -164,6 +164,16 @@
   }
 }
 
+.dark .competition-logo--dark-outline {
+  filter:
+    drop-shadow(0 0 1px rgb(255 255 255 / 1))
+    drop-shadow(0 0 1px rgb(255 255 255 / 1));
+}
+
+.dark .competition-logo--dark-invert {
+  filter: invert(1);
+}
+
 /* Flowing blob animations */
 @keyframes blob-float {
   0%, 100% {
