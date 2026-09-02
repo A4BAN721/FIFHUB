@@ -8,7 +8,7 @@ type Language = "en" | "bn";
 
 const translationOverrides: Record<Language, Record<string, string>> = {
   en: {
-    title: "FIFHUB",
+    title: "FUTHUB",
     subtitle: "World Cup 2026",
     allNationsSubtitle: "12 Groups, 48 Nations",
     groups: "Squads",

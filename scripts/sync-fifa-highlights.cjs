@@ -106,7 +106,7 @@ function getFifaFeedUrl() {
 
 async function loadFifaVideos(feedUrl) {
   const response = await fetch(feedUrl, {
-    headers: { "user-agent": "fifhub-fifa-highlights-sync/1.0" },
+    headers: { "user-agent": "futhub-fifa-highlights-sync/1.0" },
   });
 
   if (!response.ok) {
@@ -149,7 +149,7 @@ async function searchFifaHighlightVideosWithApi(fixture) {
   url.searchParams.set("channelId", OFFICIAL_FIFA_CHANNEL_ID);
 
   const response = await fetch(url, {
-    headers: { "user-agent": "fifhub-fifa-highlights-sync/1.0" },
+    headers: { "user-agent": "futhub-fifa-highlights-sync/1.0" },
   });
 
   if (!response.ok) {
@@ -194,7 +194,7 @@ async function searchFifaHighlightVideosFromPage(fixture) {
         signal: controller.signal,
         headers: {
           "accept-language": "en-US,en;q=0.9",
-          "user-agent": "Mozilla/5.0 (compatible; fifhub-fifa-highlights-sync/1.0)",
+          "user-agent": "Mozilla/5.0 (compatible; futhub-fifa-highlights-sync/1.0)",
         },
       });
     } catch {

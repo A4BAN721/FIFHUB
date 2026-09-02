@@ -11,7 +11,6 @@ import { TournamentStats } from "@/components/tournament-stats";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLanguage } from "@/components/language-provider";
 import {
-  COMPETITIONS,
   CompetitionSidebar,
   type CompetitionId,
 } from "@/components/competition-sidebar";
@@ -34,7 +33,11 @@ const tabSlideVariants = {
   }),
 };
 
-function WorldCupExperience() {
+type CompetitionExperienceProps = {
+  hasData: boolean;
+};
+
+function CompetitionExperience({ hasData }: CompetitionExperienceProps) {
   const { t } = useLanguage();
   const prefersReducedMotion = useReducedMotion();
   const [activeTab, setActiveTab] = useState("squads");
@@ -233,14 +236,14 @@ function WorldCupExperience() {
                   }
                   className="w-full outline-none"
                 >
-                  {activeTab === "squads" && (
+                  {hasData && activeTab === "squads" && (
                     <NationsGrid
                       initialSelectedNationId={selectedNationId}
                       initialSelectedPlayerName={selectedPlayerName}
                       onNationBack={handleNationBack}
                     />
                   )}
-                  {activeTab === "fixtures" && (
+                  {hasData && activeTab === "fixtures" && (
                     <MatchFixtures
                       initialSearch={fixturesView.search}
                       initialSelectedStage={fixturesView.selectedStage}
@@ -250,8 +253,8 @@ function WorldCupExperience() {
                       showFloatingControls={showFloatingFixturesChrome}
                     />
                   )}
-                  {activeTab === "table" && <GroupStandingsTable />}
-                  {activeTab === "stats" && <TournamentStats />}
+                  {hasData && activeTab === "table" && <GroupStandingsTable />}
+                  {hasData && activeTab === "stats" && <TournamentStats />}
                 </motion.div>
               </AnimatePresence>
             </div>
@@ -288,10 +291,6 @@ export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [selectedCompetition, setSelectedCompetition] = useState<CompetitionId | null>(null);
 
-  const selectedCompetitionName = COMPETITIONS.find(
-    (competition) => competition.id === selectedCompetition,
-  )?.name;
-
   const handleCompetitionSelect = (competition: CompetitionId) => {
     setSelectedCompetition(competition);
     window.scrollTo({ top: 0, left: 0, behavior: prefersReducedMotion ? "auto" : "smooth" });
@@ -316,19 +315,19 @@ export default function Home() {
         }`}
       >
         <AnimatePresence mode="wait" initial={false}>
-          {selectedCompetition === "fifa-world-cup" ? (
+          {selectedCompetition ? (
             <motion.div
-              key="fifa-world-cup"
+              key={selectedCompetition}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: prefersReducedMotion ? 0 : 0.24 }}
             >
-              <WorldCupExperience />
+              <CompetitionExperience hasData={selectedCompetition === "fifa-world-cup"} />
             </motion.div>
           ) : (
             <motion.main
-              key={selectedCompetition ?? "competition-picker"}
+              key="competition-picker"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -336,13 +335,8 @@ export default function Home() {
               className="grid min-h-[calc(100dvh-93px)] place-items-center bg-black px-6 text-center text-white"
             >
               <div>
-                {selectedCompetitionName && (
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.28em] text-white/40">
-                    {selectedCompetitionName}
-                  </p>
-                )}
                 <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                  {selectedCompetition ? "Coming soon..." : "Choose a competition"}
+                  Select a competition
                 </h1>
               </div>
             </motion.main>

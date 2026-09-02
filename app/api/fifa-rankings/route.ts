@@ -29,7 +29,7 @@ export async function GET() {
     const response = await fetch(FIFA_RANKINGS_API_URL, {
       next: { revalidate },
       headers: {
-        "User-Agent": "FIFHUB rankings updater",
+        "User-Agent": "FUTHUB rankings updater",
       },
     });
 
@@ -50,7 +50,7 @@ export async function GET() {
       const pageResponse = await fetch(FIFA_RANKINGS_URL, {
         next: { revalidate },
         headers: {
-          "User-Agent": "FIFHUB rankings updater",
+          "User-Agent": "FUTHUB rankings updater",
         },
       });
       if (!pageResponse.ok) throw new Error(`FIFA ranking page request failed with ${pageResponse.status}`);

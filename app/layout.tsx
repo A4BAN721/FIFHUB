@@ -5,11 +5,11 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { LanguageProvider } from '@/components/language-provider'
 
 export const metadata: Metadata = {
-  title: 'FIFHUB | Football Competitions',
+  title: 'FUTHUB | Football Competitions',
   description:
-    'Follow the FIFA World Cup 2026 with FIFHUB: squads, fixtures, live scores, standings, player details, groups, knockout brackets, and English or Bangla support.',
+    'Follow the FIFA World Cup 2026 with FUTHUB: squads, fixtures, live scores, standings, player details, groups, knockout brackets, and English or Bangla support.',
   keywords: [
-    'FIFHUB',
+    'FUTHUB',
     'FIFA World Cup 2026',
     'World Cup 2026',
     'Football',
@@ -22,23 +22,23 @@ export const metadata: Metadata = {
     'Bangla football',
   ],
   openGraph: {
-    title: 'FIFHUB | FIFA World Cup 2026',
+    title: 'FUTHUB | FIFA World Cup 2026',
     description:
       'The must-have FIFA World Cup 2026 companion for squads, fixtures, live scores, standings, player details, groups, knockout brackets, and bilingual coverage.',
-    siteName: 'FIFHUB',
+    siteName: 'FUTHUB',
     type: 'website',
     images: [
       {
         url: '/fithub-social-preview.png',
         width: 204,
         height: 84,
-        alt: 'FIFHUB World Cup 2026',
+        alt: 'FUTHUB World Cup 2026',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'FIFHUB | FIFA World Cup 2026',
+    title: 'FUTHUB | FIFA World Cup 2026',
     description:
       'Track FIFA World Cup 2026 squads, fixtures, live scores, standings, player details, groups, and knockout brackets in one place.',
     images: ['/fithub-social-preview.png'],

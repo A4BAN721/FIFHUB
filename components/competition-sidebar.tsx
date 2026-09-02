@@ -92,7 +92,7 @@ export function CompetitionSidebar({
             </button>
           </div>
 
-          <nav aria-label="Choose a competition" className="space-y-1">
+          <nav aria-label="Select a competition" className="space-y-1">
             {COMPETITIONS.map((competition) => {
               const Icon = competition.icon;
               const isActive = selectedCompetition === competition.id;

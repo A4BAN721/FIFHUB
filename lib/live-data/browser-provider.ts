@@ -52,7 +52,7 @@ function fetchNoStore(url: string) {
 }
 
 function isLiveDataDebugEnabled() {
-  return typeof window !== "undefined" && window.localStorage.getItem("fifhub:live-debug") === "1";
+  return typeof window !== "undefined" && window.localStorage.getItem("futhub:live-debug") === "1";
 }
 
 type ScoreboardMatchPayload = {
